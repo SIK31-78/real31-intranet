@@ -8,6 +8,9 @@
 // ignoree et la tache planifiee la reprend. Colonne absente : chaque lecture est relue sans le
 // filtre et ouvrirRangement rend null (l'appelant journalise apres le deplacement, comme
 // avant). Un doublon actif (index unique partiel, 23505) devient DejaRangeErreur.
+//
+// Verrou de la tache planifiee par boite (REA-420, intranet_tri_verrou.sql) : RPC
+// prendre_verrou_tri / liberer_verrou_tri. Fonction ou table absente : null, pas de verrou.
 
 import {
   DELAI_RANGEMENT_EN_COURS_MS,
@@ -59,6 +62,11 @@ const COLS =
 
 function tableAbsente(error: { code?: string } | null): boolean {
   return error?.code === "42P01" || error?.code === "PGRST205";
+}
+
+/** RPC inconnue de PostgREST (PGRST202) ou de Postgres (42883) : SQL pas encore passe. */
+function fonctionAbsente(error: { code?: string } | null): boolean {
+  return error?.code === "PGRST202" || error?.code === "42883";
 }
 
 // Colonne absente (intranet_tri_journal_conversation.sql, _etat.sql pas encore passes) : en
@@ -517,5 +525,19 @@ export class SupabaseTriRepository implements TriRepository {
     if (raison && colonneAbsente(error, "annule_raison")) ({ data, error } = await marquer(false));
     if (error) throw erreur("annulation", error);
     return ((data as unknown[] | null) ?? []).length > 0;
+  }
+
+  async prendreVerrou(boite: string, par: string, dureeS: number): Promise<boolean | null> {
+    const { data, error } = await createSupabasePublicClient().rpc("prendre_verrou_tri", { p_boite: boite, p_par: par, p_duree_s: dureeS });
+    if (error) {
+      if (fonctionAbsente(error) || tableAbsente(error)) return null;
+      throw new Error(`Tri des e-mails (verrou) : ${error.message}`);
+    }
+    return data === true;
+  }
+
+  async libererVerrou(boite: string, par: string): Promise<void> {
+    const { error } = await createSupabasePublicClient().rpc("liberer_verrou_tri", { p_boite: boite, p_par: par });
+    if (error && !fonctionAbsente(error) && !tableAbsente(error)) throw new Error(`Tri des e-mails (verrou) : ${error.message}`);
   }
 }

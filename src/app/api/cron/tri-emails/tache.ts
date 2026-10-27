@@ -31,11 +31,21 @@
 // reconciliation, les lignes de journal restees « en_cours » plus de 2 min (fonction coupee ou
 // Supabase en panne entre le deplacement et la confirmation) sont tranchees d'apres la position
 // du mail (reprendre-en-cours.ts) : confirmees, annulees ou signalees. Bilan `reprises`.
+//
+// VERROU PAR BOITE (REA-420, 27/10/2026) : le passage prend le verrou de sa boite pour 55 s
+// (intranet_tri_verrou.sql) avant toute etape, et le rend a la fin. Deja pris (un passage
+// precedent qui traine, un declenchement a la main) : 200 `{ verrou: "occupe" }`, rien n'est
+// fait. Un passage mort sans le rendre le perd au bout de 55 s. Les gestes de l'ecran (ranger,
+// supprimer, annuler) ne le prennent PAS : un clic ne doit pas attendre la fin d'un passage, et
+// ils sont deja proteges, un rangement par sa ligne « en_cours » et l'index unique des
+// rangements actifs, une annulation par marquerAnnule conditionnel (seul le premier passe).
+// Verrou indisponible (SQL pas passe, RPC absente) : la tache tourne sans, comme avant,
+// signale une fois par instance.
 
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { boitesTri, type BoiteTriConfig } from "@/lib/domain/mail-gate";
 import { signalerException } from "@/lib/observabilite";
-import { depsParDefaut } from "@/lib/services/tri-emails/ranger";
+import { depsParDefaut, type DepsRangement } from "@/lib/services/tri-emails/ranger";
 import { reconcilierRangements, type BilanReconciliation, type DeltaReconciliation } from "@/lib/services/tri-emails/reconcilier";
 import {
   BUDGET_SYNCHRO_CRON_MS,
@@ -64,6 +74,10 @@ function autorise(req: Request): boolean {
 }
 
 type Etape<B> = B | { erreur: string };
+
+/** Duree du verrou de la boite : le passage tient dans les 60 s de la fonction. */
+const DUREE_VERROU_S = 55;
+let verrouAbsentSignale = false;
 
 /** Le budget habituel de l'automatique (ranger-auto.ts), et le temps total qu'on s'accorde avant lui. */
 const BUDGET_AUTOMATIQUE_MS = 25_000;
@@ -94,6 +108,33 @@ export async function executerTachePlanifiee(req: Request, demandee: string | nu
   const boite = config.boite;
   const deps = depsParDefaut(config);
   const debut = Date.now();
+
+  const par = `cron:${randomUUID()}`;
+  const verrou = await deps.repo.prendreVerrou(boite, par, DUREE_VERROU_S).catch((e: unknown) => {
+    // Supabase en panne : les etapes echoueront ou non d'elles-memes ; le verrou ne bloque pas.
+    console.error(`[cron:tri-emails] ${boite} verrou illisible : ${messageDe(e)}`);
+    return null;
+  });
+  if (verrou === false) {
+    console.log(`[cron:tri-emails] ${boite} verrou occupé : un autre passage tourne, rien à faire.`);
+    return Response.json({ boite, verrou: "occupe" });
+  }
+  if (verrou === null && !verrouAbsentSignale) {
+    verrouAbsentSignale = true;
+    console.warn(`[cron:tri-emails] verrou par boîte indisponible (supabase/sql/intranet_tri_verrou.sql pas passé ?) : passage sans verrou.`);
+  }
+  try {
+    return await passage(config, deps, debut);
+  } finally {
+    if (verrou) {
+      await deps.repo.libererVerrou(boite, par).catch((e: unknown) => console.error(`[cron:tri-emails] ${boite} verrou non rendu : ${messageDe(e)}`));
+    }
+  }
+}
+
+/** Les etapes du passage, verrou pris. */
+async function passage(config: BoiteTriConfig, deps: DepsRangement, debut: number): Promise<Response> {
+  const boite = config.boite;
 
   let lecture: Etape<BilanLecture>;
   let delta: DeltaReconciliation | undefined;

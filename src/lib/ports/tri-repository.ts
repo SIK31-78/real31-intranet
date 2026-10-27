@@ -106,4 +106,12 @@ export interface TriRepository {
    * meme (par « systeme ») ; perdue sans la colonne `annule_raison`.
    */
   marquerAnnule(id: string, par: string, raison?: string): Promise<boolean>;
+  /**
+   * Verrou de la tache planifiee d'une boite (REA-420) : true = pris par `par` pour `dureeS`
+   * secondes (libre, expire, ou deja a lui) ; false = un autre passage le tient ; null = verrou
+   * indisponible (intranet_tri_verrou.sql pas encore passe) : la tache tourne sans, comme avant.
+   */
+  prendreVerrou(boite: string, par: string, dureeS: number): Promise<boolean | null>;
+  /** Rend le verrou, s'il est encore a `par`. */
+  libererVerrou(boite: string, par: string): Promise<void>;
 }

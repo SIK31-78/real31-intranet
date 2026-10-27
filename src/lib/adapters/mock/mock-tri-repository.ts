@@ -125,6 +125,16 @@ export class MockTriRepository implements TriRepository {
     const cles = new Set(expediteurs.map((e) => e.trim().toLowerCase()));
     return this.journal.filter((e) => e.boite === boite && e.annuleLe === null && e.faitLe >= depuisISO && cles.has(e.expediteur.trim().toLowerCase()) && active(e));
   }
+  private verrous = new Map<string, { par: string; prisLe: number }>();
+  async prendreVerrou(boite: string, par: string, dureeS: number): Promise<boolean | null> {
+    const v = this.verrous.get(boite);
+    if (v && v.par !== par && Date.now() - v.prisLe < dureeS * 1000) return false;
+    this.verrous.set(boite, { par, prisLe: Date.now() });
+    return true;
+  }
+  async libererVerrou(boite: string, par: string) {
+    if (this.verrous.get(boite)?.par === par) this.verrous.delete(boite);
+  }
   async marquerAnnule(id: string): Promise<boolean> {
     const e = this.journal.find((x) => x.id === id);
     if (!e || e.annuleLe) return false;
