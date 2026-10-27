@@ -146,7 +146,8 @@ export async function rangerMail(
   if (!lu) throw new Error("Ce mail n'est plus dans la boîte de réception : quelqu'un l'a sans doute déjà rangé.");
   // En reel, la boite fait foi ; en simulation, on garde ce que la file a affiche.
   const internetMessageId = lu.internetMessageId || d.internetMessageId;
-  if ((await deps.repo.dejaRanges(boite, [internetMessageId])).size > 0) {
+  // En reel, une ligne simulee ne compte pas : elle n'a jamais deplace le mail (27/10/2026).
+  if ((await deps.repo.dejaRanges(boite, [internetMessageId], { reellesSeulement: !deps.simulation })).size > 0) {
     throw new Error("Ce mail a déjà été rangé.");
   }
 
@@ -204,7 +205,7 @@ export async function supprimerMail(
   const lu = await deps.rangement.lireEnReception(boite, d.messageId);
   if (!lu) throw new Error("Ce mail n'est plus dans la boîte de réception : quelqu'un l'a sans doute déjà rangé.");
   const internetMessageId = lu.internetMessageId || d.internetMessageId;
-  if ((await deps.repo.dejaRanges(boite, [internetMessageId])).size > 0) {
+  if ((await deps.repo.dejaRanges(boite, [internetMessageId], { reellesSeulement: !deps.simulation })).size > 0) {
     throw new Error("Ce mail a déjà été rangé.");
   }
 

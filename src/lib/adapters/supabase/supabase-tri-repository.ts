@@ -3,7 +3,7 @@
 // Tables absentes (SQL pas encore passe) : lectures vides, ecritures en erreur claire.
 
 import type { Binome, BinomesTri, DossierConnu, EntreeJournalTri, SignalTri } from "@/lib/domain/tri-emails";
-import type { HistoriqueExpediteur, NouvelleEntreeJournal, TriRepository } from "@/lib/ports/tri-repository";
+import type { HistoriqueExpediteur, NouvelleEntreeJournal, OptionsDejaRange, TriRepository } from "@/lib/ports/tri-repository";
 import { createSupabasePublicClient } from "./public-client";
 
 const SQL = "supabase/sql/intranet_tri_emails.sql puis intranet_tri_binomes_par_copro.sql";
@@ -230,14 +230,17 @@ export class SupabaseTriRepository implements TriRepository {
     return ((data ?? []) as unknown as RowJournal[]).map(versDomaine);
   }
 
-  async dejaRanges(boite: string, ids: string[]) {
+  async dejaRanges(boite: string, ids: string[], opts: OptionsDejaRange) {
     if (ids.length === 0) return new Set<string>();
-    const { data, error } = await createSupabasePublicClient()
+    let requete = createSupabasePublicClient()
       .from("intranet_tri_journal")
       .select("internet_message_id")
       .eq("boite", boite)
       .is("annule_le", null)
       .in("internet_message_id", ids);
+    // En reel, une ligne simulee (dev local, meme base) ne cache pas le mail (27/10/2026).
+    if (opts.reellesSeulement) requete = requete.eq("simulation", false);
+    const { data, error } = await requete;
     if (error) {
       if (tableAbsente(error)) return new Set<string>();
       throw erreur("journal", error);
@@ -245,15 +248,17 @@ export class SupabaseTriRepository implements TriRepository {
     return new Set(((data ?? []) as { internet_message_id: string }[]).map((r) => r.internet_message_id));
   }
 
-  async dejaJournalises(boite: string, ids: string[]) {
+  async dejaJournalises(boite: string, ids: string[], opts: OptionsDejaRange) {
     if (ids.length === 0) return new Set<string>();
     // Pas de filtre sur annule_le : un rangement annule compte (le mail a ete remis dans la
     // file par quelqu'un). Table absente : erreur, le rangement automatique s'abstient.
-    const { data, error } = await createSupabasePublicClient()
+    let requete = createSupabasePublicClient()
       .from("intranet_tri_journal")
       .select("internet_message_id")
       .eq("boite", boite)
       .in("internet_message_id", ids);
+    if (opts.reellesSeulement) requete = requete.eq("simulation", false);
+    const { data, error } = await requete;
     if (error) throw erreur("journal", error);
     return new Set(((data ?? []) as { internet_message_id: string }[]).map((r) => r.internet_message_id));
   }

@@ -2,7 +2,7 @@
 // redemarrage. Aucune donnee reelle.
 
 import type { Binome, BinomesTri, DossierConnu, EntreeJournalTri } from "@/lib/domain/tri-emails";
-import type { NouvelleEntreeJournal, TriRepository } from "@/lib/ports/tri-repository";
+import type { NouvelleEntreeJournal, OptionsDejaRange, TriRepository } from "@/lib/ports/tri-repository";
 
 export class MockTriRepository implements TriRepository {
   private journal: EntreeJournalTri[] = [];
@@ -59,12 +59,18 @@ export class MockTriRepository implements TriRepository {
   async journalDepuis(boite: string, depuisISO: string) {
     return this.journal.filter((e) => e.boite === boite && e.annuleLe === null && e.faitLe >= depuisISO);
   }
-  async dejaJournalises(boite: string, ids: string[]) {
-    return new Set(this.journal.filter((e) => e.boite === boite && ids.includes(e.internetMessageId)).map((e) => e.internetMessageId));
-  }
-  async dejaRanges(boite: string, ids: string[]) {
+  async dejaJournalises(boite: string, ids: string[], opts: OptionsDejaRange) {
     return new Set(
-      this.journal.filter((e) => e.boite === boite && e.annuleLe === null && ids.includes(e.internetMessageId)).map((e) => e.internetMessageId),
+      this.journal
+        .filter((e) => e.boite === boite && ids.includes(e.internetMessageId) && !(opts.reellesSeulement && e.simulation))
+        .map((e) => e.internetMessageId),
+    );
+  }
+  async dejaRanges(boite: string, ids: string[], opts: OptionsDejaRange) {
+    return new Set(
+      this.journal
+        .filter((e) => e.boite === boite && e.annuleLe === null && ids.includes(e.internetMessageId) && !(opts.reellesSeulement && e.simulation))
+        .map((e) => e.internetMessageId),
     );
   }
   async coprosDesConversations(boite: string, ids: string[]) {

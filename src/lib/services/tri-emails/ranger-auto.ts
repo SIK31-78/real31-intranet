@@ -169,7 +169,9 @@ export async function rangerAutomatiquement(
     referentiel,
     initiales,
     deps.repo.binomes(),
-    deps.repo.dejaJournalises(boite, lus.map((m) => m.internetMessageId)),
+    // En reel, une ligne simulee (dev local sur la meme base) n'est pas un passage par le
+    // tri : le mail n'a jamais bouge, l'automatique le range (27/10/2026).
+    deps.repo.dejaJournalises(boite, lus.map((m) => m.internetMessageId), { reellesSeulement: !deps.simulation }),
     conversations,
   ]);
   // Les publicites apprises du journal : corbeille proposee, donc jamais rangees seules.

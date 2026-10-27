@@ -75,7 +75,7 @@ describe("reconcilierRangements", () => {
     expect((await reconcilierRangements(deps)).remisEnFile).toBe(1);
     expect(appels).toEqual(["m1-bis + -S0297"]);
     expect((await repo.entree(id))?.annuleLe).not.toBeNull();
-    expect((await repo.dejaRanges(BOITE, ["<m1>"])).size).toBe(0);
+    expect((await repo.dejaRanges(BOITE, ["<m1>"], { reellesSeulement: true })).size).toBe(0);
   });
 
   it("glisse vers un binome a copro unique : corrige l'etiquette", async () => {

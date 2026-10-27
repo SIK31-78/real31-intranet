@@ -8,6 +8,18 @@ export type NouvelleEntreeJournal = Omit<EntreeJournalTri, "id" | "faitLe" | "an
 /** Ce que l'apprentissage des publicites lit d'une ligne de journal. */
 export type HistoriqueExpediteur = Pick<EntreeJournalTri, "expediteur" | "objet" | "dossierCle" | "coproReference" | "copros">;
 
+/**
+ * Quelles lignes comptent pour dire qu'un mail est « deja range » ou « deja passe ».
+ * Une ligne simulee n'a JAMAIS deplace le mail : quand l'ecriture est reelle, elle ne doit
+ * ni cacher le mail de la file ni retenir le rangement automatique (mesure du 27/10/2026 :
+ * 44 des 100 mails recents de syndic4 caches par des lignes simulees d'une session de dev
+ * locale sur la meme base). En simulation (dev local), elles comptent comme avant.
+ */
+export interface OptionsDejaRange {
+  /** true = ignorer les lignes `simulation = true`. */
+  reellesSeulement: boolean;
+}
+
 export interface TriRepository {
   /** Binomes tenus dans l'intranet et affectations des copros. */
   binomes(): Promise<BinomesTri>;
@@ -29,13 +41,13 @@ export interface TriRepository {
   /** Les rangements non annules depuis cette date, les plus recents d'abord. */
   journalDepuis(boite: string, depuisISO: string): Promise<EntreeJournalTri[]>;
   /** Parmi ces internetMessageId, ceux qui ont un rangement non annule. */
-  dejaRanges(boite: string, internetMessageIds: string[]): Promise<Set<string>>;
+  dejaRanges(boite: string, internetMessageIds: string[], opts: OptionsDejaRange): Promise<Set<string>>;
   /**
    * Parmi ces internetMessageId, ceux qui ont AU MOINS une ligne de journal, annulee ou non.
    * Le rangement automatique ne touche jamais un mail deja passe par le tri : range puis
    * remis dans la file, il attend la decision d'une personne.
    */
-  dejaJournalises(boite: string, internetMessageIds: string[]): Promise<Set<string>>;
+  dejaJournalises(boite: string, internetMessageIds: string[], opts: OptionsDejaRange): Promise<Set<string>>;
   /**
    * Pour chacune de ces conversations Graph, la copro du dernier rangement non annule (cle =
    * conversationId). Colonne absente (SQL pas encore passe) : vide.

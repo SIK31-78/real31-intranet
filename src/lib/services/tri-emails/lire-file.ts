@@ -192,7 +192,12 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   const journal = journalRes.status === "fulfilled" ? journalRes.value : [];
   if (journalRes.status === "rejected") erreurs.push("Le journal du tri est indisponible.");
   const tous = mailsRes.status === "fulfilled" ? mailsRes.value : [];
-  const ranges = await repo.dejaRanges(boite, tous.map((m) => m.internetMessageId)).catch(() => new Set<string>());
+  // En reel, une ligne simulee (session de dev sur la meme base) ne cache pas le mail : il
+  // n'a jamais bouge, il est bien dans la boite (27/10/2026). En simulation, elle le retire
+  // de la file comme avant.
+  const ranges = await repo
+    .dejaRanges(boite, tous.map((m) => m.internetMessageId), { reellesSeulement: !rangementSimule(boite) })
+    .catch(() => new Set<string>());
   const bruts = tous.filter((m) => !ranges.has(m.internetMessageId));
   // Historique du tri, MEME CONVERSATION seulement : la copro ou un mail du fil a deja ete
   // range. Journal sans la colonne (SQL pas encore passe) ou illisible : sans historique.

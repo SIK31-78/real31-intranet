@@ -2058,6 +2058,10 @@ Bilan du 21 au 26/10 : 63 rangements automatiques, 0 annulé ; 81 manuels. Déci
 
 L'écran `/tri-emails`, son entrée dans la barre latérale et ses actions passent du pilote super-admin à **toute l'agence de la boîte** (`deLAgenceDuTri` : code d'agence du collaborateur = `MAIL_TRI_AGENCE`, HLS pour syndic4), plus les super-admins. L'onglet Binômes (qui reçoit quoi) reste au super-admin, actions comprises.
 
+Corrections du même jour, après audit :
+
+- **Une ligne simulée ne compte plus en réel.** Mesure sur syndic4 : 44 des 100 mails récents de la réception étaient cachés de l'écran et ignorés par l'automatique à cause de lignes `simulation = true` non annulées, écrites par une session de dev locale (même base Supabase, `MAIL_TRI_ECRITURE` coupé). Une ligne simulée n'a jamais déplacé le mail : quand l'écriture est réelle, `dejaRanges`, `dejaJournalises` et le contrôle « déjà rangé » de `rangerMail` ignorent les lignes simulées (option `{ reellesSeulement }` du port `TriRepository`). En simulation, rien ne change.
+
 ### Liens
 
 ADR-001 (hexagonal), ADR-027 (Graph app-only + Access Policy), ADR-041 (délégations : le remplaçant favorise le dossier du titulaire), `docs/etude-mail-central.md`, maquette https://claude.ai/artifact/93Z4r2TGnimwebjkCud9nr.

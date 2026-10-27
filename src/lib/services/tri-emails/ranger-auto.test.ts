@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AUCUN_BINOME, type CoproTri, type EntreeJournalTri, type ReferentielTri } from "@/lib/domain/tri-emails";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import type { PositionMail, RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
-import type { NouvelleEntreeJournal, TriRepository } from "@/lib/ports/tri-repository";
+import type { NouvelleEntreeJournal, OptionsDejaRange, TriRepository } from "@/lib/ports/tri-repository";
 import { annulerRangement, type DepsRangement } from "./ranger";
 import { rangerAutomatiquement } from "./ranger-auto";
 
@@ -60,10 +60,18 @@ function journalEnMemoire() {
     },
     entree: async (id: string) => lignes.find((e) => e.id === id) ?? null,
     journalDepuis: async (boite: string) => lignes.filter((e) => e.boite === boite && !e.annuleLe),
-    dejaRanges: async (boite: string, ids: string[]) =>
-      new Set(lignes.filter((e) => e.boite === boite && !e.annuleLe && ids.includes(e.internetMessageId)).map((e) => e.internetMessageId)),
-    dejaJournalises: async (boite: string, ids: string[]) =>
-      new Set(lignes.filter((e) => e.boite === boite && ids.includes(e.internetMessageId)).map((e) => e.internetMessageId)),
+    dejaRanges: async (boite: string, ids: string[], o: OptionsDejaRange) =>
+      new Set(
+        lignes
+          .filter((e) => e.boite === boite && !e.annuleLe && ids.includes(e.internetMessageId) && !(o.reellesSeulement && e.simulation))
+          .map((e) => e.internetMessageId),
+      ),
+    dejaJournalises: async (boite: string, ids: string[], o: OptionsDejaRange) =>
+      new Set(
+        lignes
+          .filter((e) => e.boite === boite && ids.includes(e.internetMessageId) && !(o.reellesSeulement && e.simulation))
+          .map((e) => e.internetMessageId),
+      ),
     historiqueExpediteurs: async (boite: string, expediteurs: string[]) => {
       const cles = new Set(expediteurs.map((e) => e.toLowerCase()));
       return lignes.filter((e) => e.boite === boite && !e.annuleLe && cles.has(e.expediteur.toLowerCase()));
@@ -229,7 +237,7 @@ describe("rangerAutomatiquement (cron, piste sûre de syndic4)", () => {
     const [e] = await repo.journalDepuis(SYNDIC4);
     await annulerRangement(e!.id, "mylene@real31.fr", deps);
     expect(enReception().map((x) => x.internetMessageId)).toEqual([m.internetMessageId]);
-    expect(await repo.dejaRanges(SYNDIC4, [m.internetMessageId])).toEqual(new Set());
+    expect(await repo.dejaRanges(SYNDIC4, [m.internetMessageId], { reellesSeulement: true })).toEqual(new Set());
 
     const bilan = await passer();
     expect(bilan.ranges).toBe(0);
@@ -248,6 +256,25 @@ describe("rangerAutomatiquement (cron, piste sûre de syndic4)", () => {
     const journal = await repo.journalDepuis(SYNDIC4);
     expect(journal).toHaveLength(1);
     expect(journal[0]!.simulation).toBe(true);
+  });
+
+  it("en réel, une ligne simulée (session de dev sur la même base) ne retient pas le rangement", async () => {
+    // Mesure du 27/10/2026 : 44 mails de syndic4 ignores par l'automatique a cause de lignes
+    // simulees non annulees. Une ligne simulee n'a jamais deplace le mail.
+    const m = brut({ subject: "S0297 - fuite" });
+    const { passer, repo, enReception } = monter([m]);
+    await repo.journaliser({
+      boite: SYNDIC4, internetMessageId: m.internetMessageId, messageId: m.id, expediteur: m.from, objet: m.subject,
+      coproReference: "S0297", copros: ["S0297"], dossierNom: "GG", dossierCle: "binome:gina.gestion@real31.fr",
+      signal: "sure", candidats: ["S0297"], simulation: true, par: "sekou@real31.fr",
+    });
+    const bilan = await passer();
+    expect(bilan.ranges).toBe(1);
+    expect(bilan.refus).toEqual({});
+    expect(enReception()).toHaveLength(0);
+    const reelles = (await repo.journalDepuis(SYNDIC4)).filter((e) => !e.simulation);
+    expect(reelles).toHaveLength(1);
+    expect(reelles[0]).toMatchObject({ internetMessageId: m.internetMessageId, par: "automatique", simulation: false });
   });
 
   it("borne le nombre de rangements par passage ; le reste attend le suivant", async () => {
