@@ -21,13 +21,16 @@ import {
   rangeableAutomatiquement,
   rangeableParPiecesJointes,
   signalDuRangement,
+  type BinomesTri,
   type CoproTri,
   type RefusAutomatique,
   type SignalTri,
 } from "@/lib/domain/tri-emails";
 import { debutTri, triAutomatiqueActif } from "@/lib/domain/mail-gate";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
+import type { TriRepository } from "@/lib/ports/tri-repository";
 import { getIngestionTri } from "@/lib/adapters/router";
+import { signalerException } from "@/lib/observabilite";
 import { coprosDeTousLesPdf } from "./copro-pieces-jointes";
 import { mailDeLaFile, publicitesDeLaFile, type MailDeLaFile } from "./lire-file";
 import { depsParDefaut, rangerMail, type DepsRangement } from "./ranger";
@@ -71,6 +74,21 @@ function retenirSansSuite(memoire: Map<string, number>, id: string, t: number): 
   const plusAncienne = memoire.keys().next();
   if (memoire.size >= PJ_MEMOIRE_MAX && !plusAncienne.done) memoire.delete(plusAncienne.value);
   memoire.set(id, t);
+}
+
+/**
+ * Le depot du passage, avec les binomes lus UNE fois : rangerMail les relit a chaque mail
+ * sinon (resoudreDossier). Un Proxy et pas `{ ...repo, binomes }` : l'adaptateur Supabase est
+ * une classe, ses methodes sont sur le prototype et un spread les perdrait (27/10/2026).
+ */
+function avecBinomesFiges(repo: TriRepository, binomes: BinomesTri): TriRepository {
+  return new Proxy(repo, {
+    get(cible, prop, recepteur) {
+      if (prop === "binomes") return async () => binomes;
+      const v = Reflect.get(cible, prop, recepteur) as unknown;
+      return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(cible) : v;
+    },
+  });
 }
 
 class DelaiDepasse extends Error {}
@@ -163,6 +181,7 @@ export async function rangerAutomatiquement(
     .coprosDesConversations(boite, lus.map((m) => m.conversationId).filter((c): c is string => Boolean(c)))
     .catch((e: unknown) => {
       console.error("[tri-emails:auto] historique des conversations :", e instanceof Error ? e.message : e);
+      signalerException(e, { source: "cron-tri-emails", detail: { etape: "conversations" } });
       return new Map<string, string>();
     });
   const [ref, initialesParEmail, binomes, dejaPasses, coprosConversations] = await Promise.all([
@@ -176,7 +195,12 @@ export async function rangerAutomatiquement(
   ]);
   // Les publicites apprises du journal : corbeille proposee, donc jamais rangees seules.
   const publicites = await publicitesDeLaFile(deps.repo, boite, lus, ref);
-  const depsPassage: DepsRangement = { ...deps, referentiel: { charger: () => referentiel }, initialesParEmail: () => initiales };
+  const depsPassage: DepsRangement = {
+    ...deps,
+    referentiel: { charger: () => referentiel },
+    initialesParEmail: () => initiales,
+    repo: avecBinomesFiges(deps.repo, binomes),
+  };
 
   // Les plus anciens d'abord : un report ne retarde que les derniers arrives.
   const aRanger: { m: RawMail; reference: string; signal: { nature: SignalTri; candidats: string[] } }[] = [];
@@ -215,6 +239,7 @@ export async function rangerAutomatiquement(
       // Range entre-temps a la main, copro sortie d'ESTALE... : le mail reste dans la file.
       bilan.echecs++;
       console.error(`[tri-emails:auto] ${m.internetMessageId} : ${e instanceof Error ? e.message : String(e)}`);
+      signalerException(e, { source: "cron-tri-emails", detail: { etape: "rangement", reference } });
       return false;
     }
   };

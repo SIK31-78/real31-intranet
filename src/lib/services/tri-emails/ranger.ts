@@ -119,7 +119,7 @@ export async function resoudreDossier(
 }
 
 /** Pose l'etiquette sans faire echouer le rangement : le mail est deja au bon endroit. */
-async function etiqueterSansBloquer(
+export async function etiqueterSansBloquer(
   deps: DepsRangement,
   boite: string,
   messageId: string,

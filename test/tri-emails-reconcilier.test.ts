@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MockTriRepository } from "@/lib/adapters/mock/mock-tri-repository";
 import type { PositionMail, RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 import type { ReferentielTri } from "@/lib/domain/tri-emails";
@@ -66,7 +66,7 @@ const ici = (folderId: string, enReception = false): PositionMail => ({ messageI
 describe("reconcilierRangements", () => {
   it("laisse en paix un mail reste a sa place", async () => {
     const { deps, appels } = await monter(ici("f-sc"));
-    expect(await reconcilierRangements(deps)).toEqual({ verifies: 1, remisEnFile: 0, deplaces: 0 });
+    expect(await reconcilierRangements(deps)).toEqual({ verifies: 1, remisEnFile: 0, deplaces: 0, echecs: 0 });
     expect(appels).toEqual([]);
   });
 
@@ -101,11 +101,52 @@ describe("reconcilierRangements", () => {
     expect(await repo.journalDepuis(BOITE, "2000-01-01")).toHaveLength(1);
   });
 
+  it("une etiquette en echec ne laisse pas le mail orphelin : la ligne « glisse dans Outlook » est ecrite", async () => {
+    const { deps, repo } = await monter(ici("f-or"));
+    deps.rangement.etiqueter = async () => {
+      throw new Error("Graph : 503");
+    };
+    const silence = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await reconcilierRangements(deps)).toMatchObject({ deplaces: 1, echecs: 0 });
+    const actives = await repo.journalDepuis(BOITE, "2000-01-01");
+    expect(actives).toHaveLength(1);
+    expect(actives[0]).toMatchObject({ coproReference: "S0305", dossierNom: "OR", par: "outlook" });
+    silence.mockRestore();
+  });
+
+  it("un mail dont la relecture echoue est compte en echec, les autres sont traites", async () => {
+    const { deps, repo } = await monter(ici("f-or"));
+    await repo.journaliser({
+      boite: BOITE, internetMessageId: "<m2>", messageId: "m2", expediteur: "y@exemple.fr", objet: "Deux", coproReference: "S0297",
+      copros: ["S0297"], dossierNom: "SC", dossierCle: "binome:sandy@real31.fr", signal: "sure", candidats: ["S0297"], simulation: false, par: "sekou",
+    });
+    deps.rangement.localiser = async (_b, imid) => {
+      if (imid === "<m2>") throw new Error("Graph : 429");
+      return ici("f-or");
+    };
+    const silence = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await reconcilierRangements(deps)).toMatchObject({ verifies: 2, deplaces: 1, echecs: 1 });
+    silence.mockRestore();
+  });
+
+  it("s'arrete au budget de temps : les lots suivants attendent le prochain passage", async () => {
+    const { deps, repo } = await monter(ici("f-sc"));
+    for (const n of [2, 3, 4, 5, 6]) {
+      await repo.journaliser({
+        boite: BOITE, internetMessageId: `<m${n}>`, messageId: `m${n}`, expediteur: "y@exemple.fr", objet: "N", coproReference: "S0297",
+        copros: ["S0297"], dossierNom: "SC", dossierCle: "binome:sandy@real31.fr", signal: "sure", candidats: ["S0297"], simulation: false, par: "sekou",
+      });
+    }
+    // Chaque lecture de l'horloge avance de 10 s : le budget de 15 s laisse passer un lot de 4.
+    let t = 0;
+    expect((await reconcilierRangements(deps, () => (t += 10_000))).verifies).toBe(4);
+  });
+
   it("ne touche a rien si le mail est introuvable ou en simulation", async () => {
     const perdu = await monter(null);
     await reconcilierRangements(perdu.deps);
     expect(perdu.appels).toEqual([]);
     const simule = await monter(ici("inbox", true));
-    expect(await reconcilierRangements({ ...simule.deps, simulation: true })).toEqual({ verifies: 0, remisEnFile: 0, deplaces: 0 });
+    expect(await reconcilierRangements({ ...simule.deps, simulation: true })).toEqual({ verifies: 0, remisEnFile: 0, deplaces: 0, echecs: 0 });
   });
 });
