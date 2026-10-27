@@ -37,27 +37,37 @@ function versStatut(s: string): StatutTraitement {
   return s === "classe" || s === "repondu" ? s : "nouveau";
 }
 
+// Un `.in("email_id", …)` par lot de 100 : les internetMessageId font ~80 caracteres et
+// PostgREST les passe dans l'URL.
+const LOT = 100;
+
 export class SupabaseMesEmailsEtatRepository implements MesEmailsEtatRepository {
-  async getEtats(gestionnaireId: string): Promise<EtatMail[]> {
+  async getEtats(gestionnaireId: string, emailIds: string[]): Promise<EtatMail[]> {
+    if (emailIds.length === 0) return [];
     const sb = createSupabasePublicClient();
-    const { data, error } = await sb
-      .from(TABLE)
-      .select("*")
-      .eq("gestionnaire_id", gestionnaireId);
-    if (error) {
-      // Table pas encore creee : on degrade proprement (cockpit sans persistance) au
-      // lieu de casser la page. 42P01 = table absente (SQL direct) ; PGRST205 / "schema
-      // cache" = PostgREST ne la voit pas. Disparait des le SQL execute.
-      if (
-        error.code === "42P01" ||
-        error.code === "PGRST205" ||
-        /schema cache|could not find the table/i.test(error.message)
-      ) {
-        return [];
+    const lignes: Row[] = [];
+    for (let i = 0; i < emailIds.length; i += LOT) {
+      const { data, error } = await sb
+        .from(TABLE)
+        .select("*")
+        .eq("gestionnaire_id", gestionnaireId)
+        .in("email_id", emailIds.slice(i, i + LOT));
+      if (error) {
+        // Table pas encore creee : on degrade proprement (cockpit sans persistance) au
+        // lieu de casser la page. 42P01 = table absente (SQL direct) ; PGRST205 / "schema
+        // cache" = PostgREST ne la voit pas. Disparait des le SQL execute.
+        if (
+          error.code === "42P01" ||
+          error.code === "PGRST205" ||
+          /schema cache|could not find the table/i.test(error.message)
+        ) {
+          return [];
+        }
+        throw new Error(`getEtats mes-emails : ${error.message}`);
       }
-      throw new Error(`getEtats mes-emails : ${error.message}`);
+      lignes.push(...((data as Row[] | null) ?? []));
     }
-    return ((data as Row[] | null) ?? []).map((r) => ({
+    return lignes.map((r) => ({
       emailId: r.email_id,
       statut: versStatut(r.statut),
       etapesFaites: r.etapes_faites ?? [],

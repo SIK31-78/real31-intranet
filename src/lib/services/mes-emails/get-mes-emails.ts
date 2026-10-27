@@ -25,18 +25,22 @@ export async function getMesEmails(g: Gestionnaire, maxPerso?: number): Promise<
   // Le portefeuille vient d'ESTALE en direct : on le lit PENDANT la lecture des boites.
   const mesCoprosP = getCoproRepository().list(g.id);
 
-  const [triage, etatsListe, mesCopros] = await Promise.all([
-    lireBoitesLive(g, boites, mesCoprosP, maxPerso),
-    getMesEmailsEtatRepository().getEtats(g.id),
-    mesCoprosP,
-  ]);
-  const etats = new Map(etatsListe.map((e) => [e.emailId, e]));
+  const [triage, mesCopros] = await Promise.all([lireBoitesLive(g, boites, mesCoprosP, maxPerso), mesCoprosP]);
 
-  // Boite partagee : le statut « traité » est commun a ceux qui la voient (cf. statut-partage).
+  // Les etats se lisent APRES les boites, pour les seuls mails affiches : lire « tout » le
+  // gestionnaire tronquait a 1 000 lignes (PostgREST) et les plus anciens perdaient leur
+  // statut en silence (27/10/2026). Les deux lectures d'etat partent ensemble.
   const partagees = new Set(boites.filter((b) => !b.personnelle).map((b) => b.id));
   const idsPartages = triage.mails.filter((m) => m.boite && partagees.has(m.boite)).map((m) => m.id);
+  const repo = getMesEmailsEtatRepository();
+  const [etatsListe, statutsPartages] = await Promise.all([
+    repo.getEtats(g.id, triage.mails.map((m) => m.id)),
+    // Boite partagee : le statut « traité » est commun a ceux qui la voient (cf. statut-partage).
+    repo.getStatutsDesMails(idsPartages),
+  ]);
+  const etats = new Map(etatsListe.map((e) => [e.emailId, e]));
   const lignesPartagees = new Map<string, StatutEcrit[]>();
-  for (const l of await getMesEmailsEtatRepository().getStatutsDesMails(idsPartages)) {
+  for (const l of statutsPartages) {
     lignesPartagees.set(l.emailId, [...(lignesPartagees.get(l.emailId) ?? []), l]);
   }
 

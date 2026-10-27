@@ -49,8 +49,10 @@ export type MajCopro = CleEtat & { coproNom: string };
 export type MajDossier = CleEtat & { dossierId: string; dossierNom: string };
 
 export interface MesEmailsEtatRepository {
-  /** Tous les etats d'un gestionnaire (cle emailId). */
-  getEtats(gestionnaireId: string): Promise<EtatMail[]>;
+  /** Les etats d'un gestionnaire pour CES mails (cle emailId). Borne aux mails affiches :
+   *  « tous les etats du gestionnaire » depassait les 1 000 lignes de PostgREST sur une
+   *  boite active, et les plus anciens manquaient en silence (27/10/2026). */
+  getEtats(gestionnaireId: string, emailIds: string[]): Promise<EtatMail[]>;
   /** Le statut de CES mails, toutes lignes confondues (boite partagee : statut commun). */
   getStatutsDesMails(emailIds: string[]): Promise<StatutEcrit[]>;
   /** Valider/devalider : pose le statut + les etapes (+ le brouillon final si fourni). */

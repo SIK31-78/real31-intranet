@@ -24,8 +24,9 @@ function maj(gid: string, emailId: string, patch: Partial<EtatMail>): void {
 }
 
 export class MockMesEmailsEtatRepository implements MesEmailsEtatRepository {
-  async getEtats(gestionnaireId: string): Promise<EtatMail[]> {
-    return [...STORE.values()].filter((e) => e.gid === gestionnaireId).map((e) => e.etat);
+  async getEtats(gestionnaireId: string, emailIds: string[]): Promise<EtatMail[]> {
+    const ids = new Set(emailIds);
+    return [...STORE.values()].filter((e) => e.gid === gestionnaireId && ids.has(e.etat.emailId)).map((e) => e.etat);
   }
   async getStatutsDesMails(emailIds: string[]): Promise<StatutEcrit[]> {
     return [...STORE.values()]
