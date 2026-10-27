@@ -1,5 +1,7 @@
 # Handoff - Module "Mes emails" (cockpit de tri/gestion de boite mail)
 
+> **Retiré le 27/10/2026 (REA-423)** : analyse Mistral, cache d'analyse (`intranet_mes_emails_analyse`), cache du triage (`intranet_mes_emails_triage`) et « Brouillon IA ». Le cockpit lit les boîtes en direct, sans modèle. Ce document reste comme historique.
+
 > Doc de passage de relais pour la session Claude Code suivante. Etat au 2026-06-25.
 > A lire avec `ROADMAP.md` (entree "MES EMAILS") et `DECISIONS.md` (ADR-026, ADR-027).
 

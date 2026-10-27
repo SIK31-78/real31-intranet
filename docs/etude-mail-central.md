@@ -1,5 +1,7 @@
 # Étude d'architecture - Réception centralisée des mails métier dans l'intranet
 
+> **Retiré le 27/10/2026 (REA-423)** : le tri IA Mistral et le cache `intranet_mes_emails_triage` cités dans l'existant ci-dessous ne sont plus en service (lecture live des boîtes, sans modèle).
+
 > **But** : fermer la boucle e-mail du cabinet (réception + tri + attribution + suivi) **sans aller-retour manuel** entre eStale et Outlook. eStale reste le **moteur** (envoi, référentiel, actes métier) ; l'intranet devient la **carrosserie** (réception, dispatch, suivi).
 >
 > **Statut** : étude, lecture seule. Aucun appel réseau. Rien n'est branché à ce stade.

@@ -1,5 +1,7 @@
 ﻿# Mes emails - tri IA des mails syndic (démo)
 
+> **Retiré le 27/10/2026 (REA-423)** : le tri IA (Mistral), son cache et le provider mock décrits ici n'existent plus ; le cockpit lit les boîtes en direct, sans modèle. Document gardé comme historique.
+
 > **Statut** : démo / premier jet · branche `demo/mes-emails` · 2026-06-17
 > **Nature** : module **post-MVP** (cf. vision produit, module 3 « gestion des mails »). Isolé
 > sur une branche dédiée pour ne **pas** polluer le périmètre MVP strict (`increment/02-supabase`).
