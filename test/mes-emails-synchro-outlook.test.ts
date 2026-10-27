@@ -32,14 +32,15 @@ vi.mock("@/lib/adapters/router", async (original) => ({
     },
   }),
   getMailOutboundProvider: () => ({
-    envoyer: async (p: { boite: string; internetMessageId: string }) => {
-      etat.graph.push({ quoi: "envoi", boite: p.boite, id: p.internetMessageId });
+    // Envoi en trois temps (REA-421) : brouillon préparé (son id = celui du mail, pour lire les
+    // traces), puis envoyé.
+    preparerBrouillonReponse: async (p: { internetMessageId: string }) => ({ id: p.internetMessageId }),
+    envoyerBrouillon: async (p: { boite: string; id: string }) => {
+      etat.graph.push({ quoi: "envoi", boite: p.boite, id: p.id });
     },
     // Réponse depuis une autre boîte que celle du mail : mail neuf, message d'origine cité.
     citationReponse: async () => ({ sujet: "Fuite", citationHtml: "<p>cité</p>" }),
-    envoyerNeuf: async (p: { boite: string }) => {
-      etat.graph.push({ quoi: "envoi-neuf", boite: p.boite, id: "" });
-    },
+    creerBrouillonNeuf: async () => ({ id: "neuf" }),
     transferer: async (p: { boite: string; internetMessageId: string; envoyer: boolean }) => {
       etat.graph.push({ quoi: p.envoyer ? "transfert" : "brouillon-transfert", boite: p.boite, id: p.internetMessageId });
       return {};
@@ -54,7 +55,7 @@ vi.mock("@/lib/adapters/router", async (original) => ({
 }));
 vi.mock("@/lib/observabilite", () => ({ signalerException: () => undefined }));
 
-const { envoyerReponseAction, marquerLuAction, transfererMailAction } = await import("@/app/mes-emails/actions");
+const { finaliserEnvoiAction, marquerLuAction, preparerEnvoiAction, transfererMailAction } = await import("@/app/mes-emails/actions");
 
 const SYNDIC4 = "syndic4@real31.fr";
 const sophie = { id: "u1", nomComplet: "Sophie K", initiales: "SK", email: "sophie@real31.fr", agencyId: "ag-hls", role: "GESTIONNAIRE" };
@@ -115,8 +116,24 @@ describe("marquerLuAction : lu dans l'intranet ET dans Outlook", () => {
 });
 
 describe("après un envoi, « répondu » est écrit en base", () => {
-  const repondre = (emailId: string, boite: string) =>
-    envoyerReponseAction(emailId, "S0297", "Bonjour, c'est noté.", "Re: Fuite", ["client@exemple.fr"], [], [], [], boite, "sophie@real31.fr");
+  const repondre = async (emailId: string, boite: string) => {
+    const prep = await preparerEnvoiAction({
+      mode: "envoyer",
+      emailId,
+      coproCode: "S0297",
+      corps: "Bonjour, c'est noté.",
+      sujet: "Re: Fuite",
+      a: ["client@exemple.fr"],
+      cc: [],
+      cci: [],
+      pjIds: [],
+      boite,
+      expediteur: "sophie@real31.fr",
+      fichiers: [],
+    });
+    expect(etat.ecrits).toEqual([]);
+    return prep.ok && prep.jeton ? finaliserEnvoiAction({ jeton: prep.jeton }) : prep;
+  };
 
   it("boîte perso : statut personnel « repondu »", async () => {
     const r = await repondre("<perso@x>", "sophie@real31.fr");

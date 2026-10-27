@@ -87,7 +87,8 @@ import {
   type PlaceInternes,
 } from "@/lib/domain/mes-emails-liste";
 import { VisionneusePj, type ApercuPj } from "./visionneuse-pj";
-import { typePieceJointe, urlPieceJointe } from "@/lib/domain/piece-jointe-flux";
+import { deposerFichier } from "./deposer-fichier";
+import { NB_MAX_FICHIERS, TAILLE_MAX_FICHIER, TAILLE_MAX_TOTALE, typePieceJointe, urlPieceJointe } from "@/lib/domain/piece-jointe-flux";
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { EnvoyesVue } from "./envoyes-vue";
 import { TransfererMail } from "./transferer-mail";
@@ -98,8 +99,9 @@ import {
   marquerTraiteAction,
   editBrouillonAction,
   marquerLuAction,
-  creerBrouillonAction,
-  envoyerReponseAction,
+  preparerEnvoiAction,
+  finaliserEnvoiAction,
+  abandonnerEnvoiAction,
   chargerPiecesJointesAction,
   transmettreFactureAction,
   rattacherCoproAction,
@@ -406,10 +408,21 @@ export function MesEmailsVue({
     });
   };
 
-  async function creerBrouillon(m: MailEntrant) {
-    setMsgBrouillon("Création du brouillon dans Outlook…");
+  /**
+   * Envoi en trois temps (REA-421, 27/10/2026) : le brouillon complet est préparé dans Outlook,
+   * puis chaque fichier de l'ordinateur y est déposé par tranches (barre de progression), et
+   * l'appelant envoie ou laisse le brouillon. Un fichier refusé : le brouillon incomplet est
+   * supprimé, rien ne part.
+   */
+  async function preparerEtJoindre(m: MailEntrant, mode: "envoyer" | "brouillon") {
+    const fichiers = fichiersDe(m);
+    const total = fichiers.reduce((t, f) => t + f.taille, 0) + taillePjJointes(m);
+    if (total > TAILLE_MAX_TOTALE) {
+      return { ok: false as const, message: `Pièces jointes trop lourdes (${formatTaille(total)}) : 25 Mo au total. Dépose les plus grosses sur SharePoint et envoie le lien.` };
+    }
     const dst = destinatairesDe(m);
-    const r = await creerBrouillonAction({
+    const prep = await preparerEnvoiAction({
+      mode,
       emailId: m.id,
       coproCode: coproDe(m).code,
       corps: brouillonDe(m),
@@ -419,15 +432,33 @@ export function MesEmailsVue({
       cc: dst.cc,
       cci: dst.cci,
       pjIds: [...pjJointesDe(m)],
-      fichiers: fichiersEnvoi(m),
       boite: boiteDuMail(m),
+      expediteur: expediteurDe(m),
+      fichiers: fichiers.map((f) => ({ nom: f.nom, taille: f.taille })),
     });
+    if (!prep.ok || !prep.jeton) return { ok: false as const, message: prep.message ?? "La préparation a échoué." };
+    for (const [i, f] of fichiers.entries()) {
+      if (fichiers.length) setMsgBrouillon(`Pièce jointe ${i + 1} sur ${fichiers.length} : « ${f.nom} »…`);
+      const r = await deposerFichier(prep.jeton, f.fichier, (x) => majProgres(m, i, x));
+      if (!r.ok) {
+        void abandonnerEnvoiAction({ jeton: prep.jeton });
+        majProgres(m, null, 0);
+        return { ok: false as const, message: `${r.erreur} Rien n'est parti, la réponse est toujours là.` };
+      }
+    }
+    return { ...prep, ok: true as const, jeton: prep.jeton };
+  }
+
+  async function creerBrouillon(m: MailEntrant) {
+    setMsgBrouillon("Création du brouillon dans Outlook…");
+    const r = await preparerEtJoindre(m, "brouillon");
+    majProgres(m, null, 0);
     // Graph ne rend pas toujours le lien du brouillon (REA-422) : sans lien, on dit où le
     // trouver plutôt que d'afficher un lien mort.
     const msg = r.ok
       ? `Brouillon créé dans ${boiteDuMail(m)}, avec destinataires, objet et pièces jointes : à relire puis envoyer dans Outlook.` +
         (r.webLink ? "" : ` Il est dans le dossier « Brouillons » de ${boiteDuMail(m)}.`)
-      : `Échec : ${r.message ?? ""}`;
+      : `Échec : ${r.message}`;
     setMsgBrouillon(msg);
     setLienBrouillon(r.ok && r.webLink ? { msg, url: r.webLink } : null);
   }
@@ -440,21 +471,40 @@ export function MesEmailsVue({
     setComposeParMail((p) => new Set(p).add(m.id));
   };
   const fichiersDe = (m: MailEntrant): FichierJoint[] => fichiersParMail.get(m.id) ?? [];
-  async function ajouterFichiers(m: MailEntrant, liste: FileList | null) {
+  // Les fichiers restent des File jusqu'à l'envoi (plus de base64 en mémoire, REA-421).
+  function ajouterFichiers(m: MailEntrant, liste: FileList | null) {
     if (!liste?.length) return;
     const ajout: FichierJoint[] = [];
+    let total = fichiersDe(m).reduce((t, f) => t + f.taille, 0) + taillePjJointes(m);
     for (const f of Array.from(liste)) {
       if (f.size > TAILLE_MAX_FICHIER) {
-        setMsgBrouillon(`« ${f.name} » dépasse 3 Mo : à envoyer depuis Outlook ou à déposer sur SharePoint.`);
+        setMsgBrouillon(`« ${f.name} » dépasse 25 Mo : à déposer sur SharePoint et à envoyer en lien.`);
         continue;
       }
-      ajout.push({ nom: f.name, contentType: f.type, taille: f.size, base64: await enBase64(f) });
+      if (total + f.size > TAILLE_MAX_TOTALE) {
+        setMsgBrouillon(`« ${f.name} » ferait dépasser 25 Mo de pièces jointes : à déposer sur SharePoint et à envoyer en lien.`);
+        continue;
+      }
+      total += f.size;
+      ajout.push({ nom: f.name, taille: f.size, fichier: f });
     }
-    setFichiersParMail((p) => new Map(p).set(m.id, [...fichiersDe(m), ...ajout].slice(0, 10)));
+    setFichiersParMail((p) => new Map(p).set(m.id, [...fichiersDe(m), ...ajout].slice(0, NB_MAX_FICHIERS)));
   }
   const retirerFichier = (m: MailEntrant, i: number) =>
     setFichiersParMail((p) => new Map(p).set(m.id, fichiersDe(m).filter((_, k) => k !== i)));
-  const fichiersEnvoi = (m: MailEntrant) => fichiersDe(m).map(({ nom, contentType, base64 }) => ({ nom, contentType, base64 }));
+  /** La progression du dépôt d'un fichier (0 à 1) ; index null : on efface toutes les barres. */
+  const majProgres = (m: MailEntrant, i: number | null, fraction: number) =>
+    setFichiersParMail((p) => {
+      const l = p.get(m.id);
+      if (!l) return p;
+      return new Map(p).set(
+        m.id,
+        l.map((f, k) => (i === null ? { nom: f.nom, taille: f.taille, fichier: f.fichier } : k === i ? { ...f, progres: fraction } : f)),
+      );
+    });
+  // Les PJ du mail re-jointes comptent dans les 25 Mo (taille annoncée par Graph).
+  const taillePjJointes = (m: MailEntrant) =>
+    (pjParMail.get(m.id) ?? []).filter((pj) => pjJointesDe(m).has(pj.id)).reduce((t, pj) => t + pj.taille, 0);
 
   // La pièce est servie en flux par /mes-emails/pj (REA-421) : plus de base64 ni de blob, une
   // pièce de 30 Mo s'ouvre comme une de 30 Ko. Graph étiquette parfois un PDF en octet-stream :
@@ -677,23 +727,19 @@ export function MesEmailsVue({
     setEnvoiEnCours(true);
     setMsgBrouillon("Envoi en cours…");
     try {
-      const r = await envoyerReponseAction(
-        m.id,
-        coproDe(m).code,
-        brouillonDe(m),
-        sujetDe(m),
-        dst.to,
-        dst.cc,
-        dst.cci,
-        [...pjJointesDe(m)],
-        boiteDuMail(m),
-        expediteur,
-        fichiersEnvoi(m),
-        corpsHtmlEnvoi(m),
-      );
+      const r = await preparerEtJoindre(m, "envoyer");
       if (!r.ok) {
-        setMsgBrouillon(`Échec de l'envoi : ${r.message ?? ""}`);
-        toast.err(`La réponse n'est pas partie : ${r.message ?? "erreur inconnue"}`);
+        majProgres(m, null, 0);
+        setMsgBrouillon(`Échec de l'envoi : ${r.message}`);
+        toast.err(`La réponse n'est pas partie : ${r.message}`);
+        return;
+      }
+      setMsgBrouillon("Envoi en cours…");
+      const fin = await finaliserEnvoiAction({ jeton: r.jeton });
+      if (!fin.ok) {
+        majProgres(m, null, 0);
+        setMsgBrouillon(`Échec de l'envoi : ${fin.message ?? ""} La réponse est restée dans les brouillons de ${r.boite ?? expediteur}.`);
+        toast.err(`La réponse n'est pas partie : ${fin.message ?? "erreur inconnue"}`);
         return;
       }
       noterReponse(m.id, "repondu");
@@ -2012,9 +2058,19 @@ function AnalysePane({
               </label>
               {fichiers.length === 0 ? <span className="text-meta text-ink-3">ou glissez les fichiers ici</span> : null}
               {fichiers.map((f, i) => (
-                <span key={`${f.nom}-${i}`} className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full border border-line text-meta text-ink-2">
-                  <span className="truncate max-w-[180px]">{f.nom}</span>
-                  <span className="text-ink-3">{formatTaille(f.taille)}</span>
+                <span key={`${f.nom}-${i}`} className="relative inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full border border-line text-meta text-ink-2 overflow-hidden">
+                  {f.progres !== undefined ? (
+                    // Dépôt en cours sur le brouillon (REA-421) : la pastille se remplit, tranche par tranche.
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-y-0 left-0 bg-green-50 transition-[width]"
+                      style={{ width: `${Math.round(f.progres * 100)}%` }}
+                    />
+                  ) : null}
+                  <span className="relative truncate max-w-[180px]">{f.nom}</span>
+                  <span className="relative text-ink-3">
+                    {f.progres !== undefined ? `${Math.round(f.progres * 100)} %` : formatTaille(f.taille)}
+                  </span>
                   <button type="button" onClick={() => onRetirerFichier(i)} aria-label={`Retirer ${f.nom}`} className="text-ink-3 hover:text-err-700">
                     <X strokeWidth={1.5} className="w-3 h-3" />
                   </button>
@@ -2285,17 +2341,6 @@ function EnTeteMail({ m }: { m: MailEntrant }) {
   );
 }
 
-/** Un fichier ajouté depuis l'ordinateur à une réponse. */
-type FichierJoint = { nom: string; contentType: string; taille: number; base64: string };
-
-/** 3 Mo : au-delà, Graph exige un envoi par morceaux (non branché). */
-const TAILLE_MAX_FICHIER = 3 * 1024 * 1024;
-
-function enBase64(f: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(f);
-  });
-}
+/** Un fichier ajouté depuis l'ordinateur à une réponse : gardé tel quel jusqu'à l'envoi, puis
+ *  déposé par tranches sur le brouillon (REA-421). `progres` : 0 à 1 pendant le dépôt. */
+type FichierJoint = { nom: string; taille: number; fichier: File; progres?: number };

@@ -47,10 +47,12 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    // Reprise-copro : l'analyse recoit les PDF (RCP scanne, EDD, PV...) via une Server
-    // Action. Le defaut Next est 1 MB -> insuffisant pour des scans. On releve la limite.
+    // 4 Mo : Vercel coupe toute requete vers une fonction a 4,5 Mo, quoi que dise Next. Les
+    // 30 Mo d'avant (reprise-copro, qui passe depuis par la route /api/reprise/analyser) ne
+    // jouaient qu'en local et masquaient le probleme. Les gros fichiers passent par des routes
+    // en tranches (pieces jointes d'une reponse : /mes-emails/pj/depot, REA-421, 27/10/2026).
     serverActions: {
-      bodySizeLimit: "30mb",
+      bodySizeLimit: "4mb",
     },
   },
   // En-tetes de securite (audit 16/09/2026) : anti-iframe, nosniff, referrer, HSTS, et une

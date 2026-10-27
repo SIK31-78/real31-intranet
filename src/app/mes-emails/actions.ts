@@ -27,7 +27,6 @@ import { conversationsDistribuees, mailDistribue } from "@/lib/services/mes-emai
 import { boiteCible, boiteDuMail, boitesDe } from "./gardes-boites";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { reporterCoproAuTri } from "@/lib/services/mes-emails/reporter-copro-tri";
-import { creerBrouillonReponse } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, creerDossierBoite, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
 import { listerImagesMail, listerPiecesJointesMail } from "@/lib/services/mes-emails/pieces-jointes";
 import { reponsesEnvoyees } from "@/lib/services/mes-emails/reponses-envoyees";
@@ -40,7 +39,10 @@ import { transfererMail } from "@/lib/services/mes-emails/transferer";
 import type { EchangeTrouve, ReponseEnvoyee } from "@/lib/domain/echanges";
 import { corpsMisEnForme } from "@/lib/services/mes-emails/corps-mis-en-forme";
 import { transmettreFacture } from "@/lib/services/mes-emails/transmettre-facture";
-import { envoyerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
+import { preparerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
+import { abandonnerBrouillonPrepare, brouillonDe, envoyerBrouillonPrepare } from "@/lib/services/mes-emails/depot-piece-jointe";
+import { DUREE_JETON_MS, scellerJeton } from "@/lib/services/mes-emails/jeton-envoi";
+import { NB_MAX_FICHIERS, TAILLE_MAX_FICHIER, TAILLE_MAX_TOTALE } from "@/lib/domain/piece-jointe-flux";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import type { ContexteCopro, PieceJointeRef } from "@/lib/domain/mes-emails";
 import { contexteCoproPour } from "@/lib/services/mes-emails/get-mes-emails";
@@ -92,10 +94,11 @@ const zEmails = z.array(z.string().trim().max(320)).max(50);
 const zAttachmentId = z.string().min(1).max(600).regex(/^[A-Za-z0-9_\-=+\/]+$/);
 const zIds = z.array(zAttachmentId).max(50);
 const zEtapes = z.array(z.number().int()).max(200);
-// Fichiers joints depuis l'ordinateur : 3 Mo chacun (envoi simple de Graph), 10 au plus.
+// Fichiers joints depuis l'ordinateur : annoncés à la préparation (nom, taille), déposés
+// ensuite par la route /mes-emails/pj/depot (REA-421, 27/10/2026).
 const zFichiers = z
-  .array(z.object({ nom: z.string().trim().min(1).max(255), contentType: z.string().max(200), base64: z.string().max(4_200_000) }))
-  .max(10);
+  .array(z.object({ nom: z.string().trim().min(1).max(255), taille: z.number().int().min(1).max(TAILLE_MAX_FICHIER) }))
+  .max(NB_MAX_FICHIERS);
 
 /** Construit la Cible d'ecriture d'etat depuis un gestionnaire valide. */
 function cibleDe(g: Gestionnaire, emailId: string, coproCode: string): Cible {
@@ -405,25 +408,28 @@ async function noterRepondu(g: Gestionnaire, emailId: string, coproCode: string,
   }
 }
 
-export async function envoyerReponseAction(
-  emailId: string,
-  coproCode: string,
-  corps: string,
-  sujet: string,
-  a: string[],
-  cc: string[],
-  cci: string[],
-  pjIds: string[],
-  boiteMessage?: string,
-  boiteEnvoi?: string,
-  fichiers: unknown = [],
-  /** Corps mis en forme (REA-345, pilote) : renettoyé ici, jamais cru tel quel. */
-  corpsHtml?: unknown,
-): Promise<{ ok: boolean; message?: string; filConserve?: boolean; historiqueCite?: boolean }> {
-  const f = zFichiers.safeParse(fichiers);
-  if (!f.success) return { ok: false, message: "Pièces jointes invalides (3 Mo et 10 fichiers au plus)." };
+// L'envoi d'une réponse se fait en TROIS temps depuis le 27/10/2026 (REA-421) :
+//   1. preparerEnvoiAction : toutes les gardes, puis le brouillon complet dans Outlook (fil,
+//      corps, destinataires, PJ d'origine re-jointes) ; rend un jeton chiffré du brouillon ;
+//   2. la route /mes-emails/pj/depot reçoit les fichiers de l'ordinateur, tranche par tranche,
+//      et les joint au brouillon (plus de base64 dans l'action : Vercel coupait à 4,5 Mo) ;
+//   3. finaliserEnvoiAction envoie le brouillon (mode « envoyer »), ou rien (mode « brouillon » :
+//      il reste dans Outlook). Un fichier refusé en route : abandonnerEnvoiAction le supprime.
+// Le jeton porte le mode décidé à la préparation : finaliser ne refait pas la garde d'envoi,
+// et un jeton « brouillon » ne peut pas être envoyé.
+
+export async function preparerEnvoiAction(input: unknown): Promise<{
+  ok: boolean;
+  message?: string;
+  jeton?: string;
+  webLink?: string;
+  boite?: string;
+  filConserve?: boolean;
+  historiqueCite?: boolean;
+}> {
   const v = z
     .object({
+      mode: z.enum(["envoyer", "brouillon"]),
       emailId: zId,
       coproCode: zCopro,
       corps: zCorps,
@@ -432,65 +438,125 @@ export async function envoyerReponseAction(
       cc: zEmails,
       cci: zEmails,
       pjIds: zIds,
+      /** Boîte qui détient le mail. */
+      boite: zBoite,
+      /** Le "De :" choisi (envoi) ; un brouillon se prépare toujours dans la boîte du mail. */
+      expediteur: zBoite,
+      fichiers: zFichiers,
+      /** Corps mis en forme (REA-345) : renettoyé ici, jamais cru tel quel. */
+      corpsHtml: z.string().optional(),
     })
-    .safeParse({ emailId, coproCode, corps, sujet, a, cc, cci, pjIds });
-  if (!v.success || !zBoite.safeParse(boiteMessage).success || !zBoite.safeParse(boiteEnvoi).success)
-    return { ok: false, message: "Données invalides." };
-  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
+    .safeParse(input);
+  if (!v.success) return { ok: false, message: "Données invalides (pièces jointes : 25 Mo et 10 fichiers au plus)." };
+  const d = v.data;
+  if (d.fichiers.reduce((t, f) => t + f.taille, 0) > TAILLE_MAX_TOTALE) {
+    return { ok: false, message: "Pièces jointes trop lourdes : 25 Mo au total. Dépose les plus grosses sur SharePoint et envoie le lien." };
+  }
+  const auth = await withGestionnaire(d.coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
   const g = auth.g;
   if (!g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
-  // Les DEUX boites sont validees contre la configuration : celle qui detient le mail
-  // et celle qui expedie. Un "De :" fabrique cote client est refuse ici.
   // Le mail auquel on répond doit être distribué à mon binôme (boîte partagée, 27/10/2026).
-  const cibleMessage = await boiteDuMail(g, boiteMessage, emailId);
-  const cibleEnvoi = await boiteCible(g, boiteEnvoi);
+  const cibleMessage = await boiteDuMail(g, d.boite, d.emailId);
+  // Les DEUX boites sont validees contre la configuration : celle qui detient le mail et
+  // celle qui expedie. Un "De :" fabrique cote client est refuse ici.
+  const cibleEnvoi = d.mode === "envoyer" ? await boiteCible(g, d.expediteur) : cibleMessage;
   if (!cibleMessage || !cibleEnvoi) return { ok: false, message: "Boîte non autorisée." };
   // Envoi RÉEL depuis une boîte partagée (syndicN) : seulement si l'envoi y est ouvert
   // (MAIL_ENVOI=on ET `envoi` dans la config de la boîte ; ADR-047, 27/10/2026). Un mail qui
   // part de la boîte commune engage le cabinet : pendant le pilote, on passe par le
   // brouillon, relu puis envoyé dans Outlook. La boîte perso garde son comportement.
-  if (cibleEnvoi !== g.email.trim().toLowerCase() && !envoiMailPour(cibleEnvoi)) {
+  if (d.mode === "envoyer" && cibleEnvoi !== g.email.trim().toLowerCase() && !envoiMailPour(cibleEnvoi)) {
     return {
       ok: false,
       message: "L'envoi depuis la boîte partagée est coupé pendant le pilote. Utilise « Brouillon Outlook » : il se relit et s'envoie dans Outlook.",
     };
   }
-  const riche = corpsMisEnForme(true, corpsHtml);
+  const riche = corpsMisEnForme(true, d.corpsHtml);
   if (riche === "refuse") return { ok: false, message: PILOTE_SEUL };
-  if (riche) corps = riche.corps;
-  if (!corps.trim()) return { ok: false, message: "Le message est vide." };
-  // Destinataires : adresses bien formees, au moins une en "A", plafond global (anti-spam).
-  const tous = [...a, ...cc, ...cci].map((x) => x.trim()).filter(Boolean);
-  if (a.filter((x) => EMAIL_RE.test(x.trim())).length === 0) {
-    return { ok: false, message: "Ajoute au moins un destinataire valide en 'À'." };
+  const corps = riche ? riche.corps : d.corps;
+  // Destinataires : adresses bien formees, plafond global (anti-spam) ; l'envoi en veut une en "A".
+  const tous = [...d.a, ...d.cc, ...d.cci].map((x) => x.trim()).filter(Boolean);
+  if (d.mode === "envoyer") {
+    if (!corps.trim()) return { ok: false, message: "Le message est vide." };
+    if (d.a.filter((x) => EMAIL_RE.test(x.trim())).length === 0) return { ok: false, message: "Ajoute au moins un destinataire valide en 'À'." };
   }
   const invalide = tous.find((x) => !EMAIL_RE.test(x));
   if (invalide) return { ok: false, message: `Adresse invalide : ${invalide}` };
   if (tous.length > 50) return { ok: false, message: "Trop de destinataires (50 maximum)." };
   try {
-    // Signature recuperee cote serveur (Signitic) et injectee : un envoi app-only ne passe
-    // pas par l'add-in Outlook qui l'ajoute d'habitude.
+    // Signature recuperee cote serveur (Signitic) et injectee : un envoi app-only ou un
+    // brouillon cree par l'app ne passe pas par l'add-in Outlook qui l'ajoute d'habitude.
     const signatureHtml = (await getSignatureGestionnaire(g)) ?? undefined;
-    const { filConserve, historiqueCite } = await envoyerReponseMail({
+    const b = await preparerReponseMail({
       boiteMessage: cibleMessage,
       boiteEnvoi: cibleEnvoi,
-      internetMessageId: emailId,
+      internetMessageId: d.emailId,
       corps,
       ...(riche ? { corpsHtml: riche.corpsHtml } : {}),
-      sujet,
-      a,
-      cc,
-      cci,
+      ...(d.mode === "envoyer" || d.sujet.trim() ? { sujet: d.sujet } : {}),
+      a: d.a,
+      cc: d.cc,
+      cci: d.cci,
       ...(signatureHtml !== undefined ? { signatureHtml } : {}),
-      pjIds,
-      ...(f.data.length ? { piecesJointes: f.data } : {}),
+      pjIds: d.pjIds,
     });
-    await noterRepondu(g, emailId, coproCode, cibleMessage);
-    revalidatePath("/mes-emails");
-    return { ok: true, filConserve, ...(historiqueCite !== undefined ? { historiqueCite } : {}) };
+    const jeton = scellerJeton({
+      nature: "brouillon",
+      boite: b.boite,
+      draftId: b.draftId,
+      gid: g.id,
+      mode: d.mode,
+      emailId: d.emailId,
+      coproCode: d.coproCode,
+      boiteMessage: cibleMessage,
+      exp: Date.now() + DUREE_JETON_MS,
+    });
+    return {
+      ok: true,
+      jeton,
+      boite: b.boite,
+      filConserve: b.filConserve,
+      ...(b.webLink ? { webLink: b.webLink } : {}),
+      ...(b.historiqueCite !== undefined ? { historiqueCite: b.historiqueCite } : {}),
+    };
   } catch (e) {
     return { ok: false, message: messageUtilisateur(e, "mes-emails") };
+  }
+}
+
+/** Le brouillon préparé part (mode « envoyer ») ; en mode « brouillon », rien ne bouge. */
+export async function finaliserEnvoiAction(input: unknown): Promise<{ ok: boolean; message?: string; envoye?: boolean }> {
+  const v = z.object({ jeton: z.string().min(1).max(4000) }).safeParse(input);
+  if (!v.success) return { ok: false, message: "Données invalides." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, message: "Non connecté." };
+  const j = brouillonDe(v.data.jeton, g.id);
+  if (!j) return { ok: false, message: "L'envoi a expiré (15 minutes) : la réponse est restée dans les brouillons d'Outlook." };
+  if (j.mode === "brouillon") return { ok: true, envoye: false };
+  try {
+    await envoyerBrouillonPrepare(j);
+    await noterRepondu(g, j.emailId, j.coproCode, j.boiteMessage);
+    revalidatePath("/mes-emails");
+    return { ok: true, envoye: true };
+  } catch (e) {
+    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
+  }
+}
+
+/** Un fichier n'a pas pu être joint : le brouillon incomplet est supprimé (pas d'orphelin). */
+export async function abandonnerEnvoiAction(input: unknown): Promise<{ ok: boolean }> {
+  const v = z.object({ jeton: z.string().min(1).max(4000) }).safeParse(input);
+  if (!v.success) return { ok: false };
+  const g = await getGestionnaireCourant();
+  const j = g ? brouillonDe(v.data.jeton, g.id) : null;
+  if (!j) return { ok: false };
+  try {
+    await abandonnerBrouillonPrepare(j);
+    return { ok: true };
+  } catch (e) {
+    console.warn("[mes-emails] brouillon abandonné non supprimé :", e instanceof Error ? e.message : e);
+    return { ok: false };
   }
 }
 
@@ -585,59 +651,6 @@ export async function classerDansDossierAction(
     await enregistrerStatut((await cibleStatut(g, emailId, coproCode, cible)) ?? c, "classe", etapes, brouillon);
     await enregistrerDossier(c, folderId, folderNom);
     return res.deplace ? { ok: true } : { ok: false, message: "Le mail n'a pas pu être déplacé." };
-  } catch (e) {
-    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
-  }
-}
-
-/**
- * « Brouillon Outlook » : la réponse telle que préparée ici (destinataires, objet, pièces
- * jointes du mail et fichiers ajoutés) devient un brouillon dans la boîte du mail. Rien ne
- * part : on relit et on envoie dans Outlook. C'est la voie de la boîte partagée pendant le pilote.
- */
-export async function creerBrouillonAction(input: unknown): Promise<{ ok: boolean; message?: string; webLink?: string }> {
-  const v = z
-    .object({
-      emailId: zId,
-      coproCode: zCopro,
-      corps: zCorps,
-      sujet: zCourt,
-      a: zEmails,
-      cc: zEmails,
-      cci: zEmails,
-      pjIds: zIds,
-      fichiers: zFichiers,
-      boite: zBoite,
-      corpsHtml: z.string().optional(),
-    })
-    .safeParse(input);
-  if (!v.success) return { ok: false, message: "Données invalides (pièces jointes : 3 Mo et 10 fichiers au plus)." };
-  const d = v.data;
-  const auth = await withGestionnaire(d.coproCode, cloisonnementCoproRequis());
-  if (!auth.ok) return auth;
-  const riche = corpsMisEnForme(true, d.corpsHtml);
-  if (riche === "refuse") return { ok: false, message: PILOTE_SEUL };
-  const cible = await boiteDuMail(auth.g, d.boite, d.emailId);
-  if (!cible) return { ok: false, message: "Boîte non autorisée." };
-  const invalide = [...d.a, ...d.cc, ...d.cci].map((x) => x.trim()).find((x) => x && !EMAIL_RE.test(x));
-  if (invalide) return { ok: false, message: `Adresse invalide : ${invalide}` };
-  try {
-    // Signitic ne passe pas sur un brouillon créé par l'app : on pose la signature nous-mêmes.
-    const signatureHtml = (await getSignatureGestionnaire(auth.g)) ?? undefined;
-    const { webLink } = await creerBrouillonReponse({
-      boite: cible,
-      ...(signatureHtml ? { signatureHtml } : {}),
-      internetMessageId: d.emailId,
-      corps: riche ? riche.corps : d.corps,
-      ...(riche ? { corpsHtml: riche.corpsHtml } : {}),
-      ...(d.sujet.trim() ? { sujet: d.sujet } : {}),
-      a: d.a,
-      cc: d.cc,
-      cci: d.cci,
-      pjIds: d.pjIds,
-      ...(d.fichiers.length ? { piecesJointes: d.fichiers } : {}),
-    });
-    return { ok: true, ...(webLink ? { webLink } : {}) };
   } catch (e) {
     return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }

@@ -95,7 +95,11 @@ const TITRE_SOURCE_CONSEIL: Record<SourceConseilComposition, string> = {
   aucune: "Aucune liste de conseil syndical pour cette copropriété : tapez les noms ci-dessus",
 };
 
-const TAILLE_MAX_FICHIER = 3 * 1024 * 1024;
+// Les fichiers du mail neuf voyagent en base64 dans l'action (×4/3) : une requête vers Vercel ne
+// dépasse pas 4,5 Mo, et l'action est bornée à 4 Mo (next.config.ts). 2,5 Mo de fichiers au
+// TOTAL, sinon l'envoi échouait sans message clair (27/10/2026). Les gros fichiers d'une
+// réponse passent, eux, par la route de dépôt (REA-421) ; le mail neuf ne l'a pas encore.
+const TAILLE_MAX_FICHIERS = 2.5 * 1024 * 1024;
 
 function enBase64(f: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -203,11 +207,13 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   async function ajouterFichiers(liste: FileList | null) {
     if (!liste?.length) return;
     const ajout: FichierJoint[] = [];
+    let total = fichiers.reduce((t, f) => t + f.taille, 0);
     for (const f of Array.from(liste)) {
-      if (f.size > TAILLE_MAX_FICHIER) {
-        toast.warn(`« ${f.name} » dépasse 3 Mo : à envoyer depuis Outlook.`);
+      if (total + f.size > TAILLE_MAX_FICHIERS) {
+        toast.warn(`« ${f.name} » ferait dépasser 2,5 Mo de pièces jointes : créez le mail ici, puis joignez-le dans Outlook.`);
         continue;
       }
+      total += f.size;
       ajout.push({ nom: f.name, contentType: f.type, taille: f.size, base64: await enBase64(f) });
     }
     setFichiers((l) => [...l, ...ajout].slice(0, 10));

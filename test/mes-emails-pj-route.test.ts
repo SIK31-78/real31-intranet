@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { MockTriRepository } from "@/lib/adapters/mock/mock-tri-repository";
 
-// Pièces jointes en flux (REA-421, 27/10/2026), de bout en bout côté
+// Pièces jointes en flux et dépôt par tranches (REA-421, 27/10/2026), de bout en bout côté
 // serveur : les vraies routes avec leurs vraies gardes (session, boîte visible, mail distribué
 // au binôme, garde du tri), le vrai adaptateur Graph sur un faux fetch, la session simulée.
 // Deux boîtes triées : syndic4 (HLS) et syndic2 (LGC). Données inventées.
@@ -11,6 +11,7 @@ const etat = vi.hoisted(() => ({
   session: null as Record<string, unknown> | null,
   repo: null as unknown as MockTriRepository,
   graph: [] as string[],
+  sortant: [] as string[],
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
@@ -33,10 +34,26 @@ vi.mock("@/lib/adapters/router", async (original) => ({
       { id: "ag-lgc", code: "LGC" },
     ],
   }),
+  getMailOutboundProvider: () => ({
+    ajouterPieceJointe: async (p: { draftId: string; nom: string; octets: Uint8Array }) => {
+      etat.sortant.push(`joint ${p.nom} (${p.octets.byteLength}) sur ${p.draftId}`);
+    },
+    ouvrirSessionUpload: async (p: { draftId: string; taille: number }) => {
+      etat.sortant.push(`session ${p.taille} sur ${p.draftId}`);
+      return { uploadUrl: "https://upload/secret" };
+    },
+    envoyerTranche: async (p: { uploadUrl: string; debut: number; octets: Uint8Array; taille: number }) => {
+      etat.sortant.push(`tranche ${p.debut} (${p.octets.byteLength}) vers ${p.uploadUrl}`);
+      return { fini: p.debut + p.octets.byteLength >= p.taille };
+    },
+  }),
 }));
 
 const { GET: getMesEmails } = await import("@/app/mes-emails/pj/route");
 const { GET: getTri } = await import("@/app/tri-emails/pj/route");
+const { POST: deposer } = await import("@/app/mes-emails/pj/depot/route");
+const { scellerJeton } = await import("@/lib/services/mes-emails/jeton-envoi");
+const { TRANCHE_UPLOAD } = await import("@/lib/domain/piece-jointe-flux");
 
 const SYNDIC4 = "syndic4@real31.fr";
 const SYNDIC2 = "syndic2@real31.fr";
@@ -73,6 +90,7 @@ const url = (chemin: string, q: Record<string, string>) => new NextRequest(`http
 beforeEach(async () => {
   vi.stubEnv("SUPER_ADMINS", "sekou@real31.fr");
   vi.stubEnv("MAIL_SOURCE", "graph");
+  vi.stubEnv("AUTH_SECRET", "secret-de-test");
   vi.stubEnv(
     "MAIL_TRI_BOITES",
     JSON.stringify([
@@ -82,6 +100,7 @@ beforeEach(async () => {
   );
   etat.repo = new MockTriRepository({ binomes: [], parCopro: {} });
   etat.graph = [];
+  etat.sortant = [];
   etat.session = sophie;
   graphRend("Devis toiture été.pdf", "application/octet-stream");
   await ranger(SYNDIC4, "<a-sophie@x>", "sophie@real31.fr");
@@ -169,5 +188,54 @@ describe("GET /tri-emails/pj : garde du tri", () => {
     const r = await getTri(url("/tri-emails/pj", { boite: SYNDIC4, message: "<a@x>", pj: "AAMk", inline: "1" }));
     expect(r.status).toBe(200);
     expect(r.headers.get("content-disposition")).toMatch(/^inline; /);
+  });
+});
+
+describe("POST /mes-emails/pj/depot : un fichier déposé par tranches sur le brouillon", () => {
+  const jeton = (gid = "u1") =>
+    scellerJeton({ nature: "brouillon", boite: SYNDIC4, draftId: "br1", gid, mode: "brouillon", emailId: "<a-sophie@x>", coproCode: "S0297", boiteMessage: SYNDIC4, exp: Date.now() + 60_000 });
+  const tranche = (champs: Record<string, string>, octets: number) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(champs)) fd.set(k, v);
+    fd.set("tranche", new Blob([new Uint8Array(octets)]), "tranche");
+    return new NextRequest("http://localhost/mes-emails/pj/depot", { method: "POST", body: fd });
+  };
+
+  it("sans session : 401", async () => {
+    etat.session = null;
+    expect((await deposer(tranche({ jeton: jeton(), nom: "a.pdf", type: "application/pdf", taille: "10", debut: "0" }, 10))).status).toBe(401);
+  });
+
+  it("jeton d'un autre gestionnaire ou falsifié : 410, rien n'est joint", async () => {
+    expect((await deposer(tranche({ jeton: jeton("u2"), nom: "a.pdf", type: "", taille: "10", debut: "0" }, 10))).status).toBe(410);
+    expect((await deposer(tranche({ jeton: "abc", nom: "a.pdf", type: "", taille: "10", debut: "0" }, 10))).status).toBe(410);
+    expect(etat.sortant).toEqual([]);
+  });
+
+  it("petit fichier : joint en un coup", async () => {
+    const r = await deposer(tranche({ jeton: jeton(), nom: "a.pdf", type: "application/pdf", taille: "10", debut: "0" }, 10));
+    expect(await r.json()).toEqual({ ok: true, fini: true });
+    expect(etat.sortant).toEqual(["joint a.pdf (10) sur br1"]);
+  });
+
+  it("fichier de 5 Mo : session ouverte à la première tranche, URL de session jamais rendue en clair", async () => {
+    const taille = 5 * 1024 * 1024;
+    const champs = { jeton: jeton(), nom: "plan.pdf", type: "application/pdf", taille: String(taille) };
+    const r1 = await deposer(tranche({ ...champs, debut: "0" }, TRANCHE_UPLOAD));
+    const j1 = (await r1.json()) as { ok: boolean; fini: boolean; session: string };
+    expect(j1.ok && !j1.fini).toBe(true);
+    expect(JSON.stringify(j1)).not.toContain("upload/secret");
+    const r2 = await deposer(tranche({ ...champs, debut: String(TRANCHE_UPLOAD), session: j1.session }, taille - TRANCHE_UPLOAD));
+    expect(await r2.json()).toEqual({ ok: true, fini: true });
+    expect(etat.sortant).toEqual([
+      `session ${taille} sur br1`,
+      `tranche 0 (${TRANCHE_UPLOAD}) vers https://upload/secret`,
+      `tranche ${TRANCHE_UPLOAD} (${taille - TRANCHE_UPLOAD}) vers https://upload/secret`,
+    ]);
+  });
+
+  it("au-delà de 25 Mo : 413 ; tranche mal découpée : 400", async () => {
+    expect((await deposer(tranche({ jeton: jeton(), nom: "gros.zip", type: "", taille: String(26 * 1024 * 1024), debut: "0" }, 10))).status).toBe(413);
+    expect((await deposer(tranche({ jeton: jeton(), nom: "a.pdf", type: "", taille: "10", debut: "0" }, 9))).status).toBe(400);
   });
 });
