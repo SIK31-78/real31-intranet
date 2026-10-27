@@ -13,7 +13,6 @@ import type { CoproRepository } from "@/lib/ports/copro-repository";
 import type { CondoEstaleProvider } from "@/lib/ports/condo-estale-provider";
 import type { AnnuaireEstaleProvider } from "@/lib/ports/annuaire-estale-provider";
 import type { MesEvenementsProvider } from "@/lib/ports/mes-evenements-provider";
-import type { MesEmailsProvider } from "@/lib/ports/mes-emails-provider";
 import { MockDashboardProvider } from "@/lib/adapters/mock/mock-dashboard-provider";
 import { MockCalendrierProvider } from "@/lib/adapters/mock/mock-calendrier-provider";
 import { MockSupervisionAgProvider } from "@/lib/adapters/mock/mock-supervision-ag-provider";
@@ -21,8 +20,6 @@ import { MockCoproRepository } from "@/lib/adapters/mock/mock-copro-repository";
 import { MockCondoEstaleProvider } from "@/lib/adapters/mock/mock-condo-estale-provider";
 import { MockAnnuaireEstaleProvider } from "@/lib/adapters/mock/mock-annuaire-estale-provider";
 import { MockMesEvenementsProvider } from "@/lib/adapters/mock/mock-mes-evenements-provider";
-import { MockMesEmailsProvider } from "@/lib/adapters/mock/mock-mes-emails-provider";
-import { FichierMesEmailsProvider, triageFichierPresent } from "@/lib/adapters/fichier/fichier-mes-emails-provider";
 import type { MesEmailsEtatRepository } from "@/lib/ports/mes-emails-etat-provider";
 import { MockMesEmailsEtatRepository } from "@/lib/adapters/mock/mock-mes-emails-etat-repository";
 import { SupabaseMesEmailsEtatRepository } from "@/lib/adapters/supabase/supabase-mes-emails-etat-repository";
@@ -35,9 +32,6 @@ import { MockListesDiffusionRepository } from "@/lib/adapters/mock/mock-listes-d
 import type { AnalyseMailProvider } from "@/lib/ports/analyse-mail-provider";
 import { MistralAnalyseProvider } from "@/lib/adapters/mistral/mistral-analyse-provider";
 import { MockAnalyseProvider } from "@/lib/adapters/mock/mock-analyse-provider";
-import type { MesEmailsTriageStore } from "@/lib/ports/mes-emails-triage-store";
-import { MockMesEmailsTriageStore } from "@/lib/adapters/mock/mock-mes-emails-triage-store";
-import { SupabaseMesEmailsTriageStore } from "@/lib/adapters/supabase/supabase-mes-emails-triage-store";
 import type { MailIngestionProvider } from "@/lib/ports/mail-ingestion-provider";
 import { SampleMailIngestionProvider } from "@/lib/adapters/mail/sample-mail-ingestion";
 import { GraphMailIngestionProvider } from "@/lib/adapters/mail/graph-mail-ingestion";
@@ -439,14 +433,6 @@ export function getMesEvenementsProvider(): MesEvenementsProvider {
   return new MockMesEvenementsProvider();
 }
 
-// Boite mail triee "Mes emails" (resultat du tri assistant-ia). Si un triage reel
-// (data/mes-emails-triage.json, git-ignore, PII) est present sur le poste, on le
-// sert ; sinon donnees mockees anonymisees. Bascule sans toucher service ni vue.
-export function getMesEmailsProvider(): MesEmailsProvider {
-  if (triageFichierPresent()) return new FichierMesEmailsProvider();
-  return new MockMesEmailsProvider();
-}
-
 // Etat de traitement du cockpit Mes emails (table native intranet_mes_emails_etat).
 // Ce que le gestionnaire fait sur un mail (statut, etapes, brouillon, rattachement),
 // cloisonne par gestionnaire. Meme bascule mock/supabase que les autres tables natives.
@@ -467,13 +453,6 @@ export function getAnalyseMailProvider(): AnalyseMailProvider {
 export function getAnalyseCacheStore(): AnalyseCacheStore {
   if (coproSourceEstSupabase()) return new SupabaseAnalyseCacheStore();
   return new MockAnalyseCacheStore();
-}
-
-// Cache du triage Mes emails (table native intranet_mes_emails_triage). Ecrit par
-// la synchro, lu par le cockpit. Meme bascule mock/supabase.
-export function getMesEmailsTriageStore(): MesEmailsTriageStore {
-  if (coproSourceEstSupabase()) return new SupabaseMesEmailsTriageStore();
-  return new MockMesEmailsTriageStore();
 }
 
 // Annuaire de contacts Crypto (table native intranet_crypto_contacts) : email -> copro,
