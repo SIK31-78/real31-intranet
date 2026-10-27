@@ -56,7 +56,7 @@ function ChoixBoite({ boites, active }: { boites: string[]; active: string }) {
     <nav aria-label="Boîte triée" className="flex flex-wrap items-center gap-1.5 text-meta">
       {boites.map((b) =>
         b === active ? (
-          <span key={b} aria-current="page" className="rounded-md border border-line bg-surface px-2 py-0.5 font-mono text-ink">
+          <span key={b} aria-current="page" className="rounded-full border border-line bg-surface-2 px-2 py-0.5 font-mono text-ink">
             {b}
           </span>
         ) : (
