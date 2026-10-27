@@ -1,6 +1,21 @@
 // Auth Microsoft Graph app-only (client credentials), partagee par les adapters
 // mail (lecture + ecriture). Token obtenu avec le secret de l'app ; l'acces aux
 // boites est borne cote tenant par l'Application Access Policy.
+//
+// IDENTIFIANTS IMMUABLES (REA-420, 27/10/2026) : tout appel mail (URL en /messages ou
+// /mailFolders : lectures, delta, move, PATCH, pieces jointes, brouillons) part avec
+// `Prefer: IdType="ImmutableId"`, ajoute a la suite des preferences deja posees (un seul
+// en-tete, valeurs separees par des virgules : Graph applique les deux, constate sur syndic4).
+// Avant, un mail deplace changeait d'id : d'ou `localiser` partout et un `message_id` de
+// journal faux des qu'on glissait un mail a la main. Constate sur syndic4 le 27/10/2026 :
+//   - Graph accepte les DEUX formats en entree, avec ou sans l'en-tete : les ids mutables
+//     deja stockes (journal, index de la reception) continuent de marcher ;
+//   - les ids de dossiers ne changent pas (l'en-tete ne concerne que les elements) :
+//     `intranet_tri_dossier.folder_id` reste valable.
+// Transition : l'identifiant de reference reste `internet_message_id` ; `message_id` du
+// journal est informatif. L'index de la reception est relu en entier au premier passage
+// (jeton delta marque, graph-reception-delta.ts) pour y remplacer les anciens ids. Les
+// calendriers ne sont pas concernes (leurs ids d'evenements restent ceux d'avant).
 
 export const GRAPH = "https://graph.microsoft.com/v1.0";
 
@@ -21,6 +36,7 @@ export async function graphFetch(
   init: RequestInit = {},
   timeoutMs = TIMEOUT_MS,
 ): Promise<Response> {
+  init = avecIdsImmuables(url, init);
   const appel = () => fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   let r = await appel();
   const methode = (init.method ?? "GET").toUpperCase();
@@ -42,6 +58,22 @@ export async function graphFetch(
     r = await appel();
   }
   return r;
+}
+
+/** Un appel aux mails d'une boite (elements ou dossiers), pas au calendrier ni a SharePoint. */
+const URL_MAIL = /\/(messages|mailFolders)(\/|\?|\(|$)/i;
+
+/**
+ * Ajoute `IdType="ImmutableId"` aux preferences d'un appel mail, sans ecraser celles deja
+ * posees (`outlook.body-content-type="text"`, `odata.maxpagesize`). Exporte pour les tests.
+ */
+export function avecIdsImmuables(url: string, init: RequestInit): RequestInit {
+  if (!URL_MAIL.test(url.split("?")[0] ?? url)) return init;
+  const headers = new Headers(init.headers);
+  const prefer = headers.get("prefer");
+  if (prefer && /idtype\s*=/i.test(prefer)) return init;
+  headers.set("Prefer", prefer ? `${prefer}, IdType="ImmutableId"` : 'IdType="ImmutableId"');
+  return { ...init, headers };
 }
 
 function entete(headers: HeadersInit | undefined, nom: string): string | null {
@@ -105,12 +137,26 @@ async function demanderJeton(): Promise<string> {
   return j.access_token;
 }
 
-/** Resout l'id Graph courant d'un message par son internetMessageId (immuable). */
+/**
+ * Petit cache des ids resolus, par (boite, internetMessageId) : depuis les identifiants
+ * immuables (27/10/2026), l'id d'un mail ne change plus quand il est deplace ; seule une
+ * suppression definitive le rend caduc (l'appel suivant repond alors 404). 10 min, 2 000
+ * entrees au plus (la plus ancienne part la premiere).
+ */
+const IDS_RESOLUS = new Map<string, { id: string; jusqua: number }>();
+const IDS_RESOLUS_MS = 10 * 60_000;
+const IDS_RESOLUS_MAX = 2_000;
+
+/** Resout l'id Graph (immuable) d'un message par son internetMessageId. */
 export async function resoudreMessageId(
   tk: string,
   boite: string,
   internetMessageId: string,
 ): Promise<string> {
+  const cle = `${boite.trim().toLowerCase()}|${internetMessageId}`;
+  const connu = IDS_RESOLUS.get(cle);
+  if (connu && Date.now() < connu.jusqua) return connu.id;
+  if (connu) IDS_RESOLUS.delete(cle);
   const imid = internetMessageId.replace(/'/g, "''"); // echappe les quotes OData
   const url =
     `${GRAPH}/users/${encodeURIComponent(boite)}/messages` +
@@ -120,5 +166,9 @@ export async function resoudreMessageId(
   const j = (await r.json()) as { value?: { id: string }[] };
   const id = j.value?.[0]?.id;
   if (!id) throw new Error("Message introuvable dans la boite (deplace ou supprime ?).");
+  // Une Map garde l'ordre d'insertion : la plus ancienne entree part la premiere.
+  const plusAncienne = IDS_RESOLUS.keys().next();
+  if (IDS_RESOLUS.size >= IDS_RESOLUS_MAX && !plusAncienne.done) IDS_RESOLUS.delete(plusAncienne.value);
+  IDS_RESOLUS.set(cle, { id, jusqua: Date.now() + IDS_RESOLUS_MS });
   return id;
 }

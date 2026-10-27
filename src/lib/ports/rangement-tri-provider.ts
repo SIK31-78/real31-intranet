@@ -12,7 +12,7 @@ export interface MailEnReception {
 
 /** Ou se trouve un mail dans la boite, retrouve par son internetMessageId. */
 export interface PositionMail {
-  /** Id Graph actuel (il change a chaque deplacement). */
+  /** Id Graph actuel (immuable depuis le 27/10/2026, REA-420 ; un ancien id stocke peut differer). */
   messageId: string;
   folderId: string;
   enReception: boolean;
@@ -28,7 +28,10 @@ export interface RangementTriProvider {
    * assistant a change), recree s'il a disparu.
    */
   assurerDossier(boite: string, p: { folderIdConnu: string | null; nom: string }): Promise<{ folderId: string }>;
-  /** Deplace le mail ; renvoie son nouvel id Graph (un deplacement change l'id). */
+  /**
+   * Deplace le mail ; renvoie son id Graph apres deplacement (le meme depuis les ids immuables,
+   * REA-420 du 27/10/2026 ; un ancien id mutable donne en entree en rend un nouveau).
+   */
   deplacer(boite: string, messageId: string, folderId: string): Promise<{ messageId: string }>;
   /** Remet le mail dans la boite de reception (annulation). */
   remettreEnReception(boite: string, messageId: string): Promise<{ messageId: string }>;

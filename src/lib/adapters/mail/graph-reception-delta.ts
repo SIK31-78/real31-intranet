@@ -16,6 +16,12 @@
 // depuis `depuis`, signalee par `reinitialise` (le service sort alors de l'index les mails
 // que cette relecture ne revoit pas). Pas de $expand (le delta ne l'accepte pas) : le dernier
 // geste d'Outlook (dernierVerbe) ne sert pas au tri.
+//
+// Identifiants immuables (REA-420, 27/10/2026) : graphFetch demande des ids immuables. Un
+// jeton pris AVANT ce changement rendrait des retraits (@removed) dans l'ancien format, que
+// l'index (ids d'avant) ne saurait plus rapprocher. Le jeton rendu porte donc une marque ; un
+// jeton sans marque declenche une relecture complete, qui remplace les ids de l'index et sort
+// ce qu'elle ne revoit pas. Une seule fois par boite.
 
 import type { OptionsDelta, ReceptionDeltaProvider, ResultatDelta } from "@/lib/ports/reception-delta";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
@@ -28,6 +34,16 @@ type EntreeDelta = GraphMessage & { "@removed"?: { reason?: string } };
 type PageDelta = { value?: EntreeDelta[]; "@odata.nextLink"?: string; "@odata.deltaLink"?: string };
 
 class JetonExpire extends Error {}
+
+/** Marque des jetons pris avec les ids immuables (voir l'en-tete). */
+export const MARQUE_IDS_IMMUABLES = "ids-immuables|";
+
+/** Le lien Graph d'un jeton marque ; null pour un jeton d'avant les ids immuables (a relire). */
+function lienDuJeton(jeton: string | null | undefined): string | null {
+  return jeton?.startsWith(MARQUE_IDS_IMMUABLES) ? jeton.slice(MARQUE_IDS_IMMUABLES.length) : null;
+}
+
+const marquer = (lien: string) => `${MARQUE_IDS_IMMUABLES}${lien}`;
 
 /**
  * 410, un code d'erreur Graph qui demande de tout relire, ou un jeton que Graph ne sait plus
@@ -49,8 +65,9 @@ export function urlInitiale(boite: string, depuis?: string): string {
 export class GraphReceptionDelta implements ReceptionDeltaProvider {
   async lireDelta(boite: string, opts: OptionsDelta): Promise<ResultatDelta> {
     if (!boite) throw new Error("Lecture incrémentale Graph : adresse de la boîte manquante.");
+    const lien = lienDuJeton(opts.jeton);
     try {
-      return await this.lire(boite, opts.jeton ?? urlInitiale(boite, opts.depuis), opts, opts.jeton === null);
+      return await this.lire(boite, lien ?? urlInitiale(boite, opts.depuis), opts, lien === null);
     } catch (e) {
       if (!(e instanceof JetonExpire)) throw e;
       return this.lire(boite, urlInitiale(boite, opts.depuis), opts, true);
@@ -89,10 +106,10 @@ export class GraphReceptionDelta implements ReceptionDeltaProvider {
         else if (m.receivedDateTime) ajoutes.push(versRaw(m));
       }
       const fin = j["@odata.deltaLink"];
-      if (fin) return { ajoutes, retires, pages, jeton: fin, complet: true, reinitialise };
+      if (fin) return { ajoutes, retires, pages, jeton: marquer(fin), complet: true, reinitialise };
       const suite = j["@odata.nextLink"];
       if (!suite) throw new Error(`Graph delta ${boite} : réponse sans nextLink ni deltaLink.`);
-      if (maintenant() - debut > opts.budgetMs) return { ajoutes, retires, pages, jeton: suite, complet: false, reinitialise };
+      if (maintenant() - debut > opts.budgetMs) return { ajoutes, retires, pages, jeton: marquer(suite), complet: false, reinitialise };
       url = suite;
     }
   }

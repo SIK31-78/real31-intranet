@@ -9,7 +9,7 @@ vi.mock("./graph-auth", () => ({
   graphFetch: (url: string, init?: RequestInit) => fetch(url, init),
 }));
 
-import { GraphReceptionDelta, urlInitiale } from "./graph-reception-delta";
+import { GraphReceptionDelta, MARQUE_IDS_IMMUABLES, urlInitiale } from "./graph-reception-delta";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -42,6 +42,8 @@ function graph(reponses: Response[]) {
 }
 
 const json = (corps: unknown, status = 200) => new Response(JSON.stringify(corps), { status });
+/** Un jeton tel que l'adaptateur le rend (marque des ids immuables, REA-420). */
+const jeton = (lien: string) => `${MARQUE_IDS_IMMUABLES}${lien}`;
 
 describe("GraphReceptionDelta", () => {
   it("premier passage : filtre sur la date, texte brut, pages de 50, suit nextLink jusqu'au deltaLink", async () => {
@@ -57,7 +59,7 @@ describe("GraphReceptionDelta", () => {
     expect(appels[0]!.prefer).toBe('outlook.body-content-type="text", odata.maxpagesize=50');
     expect(appels[1]!.url).toBe("https://graph/next1");
     expect(appels[1]!.prefer).toContain('outlook.body-content-type="text"');
-    expect(r).toMatchObject({ pages: 2, jeton: "https://graph/delta1", complet: true, reinitialise: true, retires: [] });
+    expect(r).toMatchObject({ pages: 2, jeton: jeton("https://graph/delta1"), complet: true, reinitialise: true, retires: [] });
     expect(r.ajoutes.map((m) => m.internetMessageId)).toEqual(["<m1@exemple.fr>", "<m2@exemple.fr>", "<m3@exemple.fr>"]);
     expect(r.ajoutes[1]).toMatchObject({
       id: "g2",
@@ -78,9 +80,9 @@ describe("GraphReceptionDelta", () => {
         "@odata.deltaLink": "https://graph/delta2",
       }),
     ]);
-    const r = await new GraphReceptionDelta().lireDelta(BOITE, { jeton: "https://graph/delta1", depuis: DEPUIS, budgetMs: 20_000 });
+    const r = await new GraphReceptionDelta().lireDelta(BOITE, { jeton: jeton("https://graph/delta1"), depuis: DEPUIS, budgetMs: 20_000 });
     expect(appels.map((a) => a.url)).toEqual(["https://graph/delta1"]);
-    expect(r).toMatchObject({ pages: 1, retires: ["g1"], jeton: "https://graph/delta2", complet: true, reinitialise: false });
+    expect(r).toMatchObject({ pages: 1, retires: ["g1"], jeton: jeton("https://graph/delta2"), complet: true, reinitialise: false });
     expect(r.ajoutes.map((m) => m.id)).toEqual(["g4"]);
   });
 
@@ -97,7 +99,7 @@ describe("GraphReceptionDelta", () => {
       maintenant: () => (t += 3_000),
     });
     expect(appels).toHaveLength(2);
-    expect(r).toMatchObject({ pages: 2, jeton: "https://graph/next2", complet: false });
+    expect(r).toMatchObject({ pages: 2, jeton: jeton("https://graph/next2"), complet: false });
     expect(r.ajoutes).toHaveLength(2);
   });
 
@@ -107,15 +109,22 @@ describe("GraphReceptionDelta", () => {
     ["jeton illisible", json({ error: { code: "BadRequest", message: "Badly formed token." } }, 400)],
   ])("jeton expire (%s) : relecture complete depuis la mise en service", async (_cas, refus) => {
     const appels = graph([refus, json({ value: [message(5)], "@odata.deltaLink": "https://graph/delta-neuf" })]);
-    const r = await new GraphReceptionDelta().lireDelta(BOITE, { jeton: "https://graph/vieux", depuis: DEPUIS, budgetMs: 20_000 });
+    const r = await new GraphReceptionDelta().lireDelta(BOITE, { jeton: jeton("https://graph/vieux"), depuis: DEPUIS, budgetMs: 20_000 });
     expect(appels.map((a) => a.url)).toEqual(["https://graph/vieux", urlInitiale(BOITE, DEPUIS)]);
-    expect(r).toMatchObject({ reinitialise: true, complet: true, jeton: "https://graph/delta-neuf" });
+    expect(r).toMatchObject({ reinitialise: true, complet: true, jeton: jeton("https://graph/delta-neuf") });
     expect(r.ajoutes.map((m) => m.id)).toEqual(["g5"]);
+  });
+
+  it("jeton d'avant les ids immuables (sans marque) : relecture complete, une fois", async () => {
+    const appels = graph([json({ value: [message(6)], "@odata.deltaLink": "https://graph/delta-immuable" })]);
+    const r = await new GraphReceptionDelta().lireDelta(BOITE, { jeton: "https://graph/delta-ancien", depuis: DEPUIS, budgetMs: 20_000 });
+    expect(appels.map((a) => a.url)).toEqual([urlInitiale(BOITE, DEPUIS)]);
+    expect(r).toMatchObject({ reinitialise: true, complet: true, jeton: jeton("https://graph/delta-immuable") });
   });
 
   it("une boite refusee n'est pas un jeton expire : l'erreur remonte", async () => {
     graph([json({ error: { code: "ErrorAccessDenied" } }, 403)]);
-    await expect(new GraphReceptionDelta().lireDelta(BOITE, { jeton: "https://graph/delta1", budgetMs: 20_000 })).rejects.toThrow(/403/);
+    await expect(new GraphReceptionDelta().lireDelta(BOITE, { jeton: jeton("https://graph/delta1"), budgetMs: 20_000 })).rejects.toThrow(/403/);
   });
 
   it("une relecture complete refusee ne boucle pas", async () => {
