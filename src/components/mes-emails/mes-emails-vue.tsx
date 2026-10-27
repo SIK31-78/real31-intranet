@@ -305,10 +305,16 @@ export function MesEmailsVue({
     if (dossiersParBoite.has(boiteActive)) return;
     const memoriser = (d: DossierBoite[]) =>
       setDossiersParBoite((p) => new Map(p).set(boiteActive, d));
+    // Boîte partagée : rien ne se range dans un dossier Outlook (le tri l'a fait), inutile
+    // d'appeler Graph pour une arborescence que personne ne lira (27/10/2026).
+    if (!(data.boites.find((b) => b.id === boiteActive)?.personnelle ?? true)) {
+      memoriser([]);
+      return;
+    }
     void chargerDossiersAction(boiteActive)
       .then(memoriser)
       .catch(() => memoriser([]));
-  }, [boiteActive, dossiersParBoite]);
+  }, [boiteActive, dossiersParBoite, data.boites]);
 
   const resumeMail = (m: MailEntrant): string => `${m.objet} - de ${m.de}`;
 
@@ -835,6 +841,9 @@ export function MesEmailsVue({
       return;
     }
     setMsgClasser(null);
+    // Optimiste : le mail sort tout de suite. Si Outlook refuse, il revient dans la liste et
+    // un toast le dit ; avant le 27/10/2026 le message d'échec s'affichait sous le mail
+    // SUIVANT et le mail refusé restait « conclu » à l'écran.
     setClasses((p) => add(p, m.id));
     const folderNom = (dossiers ?? []).find((f) => f.id === folderId)?.nom ?? m.dossierClasseNom ?? "";
     void classerDansDossierAction(
@@ -846,7 +855,9 @@ export function MesEmailsVue({
       brouillonDe(m),
       boiteDuMail(m),
     ).then((r) => {
-      if (!r.ok) setMsgClasser(r.message ?? "Le classement a échoué.");
+      if (r.ok) return;
+      setClasses((p) => del(p, m.id));
+      toast.err(`« ${m.objet} » n'a pas été archivé : ${r.message ?? "le classement a échoué."}`);
     });
     passerAuSuivant(m);
   }
@@ -883,7 +894,8 @@ export function MesEmailsVue({
           {data.boites.length > 1 && (
             <div role="tablist" aria-label="Boîte affichée" className="inline-flex rounded-md border border-line bg-surface-2 p-0.5">
               {data.boites.map((b) => {
-                const nonLus = data.mails.filter((m) => (m.boite ?? boiteParDefaut) === b.id && !lus.has(m.id)).length;
+                // Non lus ENCORE à traiter : un mail conclu sans avoir été ouvert ne compte plus.
+                const nonLus = data.mails.filter((m) => (m.boite ?? boiteParDefaut) === b.id && !lus.has(m.id) && !classes.has(m.id)).length;
                 const actif = b.id === boiteActive;
                 return (
                   <button
@@ -1024,7 +1036,8 @@ export function MesEmailsVue({
                 <li className="px-4 py-6 text-center text-body text-ink-3">Aucun mail.</li>
               )}
             </ul>
-            {data.plusDeMails && data.boites.find((b) => b.id === boiteActive)?.personnelle ? (
+            {/* Plafond de la page : 200 (plafondPerso), au-delà le lien ne ferait que recharger. */}
+            {data.plusDeMails && maxPerso < 200 && data.boites.find((b) => b.id === boiteActive)?.personnelle ? (
               <div className="px-4 py-3 border-t border-line text-center">
                 <Link href={`/mes-emails?plus=${maxPerso + 40}`} className={classesBouton({ variant: "ghost", size: "sm" })}>
                   Plus de mails
@@ -1342,9 +1355,11 @@ function ChampDe({
         )}
       </div>
       {horsFil && (
+        // Le message d'origine est cité sous la signature depuis REA-302 ; ce sont les pièces
+        // jointes cochées qui ne suivent pas (envoyerNeuf n'en reprend aucune).
         <p className="mt-1.5 pl-9 text-meta text-warn-700">
-          Envoi hors du fil : le mail partira comme un message neuf, sans la citation ni
-          les pièces jointes d’origine.
+          Envoi hors du fil : le mail partira comme un message neuf, avec le message d’origine
+          cité dessous, mais sans les pièces jointes cochées.
         </p>
       )}
     </div>
@@ -1971,8 +1986,15 @@ function AnalysePane({
       <div className="px-5 pb-4 flex flex-col gap-3">
         {changer && !coproCode && (
           <div className="rounded-md border border-dashed border-line px-3 py-2 text-meta text-ink-3">
-            Lier un <strong>dossier de suivi intranet</strong> nécessite une copropriété. Pour simplement
-            <strong> ranger</strong> ce mail, utilise «&nbsp;Classer dans…&nbsp;» en haut - aucune copropriété requise.
+            Lier un <strong>dossier de suivi intranet</strong> nécessite une copropriété : choisis-la dans le
+            sélecteur ci-dessus.
+            {classementOutlook ? (
+              <>
+                {" "}
+                Pour simplement <strong>ranger</strong> ce mail dans Outlook, le sélecteur «&nbsp;Archiver dans…&nbsp;» est
+                en bas - aucune copropriété requise.
+              </>
+            ) : null}
           </div>
         )}
 
