@@ -19,9 +19,10 @@ import { boitesVisibles } from "@/lib/services/mes-emails/boites-visibles";
 import { lireBoitesLive } from "@/lib/services/mes-emails/lire-boites";
 import { statutPartage, type StatutEcrit } from "@/lib/services/mes-emails/statut-partage";
 
-export async function getMesEmails(g: Gestionnaire, maxPerso?: number): Promise<MesEmails> {
-  // Boites visibles = source unique (perso + sous-dossier du binome sur la partagee).
-  const boites = await boitesVisibles(g);
+export async function getMesEmails(g: Gestionnaire, maxPerso?: number, opts: { superAdmin?: boolean } = {}): Promise<MesEmails> {
+  // Boites visibles = source unique (perso + sous-dossier du binome sur la partagee de mon
+  // agence ; toutes les boites triees pour un super-admin, calcule par la page).
+  const boites = await boitesVisibles(g, opts);
   // Le portefeuille vient d'ESTALE en direct : on le lit PENDANT la lecture des boites.
   const mesCoprosP = getCoproRepository().list(g.id);
 

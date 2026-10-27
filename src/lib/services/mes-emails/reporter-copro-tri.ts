@@ -4,8 +4,9 @@
 // Seulement pour la boîte partagée du tri, et seulement pour un mail distribué à MES binômes.
 
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
+import { boiteTri } from "@/lib/domain/mail-gate";
 import { corrigerCopro } from "@/lib/services/tri-emails/ranger";
-import { boitesVisibles, distributionDe } from "./boites-visibles";
+import { mailDistribue } from "./boites-visibles";
 
 export async function reporterCoproAuTri(
   g: Pick<Gestionnaire, "email">,
@@ -13,9 +14,10 @@ export async function reporterCoproAuTri(
   internetMessageId: string,
   code: string,
 ): Promise<{ corrige: boolean; autreDossier?: string; reference?: string }> {
+  // Une boîte triée (config), et un mail distribué à MES binômes : c'est ce qui borne le geste,
+  // quelle que soit la boîte que la personne voit (27/10/2026).
   const b = boite.trim().toLowerCase();
-  const partagee = (await boitesVisibles(g)).find((x) => x.id === b && !x.personnelle);
-  if (!partagee) return { corrige: false };
-  if (!(await distributionDe(g, b)).has(internetMessageId)) return { corrige: false };
+  if (!boiteTri(b)) return { corrige: false };
+  if (!(await mailDistribue(g, b, internetMessageId))) return { corrige: false };
   return corrigerCopro(b, internetMessageId, code);
 }

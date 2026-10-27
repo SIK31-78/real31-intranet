@@ -2,25 +2,38 @@
 // « De : », PJ, classement) et la generation IA.
 //
 // - Boite perso : sa reception.
-// - Boite PARTAGEE = la boite que le tri distribue (MAIL_BOITE_TRI, ex. syndic4 pour Houilles),
-//   et on n'y lit QUE les mails que le tri a ranges vers MES dossiers de binome (gestionnaire
-//   ou assistant·e), d'apres son journal (decision Sekou du 13/10 : « que le sous-dossier du
-//   binome, pas tous les mails »). Le journal marche en simulation (mail reste en reception)
-//   comme en reel (mail deplace dans le dossier du binome) : on relit les mails par leur
-//   internetMessageId, ou qu'ils soient. Jamais toute la boite commune.
+// - Boite PARTAGEE = la boite triee de MON agence (config MAIL_TRI_BOITES : syndic4 pour HLS,
+//   syndic2 pour LGC et ASN ; V2 du 27/10/2026) ; un super-admin voit toutes les boites
+//   triees. On n'y lit QUE les mails que le tri a ranges vers MES dossiers de binome
+//   (gestionnaire ou assistant·e), d'apres son journal (decision Sekou du 13/10 : « que le
+//   sous-dossier du binome, pas tous les mails »). Le journal marche en simulation (mail reste
+//   en reception) comme en reel (mail deplace dans le dossier du binome) : on relit les mails
+//   par leur internetMessageId, ou qu'ils soient. Jamais toute la boite commune.
+// - Isolation (27/10/2026) : une action sur un mail d'une boite partagee exige que ce mail
+//   soit distribue a l'un de MES binomes (mailDistribue) ; les actions de l'ecran combinent
+//   ce controle avec estSuperAdmin (auth), qui en est exempte.
 
+import { cache } from "react";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { construireBoites, type BoiteMail } from "@/lib/domain/boites-mail";
-import { boiteTriConfiguree } from "@/lib/domain/mail-gate";
+import { boitesTri } from "@/lib/domain/mail-gate";
 import { clesDossiersDe, type EntreeJournalTri } from "@/lib/domain/tri-emails";
 import { getTriRepository } from "@/lib/adapters/router";
+import { boiteDe } from "@/lib/services/tri-emails/acces";
 
 /** Fenetre du journal relue : les rangements des 45 derniers jours. */
 const FENETRE_JOURS = 45;
 
-export async function boitesVisibles(g: Pick<Gestionnaire, "email">): Promise<BoiteMail[]> {
-  const tri = boiteTriConfiguree();
-  return construireBoites(g.email, tri ?? undefined).map((b) => (b.personnelle ? b : { ...b, libelle: `${b.libelle} · mes mails` }));
+/**
+ * Ma boite perso, puis la boite triee de mon agence (aucune si mon agence n'a pas de boite).
+ * `superAdmin` (calcule par l'appelant, auth) : toutes les boites triees. La boite fictive
+ * « echantillon » n'est jamais une boite a lire (construireBoites l'ecarte).
+ */
+export async function boitesVisibles(g: Pick<Gestionnaire, "email" | "agencyId">, opts: { superAdmin?: boolean } = {}): Promise<BoiteMail[]> {
+  const partagees = opts.superAdmin ? boitesTri() : [await boiteDe(g)].filter((b) => b !== null);
+  return construireBoites(g.email, partagees.map((b) => b.boite).join(",")).map((b) =>
+    b.personnelle ? b : { ...b, libelle: `${b.libelle} · mes mails` },
+  );
 }
 
 /**
@@ -29,11 +42,30 @@ export async function boitesVisibles(g: Pick<Gestionnaire, "email">): Promise<Bo
  * l'emporte. Corbeille, Comptabilite, Divers et dossiers des autres binomes sont exclus.
  */
 export async function distributionDe(g: Pick<Gestionnaire, "email">, boite: string): Promise<Map<string, string | null>> {
+  return distributionEnCache(g.email?.trim().toLowerCase() ?? "", boite.trim().toLowerCase());
+}
+
+/**
+ * Lu UNE fois par requete serveur (React `cache`, cles primitives) : l'ecran et ses actions
+ * demandent la distribution plusieurs fois (garde de chaque action, lecture de la boite), le
+ * journal n'est relu qu'une fois.
+ */
+const distributionEnCache = cache(async (email: string, boite: string): Promise<Map<string, string | null>> => {
   const out = new Map<string, string | null>();
-  for (const e of await rangementsDeMesBinomes(g, boite)) {
+  for (const e of await rangementsDeMesBinomes({ email }, boite)) {
     if (!out.has(e.internetMessageId)) out.set(e.internetMessageId, e.coproReference);
   }
   return out;
+});
+
+/**
+ * Ce mail de la boite partagee est-il distribue a l'un de mes binomes ? Le controle d'acces
+ * des actions de « E-mails » (isolation par binome, 27/10/2026) : un identifiant de mail d'un
+ * autre binome, meme dans la boite de mon agence, est refuse.
+ */
+export async function mailDistribue(g: Pick<Gestionnaire, "email">, boite: string, internetMessageId: string): Promise<boolean> {
+  if (!g.email || !internetMessageId) return false;
+  return (await distributionDe(g, boite)).has(internetMessageId);
 }
 
 /**

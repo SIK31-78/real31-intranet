@@ -10,6 +10,7 @@ import { echec, echecDepuis, messageUtilisateur, type Res } from "@/lib/actions/
 import { z } from "zod";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
+import { estSuperAdmin } from "@/lib/auth/roles";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import {
   enregistrerBrouillon,
@@ -21,8 +22,9 @@ import {
   type Cible,
 } from "@/lib/services/mes-emails/maj-etat";
 import { boiteAutorisee } from "@/lib/domain/boites-mail";
-import { envoiMailActif } from "@/lib/domain/mail-gate";
-import { boitesVisibles, conversationsDistribuees } from "@/lib/services/mes-emails/boites-visibles";
+import { envoiMailPour } from "@/lib/domain/mail-gate";
+import { boitesVisibles, conversationsDistribuees, mailDistribue } from "@/lib/services/mes-emails/boites-visibles";
+import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { reporterCoproAuTri } from "@/lib/services/mes-emails/reporter-copro-tri";
 import { creerBrouillonReponse } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, creerDossierBoite, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
@@ -50,15 +52,37 @@ import { TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
 // L'adresse de boite arrive du CLIENT (le mail affiche, le "De :" choisi). Elle n'est
 // JAMAIS crue sur parole : seule une boite de la configuration visible est acceptee.
 // Absente => boite personnelle, c'est-a-dire le comportement d'avant le multi-boites.
+// Boite partagee = celle de MON agence (config MAIL_TRI_BOITES) ; toutes pour un super-admin.
 
 const zBoite = z.string().max(320).optional();
 
-async function boiteCible(g: { email?: string }, demandee: string | undefined): Promise<string | null> {
-  const boites = await boitesVisibles(g);
+type Personne = Pick<Gestionnaire, "email" | "agencyId">;
+
+/** Les boites de la personne : la sienne, celle de son agence (toutes pour un super-admin). */
+function boitesDe(g: Personne) {
+  return boitesVisibles(g, { superAdmin: estSuperAdmin(g.email) });
+}
+
+async function boiteCible(g: Personne, demandee: string | undefined): Promise<string | null> {
+  const boites = await boitesDe(g);
   const cible =
     (demandee ?? "").trim().toLowerCase() || boites.find((b) => b.personnelle)?.id || "";
   if (!cible) return null;
   return boiteAutorisee(boites, cible) ? cible : null;
+}
+
+/**
+ * La boite d'un MAIL RECU sur lequel on agit (isolation par binome, 27/10/2026) : la boite doit
+ * etre visible (boiteCible), et dans une boite partagee le mail doit avoir ete distribue par
+ * le tri a l'un de MES binomes. Sinon un identifiant de mail pris chez un autre binome (ou
+ * fabrique) ouvrirait ses pieces jointes, son historique, une reponse en son nom. Le
+ * super-admin en est exempte (pilote). La distribution est lue une fois par requete.
+ */
+async function boiteDuMail(g: Personne, demandee: string | undefined, emailId: string): Promise<string | null> {
+  const cible = await boiteCible(g, demandee);
+  if (!cible) return null;
+  if (cible === (g.email ?? "").trim().toLowerCase() || estSuperAdmin(g.email)) return cible;
+  return (await mailDistribue(g, cible, emailId)) ? cible : null;
 }
 
 // --- Cloisonnement -----------------------------------------------------------
@@ -109,13 +133,16 @@ function cibleDe(g: Gestionnaire, emailId: string, coproCode: string): Cible {
 }
 
 /** La Cible d'un changement de STATUT : sur une boite partagee visible, le statut vaut
- *  pour tous ceux qui la voient (Mylene conclut pour Nicolas, 15/10/2026). */
-async function cibleStatut(g: Gestionnaire, emailId: string, coproCode: string, boite: string | undefined): Promise<Cible> {
+ *  pour tous ceux qui la voient (l'assistante conclut pour le gestionnaire, 15/10/2026). Un mail de la
+ *  boite partagee qui n'est pas distribue a mes binomes : null, rien n'est ecrit (27/10/2026). */
+async function cibleStatut(g: Gestionnaire, emailId: string, coproCode: string, boite: string | undefined): Promise<Cible | null> {
   const c = cibleDe(g, emailId, coproCode);
   const demandee = (boite ?? "").trim().toLowerCase();
   if (!demandee) return c;
-  const b = (await boitesVisibles(g)).find((x) => x.id === demandee);
-  return b && !b.personnelle ? { ...c, boitePartagee: b.id } : c;
+  const b = (await boitesDe(g)).find((x) => x.id === demandee);
+  if (!b || b.personnelle) return c;
+  if (!estSuperAdmin(g.email) && !(await mailDistribue(g, b.id, emailId))) return null;
+  return { ...c, boitePartagee: b.id };
 }
 
 // PERF (Sentry 16/10/2026) : les actions legeres ne relancent PAS la page entiere.
@@ -130,14 +157,16 @@ export async function marquerTraiteAction(emailId: string, coproCode: string, bo
   if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success) return;
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
-  await enregistrerStatut(await cibleStatut(auth.g, emailId, coproCode, boite), "classe", []);
+  const cible = await cibleStatut(auth.g, emailId, coproCode, boite);
+  if (cible) await enregistrerStatut(cible, "classe", []);
 }
 
 export async function devaliderMailAction(emailId: string, coproCode: string, boite?: string): Promise<void> {
   if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success) return;
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
-  await enregistrerStatut(await cibleStatut(auth.g, emailId, coproCode, boite), "nouveau", []);
+  const cible = await cibleStatut(auth.g, emailId, coproCode, boite);
+  if (cible) await enregistrerStatut(cible, "nouveau", []);
 }
 
 export async function editBrouillonAction(emailId: string, coproCode: string, brouillon: string): Promise<void> {
@@ -262,7 +291,7 @@ export async function chargerPiecesJointesAction(
     return [];
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok || !auth.g.email) return [];
-  const cible = await boiteCible(auth.g, boite);
+  const cible = await boiteDuMail(auth.g, boite, emailId);
   if (!cible) return [];
   try {
     return await listerPiecesJointesMail(cible, emailId);
@@ -277,7 +306,7 @@ export async function chargerReponsesEnvoyeesAction(emailId: string, boite?: str
   if (!z.object({ emailId: zId, boite: zBoite }).safeParse({ emailId, boite }).success) return null;
   const g = await getGestionnaireCourant();
   if (!g?.email) return null;
-  const cible = await boiteCible(g, boite);
+  const cible = await boiteDuMail(g, boite, emailId);
   if (!cible) return null;
   try {
     return await reponsesEnvoyees(cible, emailId);
@@ -292,7 +321,7 @@ export async function chargerHistoriqueAction(emailId: string, boite?: string): 
   if (!z.object({ emailId: zId, boite: zBoite }).safeParse({ emailId, boite }).success) return null;
   const g = await getGestionnaireCourant();
   if (!g?.email) return null;
-  const cible = await boiteCible(g, boite);
+  const cible = await boiteDuMail(g, boite, emailId);
   if (!cible) return null;
   try {
     return await historiqueDuMail(cible, emailId);
@@ -304,18 +333,23 @@ export async function chargerHistoriqueAction(emailId: string, boite?: string): 
 
 // --- « Pas pour moi » (REA-327) : un mail de la boîte partagée rangé chez le mauvais binôme ---
 
-/** La boîte partagée du mail, si la personne la voit ; null sinon (boîte perso, boîte inconnue). */
-async function boitePartageeDe(g: Gestionnaire, boite: string | undefined): Promise<string | null> {
+/**
+ * La boîte partagée du mail, si la personne la voit ET que le mail est distribué à l'un de ses
+ * binômes (super-admin exempté) ; null sinon (boîte perso, boîte inconnue, mail d'un autre binôme).
+ */
+async function boitePartageeDe(g: Gestionnaire, boite: string | undefined, emailId: string): Promise<string | null> {
   const demandee = (boite ?? "").trim().toLowerCase();
-  const b = (await boitesVisibles(g)).find((x) => x.id === demandee);
-  return b && !b.personnelle ? b.id : null;
+  const b = (await boitesDe(g)).find((x) => x.id === demandee);
+  if (!b || b.personnelle) return null;
+  return estSuperAdmin(g.email) || (await mailDistribue(g, b.id, emailId)) ? b.id : null;
 }
 
+/** Les copros de la boîte triée de mon agence (pas le seul portefeuille). */
 export async function coprosPourReaffecterAction(): Promise<Res<CoproDestination[]>> {
   const g = await getGestionnaireCourant();
   if (!g) return echec("Non connecté.");
   try {
-    return { ok: true, donnees: await coprosPourReaffecter() };
+    return { ok: true, donnees: await coprosPourReaffecter(await boiteDe(g)) };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
   }
@@ -326,8 +360,8 @@ export async function envoyerABonneCoproAction(emailId: string, reference: strin
   if (!v.success) return echec("Données invalides.");
   const g = await getGestionnaireCourant();
   if (!g) return echec("Non connecté.");
-  const partagee = await boitePartageeDe(g, boite);
-  if (!partagee) return echec("Seul un mail de la boîte partagée peut changer de binôme.");
+  const partagee = await boitePartageeDe(g, boite, emailId);
+  if (!partagee) return echec("Seul un mail de la boîte partagée distribué à ton binôme peut changer de binôme.");
   try {
     const r = await envoyerABonneCopro(partagee, emailId, reference.toUpperCase(), g.email ?? g.id);
     return { ok: true, donnees: { dossierNom: r.dossierNom } };
@@ -341,7 +375,7 @@ export async function chargerImagesMailAction(emailId: string, coproCode: string
   if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success) return [];
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok || !auth.g.email) return [];
-  const cible = await boiteCible(auth.g, boite);
+  const cible = await boiteDuMail(auth.g, boite, emailId);
   if (!cible) return [];
   try {
     return await listerImagesMail(cible, emailId);
@@ -362,7 +396,7 @@ export async function telechargerPieceJointeAction(
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
   if (!auth.g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
-  const cible = await boiteCible(auth.g, boite);
+  const cible = await boiteDuMail(auth.g, boite, emailId);
   if (!cible) return { ok: false, message: "Boîte non autorisée." };
   try {
     const pj = await lirePieceJointeMail(cible, emailId, attachmentId);
@@ -386,7 +420,7 @@ export async function transmettreFactureAction(
     return { ok: false, message: "Compte (chiffres), fournisseur et libellé sont requis." };
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return auth;
-  const cible = await boiteCible(auth.g, boite);
+  const cible = await boiteDuMail(auth.g, boite, emailId);
   if (!cible) return { ok: false, message: "Boîte non autorisée." };
   try {
     const r = await transmettreFacture({ boite: cible, internetMessageId: emailId, facture });
@@ -436,13 +470,15 @@ export async function envoyerReponseAction(
   if (!g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
   // Les DEUX boites sont validees contre la configuration : celle qui detient le mail
   // et celle qui expedie. Un "De :" fabrique cote client est refuse ici.
-  const cibleMessage = await boiteCible(g, boiteMessage);
+  // Le mail auquel on répond doit être distribué à mon binôme (boîte partagée, 27/10/2026).
+  const cibleMessage = await boiteDuMail(g, boiteMessage, emailId);
   const cibleEnvoi = await boiteCible(g, boiteEnvoi);
   if (!cibleMessage || !cibleEnvoi) return { ok: false, message: "Boîte non autorisée." };
-  // Envoi RÉEL depuis une boîte partagée (syndicN) : seulement si MAIL_ENVOI=on (ADR-047).
-  // Un mail qui part de la boîte commune engage le cabinet : pendant le pilote, on passe
-  // par le brouillon, relu puis envoyé dans Outlook. La boîte perso garde son comportement.
-  if (cibleEnvoi !== g.email.trim().toLowerCase() && !envoiMailActif()) {
+  // Envoi RÉEL depuis une boîte partagée (syndicN) : seulement si l'envoi y est ouvert
+  // (MAIL_ENVOI=on ET `envoi` dans la config de la boîte ; ADR-047, 27/10/2026). Un mail qui
+  // part de la boîte commune engage le cabinet : pendant le pilote, on passe par le
+  // brouillon, relu puis envoyé dans Outlook. La boîte perso garde son comportement.
+  if (cibleEnvoi !== g.email.trim().toLowerCase() && !envoiMailPour(cibleEnvoi)) {
     return {
       ok: false,
       message: "L'envoi depuis la boîte partagée est coupé pendant le pilote. Utilise « Brouillon Outlook » : il se relit et s'envoie dans Outlook.",
@@ -527,7 +563,7 @@ export async function creerDossierOutlookAction(nom: string, boite?: string): Pr
   if (!z.string().trim().min(1).max(120).safeParse(nom).success || !zBoite.safeParse(boite).success)
     return { ok: false, message: "Nom de dossier invalide." };
   const cible = await boiteCible(g, boite);
-  const perso = (await boitesVisibles(g)).find((b) => b.id === cible)?.personnelle;
+  const perso = (await boitesDe(g)).find((b) => b.id === cible)?.personnelle;
   if (!cible || !perso) return { ok: false, message: "Le dossier ne se crée que dans votre boîte personnelle." };
   try {
     return { ok: true, dossier: await creerDossierBoite(cible, nom.trim()) };
@@ -568,12 +604,12 @@ export async function classerDansDossierAction(
   if (!auth.ok) return auth;
   const g = auth.g;
   if (!g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
-  const cible = await boiteCible(g, boite);
+  const cible = await boiteDuMail(g, boite, emailId);
   if (!cible) return { ok: false, message: "Boîte non autorisée." };
   try {
     const res = await classerDansDossier(cible, emailId, folderId);
     const c = cibleDe(g, emailId, coproCode);
-    await enregistrerStatut(await cibleStatut(g, emailId, coproCode, cible), "classe", etapes, brouillon);
+    await enregistrerStatut((await cibleStatut(g, emailId, coproCode, cible)) ?? c, "classe", etapes, brouillon);
     await enregistrerDossier(c, folderId, folderNom);
     return res.deplace ? { ok: true } : { ok: false, message: "Le mail n'a pas pu être déplacé." };
   } catch (e) {
@@ -608,7 +644,7 @@ export async function creerBrouillonAction(input: unknown): Promise<{ ok: boolea
   if (!auth.ok) return auth;
   const riche = corpsMisEnForme(true, d.corpsHtml);
   if (riche === "refuse") return { ok: false, message: PILOTE_SEUL };
-  const cible = await boiteCible(auth.g, d.boite);
+  const cible = await boiteDuMail(auth.g, d.boite, d.emailId);
   if (!cible) return { ok: false, message: "Boîte non autorisée." };
   const invalide = [...d.a, ...d.cc, ...d.cci].map((x) => x.trim()).find((x) => x && !EMAIL_RE.test(x));
   if (invalide) return { ok: false, message: `Adresse invalide : ${invalide}` };
@@ -658,7 +694,7 @@ export async function mettreALaCorbeilleAction(input: unknown): Promise<Res<Resu
   const v = z.object({ ids: z.array(zId).min(1).max(50), boite: zBoite }).safeParse(input);
   if (!v.success) return echec("Sélection invalide (50 mails au plus).");
   const cible = await boiteCible(g, v.data.boite);
-  const perso = (await boitesVisibles(g)).find((b) => b.id === cible)?.personnelle;
+  const perso = (await boitesDe(g)).find((b) => b.id === cible)?.personnelle;
   if (!cible || !perso) return echec("La corbeille ne vaut que pour votre boîte personnelle.");
   try {
     return { ok: true, donnees: await mettreALaCorbeille(cible, v.data.ids) };
@@ -679,7 +715,7 @@ export async function chargerEnvoyesAction(input: unknown): Promise<Res<EchangeT
   const cible = await boiteCible(g, v.data.boite);
   if (!cible) return echec("Boîte non autorisée.");
   try {
-    const perso = (await boitesVisibles(g)).find((x) => x.id === cible)?.personnelle ?? false;
+    const perso = (await boitesDe(g)).find((x) => x.id === cible)?.personnelle ?? false;
     return { ok: true, donnees: await listerEnvoyes(cible, perso ? undefined : await conversationsDistribuees(g, cible)) };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
@@ -704,7 +740,8 @@ export async function lireEnvoyeAction(input: unknown): Promise<Res<string>> {
 /**
  * Transférer un mail (REA-350) depuis la boîte qui le détient, pièces jointes d'origine
  * comprises. Depuis la boîte perso, il part ; depuis une boîte partagée, il ne part que si
- * l'envoi y est ouvert (MAIL_ENVOI=on, ADR-047), sinon il reste en brouillon dans Outlook.
+ * l'envoi y est ouvert (MAIL_ENVOI=on ET `envoi` de la boîte, ADR-047), sinon il reste en
+ * brouillon dans Outlook. Le mail doit être distribué à mon binôme (27/10/2026).
  */
 export async function transfererMailAction(input: unknown): Promise<Res<{ envoye: boolean; boite: string }>> {
   const g = await gestionnairePilote();
@@ -721,9 +758,9 @@ export async function transfererMailAction(input: unknown): Promise<Res<{ envoye
   if (!v.success) return echec("Ajoute au moins un destinataire valide (50 au plus).");
   const d = v.data;
   if (d.a.length + d.cc.length > 50) return echec("Trop de destinataires (50 maximum).");
-  const cible = await boiteCible(g, d.boite);
+  const cible = await boiteDuMail(g, d.boite, d.emailId);
   if (!cible) return echec("Boîte non autorisée.");
-  const envoyer = cible === g.email.trim().toLowerCase() || envoiMailActif();
+  const envoyer = cible === g.email.trim().toLowerCase() || envoiMailPour(cible);
   try {
     const signatureHtml = (await getSignatureGestionnaire(g)) ?? undefined;
     await transfererMail({
