@@ -118,60 +118,68 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     if (!r1.ok) throw new Error(`Graph createReply ${r1.status} : ${(await r1.text()).slice(0, 200)}`);
     const draft = (await r1.json()) as { id: string; webLink?: string; body?: { content?: string } };
 
-    // 1bis. Re-joint les PJ choisies du mail d'origine (recuperees puis ajoutees au draft).
-    for (const aid of p.pjIds ?? []) {
-      // Timeout double sur la lecture/re-upload de PJ (plusieurs Mo en base64 possibles).
-      const ra = await graphFetch(`${u}/messages/${id}/attachments/${aid}`, { headers: { Authorization: `Bearer ${tk}` } }, 60_000);
-      if (!ra.ok) throw new Error(`Graph lire PJ ${ra.status} : ${(await ra.text()).slice(0, 200)}`);
-      const att = (await ra.json()) as { name: string; contentType: string; contentBytes?: string };
-      if (!att.contentBytes) continue;
-      const rp = await graphFetch(`${u}/messages/${draft.id}/attachments`, {
-        method: "POST",
-        headers: h,
-        body: JSON.stringify({
-          "@odata.type": "#microsoft.graph.fileAttachment",
-          name: att.name,
-          contentType: att.contentType,
-          contentBytes: att.contentBytes,
-        }),
-      }, 60_000);
-      if (!rp.ok) throw new Error(`Graph ajout PJ ${rp.status} : ${(await rp.text()).slice(0, 200)}`);
-    }
-    // 1ter. Fichiers ajoutes depuis l'ordinateur.
-    for (const f of p.piecesJointes ?? []) {
-      const rf = await graphFetch(`${u}/messages/${draft.id}/attachments`, {
-        method: "POST",
-        headers: h,
-        body: JSON.stringify({
-          "@odata.type": "#microsoft.graph.fileAttachment",
-          name: f.nom,
-          contentType: f.contentType || "application/octet-stream",
-          contentBytes: f.base64,
-        }),
-      }, 60_000);
-      if (!rf.ok) throw new Error(`Graph ajout fichier ${rf.status} : ${(await rf.text()).slice(0, 200)}`);
-    }
+    // Une etape qui echoue apres createReply (PJ de plus de 3 Mo, PATCH refuse) laissait un
+    // brouillon orphelin dans la boite, et le nouvel essai en creait un deuxieme (audit du
+    // 27/10/2026) : on le supprime avant de remonter l'erreur.
+    try {
+      // 1bis. Re-joint les PJ choisies du mail d'origine (recuperees puis ajoutees au draft).
+      for (const aid of p.pjIds ?? []) {
+        // Timeout double sur la lecture/re-upload de PJ (plusieurs Mo en base64 possibles).
+        const ra = await graphFetch(`${u}/messages/${id}/attachments/${encodeURIComponent(aid)}`, { headers: { Authorization: `Bearer ${tk}` } }, 60_000);
+        if (!ra.ok) throw new Error(`Graph lire PJ ${ra.status} : ${(await ra.text()).slice(0, 200)}`);
+        const att = (await ra.json()) as { name: string; contentType: string; contentBytes?: string };
+        if (!att.contentBytes) continue;
+        const rp = await graphFetch(`${u}/messages/${draft.id}/attachments`, {
+          method: "POST",
+          headers: h,
+          body: JSON.stringify({
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            name: att.name,
+            contentType: att.contentType,
+            contentBytes: att.contentBytes,
+          }),
+        }, 60_000);
+        if (!rp.ok) throw new Error(`Graph ajout PJ ${rp.status} : ${(await rp.text()).slice(0, 200)}`);
+      }
+      // 1ter. Fichiers ajoutes depuis l'ordinateur.
+      for (const f of p.piecesJointes ?? []) {
+        const rf = await graphFetch(`${u}/messages/${draft.id}/attachments`, {
+          method: "POST",
+          headers: h,
+          body: JSON.stringify({
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            name: f.nom,
+            contentType: f.contentType || "application/octet-stream",
+            contentBytes: f.base64,
+          }),
+        }, 60_000);
+        if (!rf.ok) throw new Error(`Graph ajout fichier ${rf.status} : ${(await rf.text()).slice(0, 200)}`);
+      }
 
-    // 2. Pose le corps (mon texte + signature AU-DESSUS de la citation), le sujet et les
-    //    destinataires. Signature injectee ICI car Signitic (add-in Outlook) ne s'applique
-    //    pas a un envoi app-only.
-    const citation = draft.body?.content ?? "";
-    // Corps mis en forme (REA-345) : deja nettoye et habille par l'appelant.
-    const monTexte = p.corpsHtml ?? `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`;
-    const signature = p.signatureHtml ? `<br/>${p.signatureHtml}` : "";
-    const corpsPatch: Record<string, unknown> = {
-      body: { contentType: "HTML", content: monTexte + signature + citation },
-      toRecipients: dest(p.a),
-      ccRecipients: dest(p.cc),
-      bccRecipients: dest(p.cci),
-    };
-    if (p.sujet && p.sujet.trim()) corpsPatch.subject = p.sujet.trim();
-    const r2 = await graphFetch(`${u}/messages/${draft.id}`, {
-      method: "PATCH",
-      headers: h,
-      body: JSON.stringify(corpsPatch),
-    });
-    if (!r2.ok) throw new Error(`Graph PATCH brouillon ${r2.status} : ${(await r2.text()).slice(0, 200)}`);
+      // 2. Pose le corps (mon texte + signature AU-DESSUS de la citation), le sujet et les
+      //    destinataires. Signature injectee ICI car Signitic (add-in Outlook) ne s'applique
+      //    pas a un envoi app-only.
+      const citation = draft.body?.content ?? "";
+      // Corps mis en forme (REA-345) : deja nettoye et habille par l'appelant.
+      const monTexte = p.corpsHtml ?? `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${echapperHtml(p.corps)}</div>`;
+      const signature = p.signatureHtml ? `<br/>${p.signatureHtml}` : "";
+      const corpsPatch: Record<string, unknown> = {
+        body: { contentType: "HTML", content: monTexte + signature + citation },
+        toRecipients: dest(p.a),
+        ccRecipients: dest(p.cc),
+        bccRecipients: dest(p.cci),
+      };
+      if (p.sujet && p.sujet.trim()) corpsPatch.subject = p.sujet.trim();
+      const r2 = await graphFetch(`${u}/messages/${draft.id}`, {
+        method: "PATCH",
+        headers: h,
+        body: JSON.stringify(corpsPatch),
+      });
+      if (!r2.ok) throw new Error(`Graph PATCH brouillon ${r2.status} : ${(await r2.text()).slice(0, 200)}`);
+    } catch (e) {
+      await graphFetch(`${u}/messages/${encodeURIComponent(draft.id)}`, { method: "DELETE", headers: { Authorization: `Bearer ${tk}` } }).catch(() => undefined);
+      throw e;
+    }
 
     return { u, h, draftId: draft.id, ...(draft.webLink ? { webLink: draft.webLink } : {}) };
   }

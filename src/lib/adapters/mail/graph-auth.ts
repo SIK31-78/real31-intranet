@@ -24,6 +24,16 @@ export async function graphFetch(
   const appel = () => fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   let r = await appel();
   const methode = (init.method ?? "GET").toUpperCase();
+  // 401 avec un jeton applicatif : il a ete revoque ou a expire plus tot que prevu. On en
+  // redemande un et on rejoue UNE fois, toutes methodes confondues (la requete n'est pas
+  // partie cote Graph). Audit du 27/10/2026.
+  if (r.status === 401 && entete(init.headers, "authorization")?.startsWith("Bearer ")) {
+    oublierJeton();
+    const neuf = await jetonGraph();
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${neuf}`);
+    r = await fetch(url, { ...init, headers, signal: AbortSignal.timeout(timeoutMs) });
+  }
   if (methode === "GET" && (r.status === 429 || r.status >= 500)) {
     const retryAfter = Number(r.headers.get("retry-after"));
     await new Promise((res) =>
@@ -32,6 +42,11 @@ export async function graphFetch(
     r = await appel();
   }
   return r;
+}
+
+function entete(headers: HeadersInit | undefined, nom: string): string | null {
+  if (!headers) return null;
+  return new Headers(headers).get(nom);
 }
 
 function tenant(): string | null {
@@ -44,9 +59,26 @@ function tenant(): string | null {
 // Cache module-level du token applicatif : meme token pour toute l'app, valable ~3600s.
 // Evite un POST OAuth a Microsoft a chaque appel Graph (le cookie eStale fait deja pareil).
 let _tokenCache: { value: string; expiresAt: number } | null = null;
+// La PROMESSE en cours est partagee : a froid, N requetes paralleles ne font plus N POST
+// OAuth (audit du 27/10/2026).
+let _tokenEnCours: Promise<string> | null = null;
 
 export async function jetonGraph(): Promise<string> {
   if (_tokenCache && Date.now() < _tokenCache.expiresAt - 60_000) return _tokenCache.value;
+  if (!_tokenEnCours) {
+    _tokenEnCours = demanderJeton().finally(() => {
+      _tokenEnCours = null;
+    });
+  }
+  return _tokenEnCours;
+}
+
+/** Oublie le jeton en cache (401 : revoque ou expire plus tot que prevu). */
+function oublierJeton(): void {
+  _tokenCache = null;
+}
+
+async function demanderJeton(): Promise<string> {
   const t = tenant();
   const id = process.env.AUTH_MICROSOFT_ENTRA_ID_ID;
   const secret = process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET;

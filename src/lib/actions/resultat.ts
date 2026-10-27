@@ -15,7 +15,7 @@ export function echec(erreur: string): { ok: false; erreur: string } {
 }
 
 const TECHNIQUE_RE =
-  /PGRST|HTTP \d{3}|\bcolumn\b|\brelation\b|\bschema\b|violates|duplicate key|does not exist|fetch failed|ECONN|ETIMEDOUT|ENOTFOUND|timed? ?out|Unexpected token|JSON|permission denied|syntax error|null value in|invalid input syntax|GraphQL|ReferenceError|TypeError|undefined is not|Cannot read/i;
+  /^Graph |^Token Graph|PGRST|HTTP \d{3}|\bcolumn\b|\brelation\b|\bschema\b|violates|duplicate key|does not exist|fetch failed|ECONN|ETIMEDOUT|ENOTFOUND|timed? ?out|Unexpected token|JSON|permission denied|syntax error|null value in|invalid input syntax|GraphQL|ReferenceError|TypeError|undefined is not|Cannot read/i;
 
 export const MESSAGE_TECHNIQUE = "Une erreur technique est survenue, elle a été signalée. Réessaie dans un instant.";
 

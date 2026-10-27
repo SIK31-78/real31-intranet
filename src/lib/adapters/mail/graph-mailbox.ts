@@ -246,7 +246,7 @@ export class GraphMailboxProvider implements MailboxProvider {
     if (!p.boite) throw new Error("Piece jointe : boite manquante.");
     const tk = await jetonGraph();
     const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
-    const url = `${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/attachments/${p.attachmentId}`;
+    const url = `${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}/attachments/${encodeURIComponent(p.attachmentId)}`;
     // Timeout double : une PJ de plusieurs Mo (contentBytes base64) peut depasser 30 s.
     const r = await graphFetch(url, { headers: { Authorization: `Bearer ${tk}` } }, 60_000);
     if (!r.ok) throw new Error(`Graph piece jointe ${r.status} : ${(await r.text()).slice(0, 200)}`);
