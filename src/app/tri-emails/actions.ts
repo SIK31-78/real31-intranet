@@ -1,7 +1,7 @@
 "use server";
 
-// Server Actions du tri des e-mails (ADR-046, increment 2). Pilote : super-admins
-// seulement, comme l'ecran. L'ecriture reelle dans la boite depend de MAIL_TRI_ECRITURE
+// Server Actions du tri des e-mails (ADR-046, increment 2). L'agence de la boite et les
+// super-admins, comme l'ecran (27/10/2026) ; les binomes, super-admins seulement. L'ecriture reelle dans la boite depend de MAIL_TRI_ECRITURE
 // (routeur) ; sans elle, le rangement est simule et journalise comme tel.
 
 import { revalidatePath } from "next/cache";
@@ -9,6 +9,7 @@ import { z } from "zod";
 import { actionGestionnaire, Refus } from "@/lib/actions/garde";
 import type { Res } from "@/lib/actions/resultat";
 import { estSuperAdmin } from "@/lib/auth/session";
+import { deLAgenceDuTri } from "@/lib/services/tri-emails/acces";
 import { annulerRangement, preciserCopro, rangerMail, supprimerMail } from "@/lib/services/tri-emails/ranger";
 import { oublierCompteur } from "@/lib/services/tri-emails/compteur";
 import { affecterCopro, ajouterAssistant, definirPrincipal, retirerAssistant } from "@/lib/services/tri-emails/binomes";
@@ -41,15 +42,19 @@ const zRanger = z.object({
   suggestion: z.object({ nature: zNature, candidats: z.array(z.string().max(10)).max(20) }).nullable(),
 });
 
-function gardePilote(email: string | undefined) {
-  if (!estSuperAdmin(email)) throw new Refus("Le tri des e-mails est réservé au pilote pour l'instant.");
+async function gardeTri(g: { email?: string | null; agencyId?: string }) {
+  if (!estSuperAdmin(g.email) && !(await deLAgenceDuTri(g.agencyId))) throw new Refus("Le tri des e-mails est réservé à l'agence de la boîte.");
+}
+
+function gardeBinomes(email: string | null | undefined) {
+  if (!estSuperAdmin(email)) throw new Refus("Les binômes se règlent avec l'administrateur.");
 }
 
 export async function rangerMailAction(
   input: unknown,
 ): Promise<Res<{ journalId: string; dossierNom: string; simulation: boolean; etiquetteNonPosee: boolean }>> {
   return actionGestionnaire(zRanger, input, "tri-emails-ranger", async (d, g) => {
-    gardePilote(g.email);
+    await gardeTri(g);
     const r = await rangerMail(d, g.email ?? g.id);
     oublierCompteur();
     revalidatePath("/tri-emails");
@@ -69,7 +74,7 @@ export async function supprimerMailAction(
   input: unknown,
 ): Promise<Res<{ journalId: string; dossierNom: string; simulation: boolean; etiquetteNonPosee: boolean }>> {
   return actionGestionnaire(zSupprimer, input, "tri-emails-supprimer", async (d, g) => {
-    gardePilote(g.email);
+    await gardeTri(g);
     const r = await supprimerMail(d, g.email ?? g.id);
     oublierCompteur();
     revalidatePath("/tri-emails");
@@ -79,7 +84,7 @@ export async function supprimerMailAction(
 
 export async function annulerRangementAction(input: unknown): Promise<Res> {
   return actionGestionnaire(z.object({ journalId: z.string().min(1).max(80) }), input, "tri-emails-annuler", async (d, g) => {
-    gardePilote(g.email);
+    await gardeTri(g);
     await annulerRangement(d.journalId, g.email ?? g.id);
     oublierCompteur();
     revalidatePath("/tri-emails");
@@ -92,7 +97,7 @@ const zId = z.string().min(1).max(80);
 function binomeAction<S extends z.ZodTypeAny>(schema: S, corps: (d: z.output<S>, par: string) => Promise<void>) {
   return (input: unknown): Promise<Res> =>
     actionGestionnaire(schema, input, "tri-emails-binome", async (d, g) => {
-      gardePilote(g.email);
+      gardeBinomes(g.email);
       await corps(d, g.email ?? g.id);
       revalidatePath("/tri-emails");
     });
@@ -125,7 +130,7 @@ const zMessage = z.string().min(1).max(400);
 
 export async function listerPiecesJointesTriAction(input: unknown): Promise<Res<PieceJointeRef[]>> {
   return actionGestionnaire(z.object({ internetMessageId: zMessage }), input, "tri-emails-pj", async (d, g) => {
-    gardePilote(g.email);
+    await gardeTri(g);
     return listerPiecesJointesTri(d.internetMessageId);
   });
 }
@@ -136,7 +141,7 @@ export async function lirePieceJointeTriAction(input: unknown): Promise<Res<{ no
     input,
     "tri-emails-pj",
     async (d, g) => {
-      gardePilote(g.email);
+      await gardeTri(g);
       return lirePieceJointeTri(d.internetMessageId, d.attachmentId);
     },
   );
@@ -144,7 +149,7 @@ export async function lirePieceJointeTriAction(input: unknown): Promise<Res<{ no
 
 export async function coproDepuisPjAction(input: unknown): Promise<Res<CoproDepuisPj | null>> {
   return actionGestionnaire(z.object({ internetMessageId: zMessage }), input, "tri-emails-pj-copro", async (d, g) => {
-    gardePilote(g.email);
+    await gardeTri(g);
     return coproDepuisPiecesJointes(d.internetMessageId);
   });
 }
@@ -155,7 +160,7 @@ export async function preciserCoproAction(input: unknown): Promise<Res> {
     input,
     "tri-emails-preciser",
     async (d, g) => {
-      gardePilote(g.email);
+      await gardeTri(g);
       await preciserCopro(d.journalId, d.reference);
       revalidatePath("/tri-emails");
     },
@@ -172,7 +177,7 @@ export async function preciserCoproAction(input: unknown): Promise<Res> {
  */
 export async function chargerHistoriqueTriAction(input: unknown): Promise<Res<string>> {
   return actionGestionnaire(z.object({ internetMessageId: zMessage }), input, "tri-emails-historique", async (d, g) => {
-    gardePilote(g.email);
+    await gardeTri(g);
     const boite = boiteTriConfiguree();
     // L'échantillon est fictif : ses mails n'existent dans aucune boîte.
     if (!boite || boite === "echantillon") return "";

@@ -424,8 +424,8 @@ export function Sidebar({
               // depuis le 16/10/2026 (REA-353). Chacun n'y voit que les reprises dont il fait
               // partie de l'equipe (cf. dossierVisiblePar), la direction voit tout.
               if (item.key === "reprise") return repriseOuverte;
-              // "Tri des e-mails" (ADR-046) : pilote super-admin, et seulement si la boite est configuree.
-              if (item.key === "tri-emails") return adminOuvert && triOuvert;
+              // "Tri des e-mails" (ADR-046) : l'agence de la boite et les super-admins (cf. AppShell).
+              if (item.key === "tri-emails") return triOuvert;
               // "Collaborateurs" et "Perte" : la direction.
               if (item.key === "collaborateurs") return directionOuverte;
               if (item.key === "perte") return perteOuverte;

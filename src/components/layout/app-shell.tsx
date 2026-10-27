@@ -11,6 +11,7 @@ import { peutVoirComptabilite, peutExporterAnnuaireLinkus, estVueComptable, estS
 import { attacherUtilisateur } from "@/lib/observabilite";
 import { boiteTriConfiguree } from "@/lib/domain/mail-gate";
 import { compterMailsATrier } from "@/lib/services/tri-emails/compteur";
+import { deLAgenceDuTri } from "@/lib/services/tri-emails/acces";
 import { echangesOuverts, utilisateurEchanges } from "@/lib/services/echanges/rechercher";
 import { SentryUtilisateur } from "@/components/layout/sentry-utilisateur";
 
@@ -52,9 +53,10 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   // Groupe "Administration" (cles API machine) : SUPER-ADMIN seulement. La page
   // /admin/cles-api porte sa propre garde serveur - l'entree sidebar n'est qu'un acces.
   const adminOuvert = estSuperAdmin(g?.email);
-  // Pastille du tri : comptee seulement pour qui voit l'entree (pilote), jamais bloquante.
-  const triOuvert = boiteTriConfiguree() !== null;
-  const triATrier = adminOuvert && triOuvert ? await compterMailsATrier() : null;
+  // Tri : l'agence de la boite et les super-admins (27/10/2026). Pastille comptee seulement
+  // pour qui voit l'entree, jamais bloquante.
+  const triOuvert = boiteTriConfiguree() !== null && (adminOuvert || (g ? await deLAgenceDuTri(g.agencyId) : false));
+  const triATrier = triOuvert ? await compterMailsATrier() : null;
   // "Échanges" : l'agence a une boite commune configuree (MAIL_BOITES_AGENCE), ou super-admin.
   const echangesOuvert = g ? echangesOuverts(await utilisateurEchanges(g, adminOuvert).catch(() => null)) : false;
   // Entree "Annuaire Linkus" : ADMIN de la table User (Léa, téléphonie) + super-admin.

@@ -111,7 +111,8 @@ const normaliser = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toL
 
 type Dernier = { journalId: string; dossierNom: string; objet: string; mailId: string; simulation: boolean };
 
-export function TriEmailsVue({ file }: { file: FileATrier }) {
+// binomesModifiables : l'onglet Binômes (qui reçoit quoi) reste au super-admin, l'agence trie.
+export function TriEmailsVue({ file, binomesModifiables }: { file: FileATrier; binomesModifiables: boolean }) {
   const [onglet, setOnglet] = useState<"file" | "journal" | "binomes">("file");
   // Mails ranges depuis l'affichage : masques tout de suite, sans attendre le rechargement.
   const [masques, setMasques] = useState<Set<string>>(new Set());
@@ -246,15 +247,17 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
         >
           Rangés sur 7 jours
         </Tab>
-        <Tab
-          id="tri-t-binomes"
-          panelId="tri-p-binomes"
-          active={onglet === "binomes"}
-          onClick={() => setOnglet("binomes")}
-          count={file.binomes.filter((b) => b.copros.length > 0 && !b.principal).length || undefined}
-        >
-          Binômes
-        </Tab>
+        {binomesModifiables && (
+          <Tab
+            id="tri-t-binomes"
+            panelId="tri-p-binomes"
+            active={onglet === "binomes"}
+            onClick={() => setOnglet("binomes")}
+            count={file.binomes.filter((b) => b.copros.length > 0 && !b.principal).length || undefined}
+          >
+            Binômes
+          </Tab>
+        )}
       </TabList>
       {onglet === "file" && (
         <TabPanel id="tri-p-file" tabId="tri-t-file">
@@ -266,7 +269,7 @@ export function TriEmailsVue({ file }: { file: FileATrier }) {
           <JournalVue journal={file.journal} copros={file.copros} enCours={enCours} annuler={(id) => annuler(id)} />
         </TabPanel>
       )}
-      {onglet === "binomes" && (
+      {onglet === "binomes" && binomesModifiables && (
         <TabPanel id="tri-p-binomes" tabId="tri-t-binomes">
           <BinomesVue lignes={file.binomes} collaborateurs={file.collaborateurs} />
         </TabPanel>

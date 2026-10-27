@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant, estSuperAdmin } from "@/lib/auth/session";
+import { deLAgenceDuTri } from "@/lib/services/tri-emails/acces";
 import { lireFileATrier } from "@/lib/services/tri-emails/lire-file";
 import { diagnosticAnnuaire } from "@/lib/services/synchro/surveiller-annuaire";
 import { AppShell } from "@/components/layout/app-shell";
@@ -17,8 +18,9 @@ export const dynamic = "force-dynamic";
 export default async function TriEmailsPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
-  // Pilote (ADR-046) : super-admins seulement, et seulement si la boite est configuree.
-  if (!estSuperAdmin(g.email)) redirect("/accueil");
+  // L'agence de la boite et les super-admins (ADR-046, ouvert le 27/10/2026), et
+  // seulement si la boite est configuree.
+  if (!estSuperAdmin(g.email) && !(await deLAgenceDuTri(g.agencyId))) redirect("/accueil");
   const [file, annuaire] = await Promise.all([lireFileATrier(), diagnosticAnnuaire()]);
   if (!file) redirect("/accueil");
 
@@ -50,7 +52,7 @@ export default async function TriEmailsPage() {
             <code>scripts\sync-annuaire-crypto.cmd</code>, sur le PC qui synchronise l&apos;export Crypto.
           </Callout>
         )}
-        <TriEmailsVue file={file} />
+        <TriEmailsVue file={file} binomesModifiables={estSuperAdmin(g.email)} />
       </Page>
     </AppShell>
   );
