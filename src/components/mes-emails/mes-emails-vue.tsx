@@ -83,6 +83,7 @@ import {
   PLACES_INTERNES,
   placeInternesValide,
   regrouperInternes,
+  traitesAuChargement,
   type PlaceInternes,
 } from "@/lib/domain/mes-emails-liste";
 import { VisionneusePj } from "./visionneuse-pj";
@@ -93,7 +94,6 @@ import { EditeurRiche } from "./editeur-riche";
 import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
 import { rechercherEchangesAction } from "@/app/echanges/actions";
 import {
-  devaliderMailAction,
   marquerTraiteAction,
   editBrouillonAction,
   marquerLuAction,
@@ -211,9 +211,10 @@ export function MesEmailsVue({
   // Copro choisie gérée par un autre binôme : l'envoi lui est proposé (REA-327).
   const [envoisProposes, setEnvoisProposes] = useState<Map<string, { reference: string; dossier: string }>>(new Map());
   const [partis, setPartis] = useState<Set<string>>(new Set());
-  const [classes, setClasses] = useState<Set<string>>(
-    () => new Set(data.mails.filter((m) => m.statutTraitement === "classe").map((m) => m.id)),
-  );
+  // Sortis de « À traiter » : archivés (boîte perso) ou marqués traités (boîte partagée) dans
+  // cette session, et au chargement les traités de la boîte partagée. Plus d'onglet « Conclus »
+  // (REA-422, 27/10/2026) : un mail archivé a quitté la réception, on le retrouve dans Outlook.
+  const [classes, setClasses] = useState<Set<string>>(() => traitesAuChargement(data.mails, data.boites));
   const [edits, setEdits] = useState<Map<string, string>>(new Map());
   // Réponse mise en forme (REA-345, pilote) : le HTML de l'éditeur, par mail, tant qu'on y a
   // touché. `edits` en garde le texte (contrôles, brouillon enregistré). Un texte posé
@@ -289,7 +290,7 @@ export function MesEmailsVue({
   const [pjParMail, setPjParMail] = useState<Map<string, PieceJointeRef[] | null>>(new Map());
   // Destinataires editables de la reponse (A / Cc / Cci), par mail.
   // « Envoyés » (REA-341) : vue en pilote, lecture seule du dossier Éléments envoyés.
-  const [vue, setVue] = useState<"a_traiter" | "conclus" | "envoyes">("a_traiter");
+  const [vue, setVue] = useState<"a_traiter" | "envoyes">("a_traiter");
   const [destParMail, setDestParMail] = useState<Map<string, Destinataires>>(new Map());
   // Fichiers ajoutés depuis l'ordinateur à la réponse (en plus des PJ du mail d'origine).
   const [fichiersParMail, setFichiersParMail] = useState<Map<string, FichierJoint[]>>(new Map());
@@ -501,13 +502,12 @@ export function MesEmailsVue({
 
 
   const q = recherche.trim().toLowerCase();
-  // « À traiter » = ce qui reste à conclure ; « Conclus » = les événements fermés, avec leur réponse.
-  const matchVue = (m: MailEntrant): boolean => (vue === "conclus" ? classes.has(m.id) : !classes.has(m.id));
+  // « À traiter » = ce qui n'est ni archivé ni marqué traité (seule vue de la liste, REA-422).
   const visibles = regrouperInternes(
     mailsTries.filter(
       (m) =>
         !partis.has(m.id) &&
-        matchVue(m) &&
+        !classes.has(m.id) &&
         (q === "" || `${m.objet} ${m.de} ${m.coproCode} ${m.coproNom}`.toLowerCase().includes(q)),
     ),
     pilote ? placeInternes : "meles",
@@ -855,7 +855,8 @@ export function MesEmailsVue({
     });
     passerAuSuivant(m);
   }
-  // Conclure l'événement : le mail sort de la liste, sans bouger dans Outlook (les deux boîtes).
+  // « Marquer traité » (boîte partagée) : le mail sort de « À traiter » pour tout le binôme
+  // (statut commun), sans bouger dans Outlook : il reste dans le dossier du binôme.
   function marquerTraite(m: MailEntrant) {
     setMsgClasser(null);
     setClasses((p) => add(p, m.id));
@@ -871,11 +872,6 @@ export function MesEmailsVue({
       [...visibles.slice(0, Math.max(idx, 0))].reverse().find((x) => x.id !== m.id);
     if (suivant) ouvrir(suivant.id);
   }
-  function devalider(m: MailEntrant) {
-    setClasses((p) => del(p, m.id));
-    setRepondus((p) => del(p, m.id));
-    void devaliderMailAction(m.id, m.coproCode, boiteDuMail(m));
-  }
   const toggleSection = (cle: string) =>
     setOuverts((p) => (p.has(cle) ? del(p, cle) : add(p, cle)));
 
@@ -888,7 +884,7 @@ export function MesEmailsVue({
           {data.boites.length > 1 && (
             <div role="tablist" aria-label="Boîte affichée" className="inline-flex rounded-md border border-line bg-surface-2 p-0.5">
               {data.boites.map((b) => {
-                // Non lus ENCORE à traiter : un mail conclu sans avoir été ouvert ne compte plus.
+                // Non lus ENCORE à traiter : un mail archivé ou traité sans avoir été ouvert ne compte plus.
                 const nonLus = data.mails.filter((m) => (m.boite ?? boiteParDefaut) === b.id && !lus.has(m.id) && !classes.has(m.id)).length;
                 const actif = b.id === boiteActive;
                 return (
@@ -940,7 +936,6 @@ export function MesEmailsVue({
             onChange={(v) => v && setVue(v)}
             options={[
               { value: "a_traiter", label: `À traiter · ${mailsBoite.filter((m) => !classes.has(m.id)).length}` },
-              { value: "conclus", label: `Conclus · ${mailsBoite.filter((m) => classes.has(m.id)).length}` },
               ...(pilote ? [{ value: "envoyes" as const, label: "Envoyés", title: "Les 30 derniers mails partis de cette boîte" }] : []),
             ]}
           />
@@ -1020,9 +1015,7 @@ export function MesEmailsVue({
                   m={m}
                   actif={m.id === selection?.id}
                   lu={lus.has(m.id)}
-                  statut={statutDe(m.id)}
                   reponse={reponseDe(m)}
-                  conclus={vue === "conclus"}
                   onClick={() => ouvrir(m.id)}
                 />
               ))}
@@ -1178,18 +1171,13 @@ export function MesEmailsVue({
               {...(supprimable(selection)
                 ? { onSupprimer: () => void supprimerMail(selection), suppressionEnCours }
                 : {})}
-              onDevalider={() => devalider(selection)}
               onToggleSection={toggleSection}
             />
           ) : (
             <Card className="px-6 py-16 text-center">
               <Mail strokeWidth={1.25} className="w-8 h-8 text-ink-3 mx-auto" />
-              <p className="text-body font-medium text-ink mt-3">
-                {vue === "conclus" ? "Aucun événement conclu" : "Rien à traiter"}
-              </p>
-              <p className="text-body text-ink-3 mt-1">
-                {vue === "conclus" ? "Les événements conclus apparaissent ici, avec leur réponse." : "Tous les événements sont conclus."}
-              </p>
+              <p className="text-body font-medium text-ink mt-3">Rien à traiter</p>
+              <p className="text-body text-ink-3 mt-1">Les mails archivés se retrouvent dans leur dossier Outlook.</p>
             </Card>
           )}
         </section>
@@ -1202,7 +1190,6 @@ export function MesEmailsVue({
 }
 
 function StatutBadge({ statut }: { statut: Statut }) {
-  if (statut === "classe") return <Badge ton="ok">Conclu</Badge>;
   if (statut === "repondu") return <Badge ton="info">Répondu</Badge>;
   return null;
 }
@@ -1212,9 +1199,7 @@ function LigneMail({
   m,
   actif,
   lu,
-  statut,
   reponse,
-  conclus,
   onClick,
   coche,
   onCocher,
@@ -1225,10 +1210,7 @@ function LigneMail({
   onCocher?: () => void;
   actif: boolean;
   lu: boolean;
-  statut: Statut;
   reponse: ReponseOutlook | null;
-  /** Vue des conclus : on montre aussi « Sans réponse ». */
-  conclus: boolean;
   onClick: () => void;
 }) {
   const qui = m.de.replace(/ \(.*\)$/, "");
@@ -1252,7 +1234,7 @@ function LigneMail({
           <span className={`w-2 h-2 rounded-full shrink-0 ${!lu ? "bg-info-500" : "bg-transparent"}`} />
           <span
             className={
-              "text-body text-ink truncate flex-1 " + (!lu && statut !== "classe" ? "font-semibold" : "font-medium")
+              "text-body text-ink truncate flex-1 " + (!lu ? "font-semibold" : "font-medium")
             }
           >
             {m.objet}
@@ -1267,17 +1249,13 @@ function LigneMail({
           <span className="truncate">· {qui}</span>
           {/* Un collègue du cabinet, pas un client : simple repère, ton neutre (pas une alerte, REA-408). */}
           {estMailInterne(m.expediteurEmail, m.boite ?? "") ? (
-            <span className={"shrink-0" + (reponse || conclus ? "" : " ml-auto")}>
+            <span className={"shrink-0" + (reponse ? "" : " ml-auto")}>
               <Badge ton="neutral">Interne</Badge>
             </span>
           ) : null}
           {reponse ? (
             <span className="ml-auto shrink-0">
               <Badge ton="info">{reponse === "transfere" ? "Transféré" : "Répondu"}</Badge>
-            </span>
-          ) : conclus ? (
-            <span className="ml-auto shrink-0">
-              <Badge ton="warn">Sans réponse</Badge>
             </span>
           ) : null}
         </div>
@@ -1703,7 +1681,6 @@ function AnalysePane({
   onRattacherDossier,
   onCreerDossier,
   onValider,
-  onDevalider,
   onToggleSection,
   classementOutlook,
   onParti,
@@ -1787,13 +1764,12 @@ function AnalysePane({
   onRattacherDossier: (dossierId: string, titre: string) => void;
   onCreerDossier: (type: TypeDossier, titre: string) => void;
   onValider: () => void;
-  onDevalider: () => void;
   onToggleSection: (cle: string) => void;
   /** Boîte perso : on range dans un dossier Outlook. Boîte partagée : non (le tri l'a fait). */
   classementOutlook: boolean;
   /** Le mail a quitté la personne (rendu au tri, envoyé à un autre binôme). */
   onParti?: () => void;
-  /** Conclure l'événement (vocabulaire Crypto) : le mail sort de la liste, sans bouger dans Outlook. */
+  /** « Marquer traité » (boîte partagée) : le mail sort de « À traiter » pour le binôme, sans bouger dans Outlook. */
   onConclure: () => void;
   /** Le transfert est parti (pas un brouillon) : badge « Transféré » (REA-422). */
   onTransfere: () => void;
@@ -1801,7 +1777,6 @@ function AnalysePane({
   onSupprimer?: () => void;
   suppressionEnCours?: boolean;
 }) {
-  const classe = statut === "classe";
   // Fichiers glissés sur l'éditeur de réponse : joints comme avec « Ajouter une pièce jointe ».
   const depotPj = useDepotFichiers((l) => onAjouterFichiers(l));
 
@@ -2119,17 +2094,9 @@ function AnalysePane({
       </div>
       {/* Fin d'action, en bas à droite comme dans Crypto. */}
       <div className="px-5 py-3 border-t border-line flex flex-wrap items-center justify-end gap-3">
-        {classe ? (
-          <>
-            <span className="inline-flex items-center gap-1.5 text-body text-ink-2 mr-auto">
-              <CircleCheck strokeWidth={1.5} className="w-4 h-4 text-green-700" />
-              Événement conclu
-              {m.dossierClasseNom ? <span className="text-ink-3">, archivé dans «&nbsp;{m.dossierClasseNom}&nbsp;»</span> : null}
-            </span>
-            <Button onClick={onDevalider}>Rouvrir</Button>
-          </>
-        ) : classementOutlook ? (
-          // Boîte perso : conclure = archiver dans un dossier Outlook, qu'il faut choisir.
+        {classementOutlook ? (
+          // Boîte perso : archiver = déplacer dans un dossier Outlook, qu'il faut choisir ; le
+          // mail quitte la réception, donc la liste.
           <>
                   <Select
                     largeur="auto"
@@ -2182,16 +2149,16 @@ function AnalysePane({
               title={!dossierIdChoisi ? "Choisis d'abord le dossier Outlook" : undefined}
             >
               <Archive strokeWidth={1.75} />
-              Conclure et archiver
+              Archiver
             </Button>
           </>
         ) : (
           <>
-            {/* Boîte partagée : même décision de fin que Conclure, « ce n'est pas pour moi » (REA-327). */}
+            {/* Boîte partagée : « ce n'est pas pour moi » (REA-327), ou « Marquer traité ». */}
             {onParti ? <PasPourMoi key={m.id} emailId={m.id} boite={boiteDuMail} onParti={onParti} /> : null}
             <Button variant="primary" size="lg" onClick={onConclure}>
               <CircleCheck strokeWidth={1.75} />
-              Conclure l&apos;événement
+              Marquer traité
             </Button>
           </>
         )}

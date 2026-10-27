@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { placeInternesValide, regrouperInternes } from "./mes-emails-liste";
+import { placeInternesValide, regrouperInternes, traitesAuChargement } from "./mes-emails-liste";
 
 const mails = [
   { id: "1", expediteurEmail: "client@gmail.com" },
@@ -38,5 +38,33 @@ describe("placeInternesValide", () => {
     expect(placeInternesValide("bas")).toBe("bas");
     expect(placeInternesValide("n'importe")).toBe("meles");
     expect(placeInternesValide(null)).toBe("meles");
+  });
+});
+
+describe("traitesAuChargement (REA-422 : plus d'onglet « Conclus »)", () => {
+  const boites = [
+    { id: "moi@real31.fr", personnelle: true },
+    { id: "syndic4@real31.fr", personnelle: false },
+  ];
+  it("boîte partagée : « Marquer traité » sort le mail de « À traiter »", () => {
+    const r = traitesAuChargement(
+      [
+        { id: "p1", boite: "syndic4@real31.fr", statutTraitement: "classe" },
+        { id: "p2", boite: "syndic4@real31.fr", statutTraitement: "repondu" },
+        { id: "p3", boite: "syndic4@real31.fr" },
+      ],
+      boites,
+    );
+    expect([...r]).toEqual(["p1"]);
+  });
+  it("boîte perso : Outlook fait foi, un mail encore en réception reste à traiter", () => {
+    const r = traitesAuChargement(
+      [
+        { id: "m1", boite: "moi@real31.fr", statutTraitement: "classe" },
+        { id: "m2", statutTraitement: "classe" },
+      ],
+      boites,
+    );
+    expect(r.size).toBe(0);
   });
 });

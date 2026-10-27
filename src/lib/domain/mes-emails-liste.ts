@@ -1,4 +1,7 @@
-// Ordre de la liste de l'écran E-mails. Pur, sans dépendance d'infrastructure.
+// Ordre et contenu de la liste de l'écran E-mails. Pur, sans dépendance d'infrastructure.
+//
+// REA-422 (27/10/2026) : l'onglet « Conclus » est retiré, la liste est « À traiter » seule
+// (cf. traitesAuChargement).
 //
 // REA-351 (16/10/2026) : les mails des collègues (expéditeur @real31.fr) se perdent au
 // milieu de ceux des copropriétaires, ou l'inverse selon la journée. On peut les
@@ -6,6 +9,8 @@
 // récent d'abord) est conservé.
 
 import { estMailInterne } from "./tri-emails";
+import type { MailEntrant } from "./mes-emails";
+import type { BoiteMail } from "./boites-mail";
 
 export type PlaceInternes = "meles" | "haut" | "bas";
 
@@ -37,4 +42,20 @@ export function regrouperInternes<M extends { expediteurEmail: string }>(
   const externes: M[] = [];
   for (const m of mails) (estMailInterne(m.expediteurEmail, boiteDe(m)) ? internes : externes).push(m);
   return place === "haut" ? [...internes, ...externes] : [...externes, ...internes];
+}
+
+/**
+ * Les mails déjà traités au chargement, absents de « À traiter » (REA-422, 27/10/2026). Boîte
+ * PARTAGÉE : le statut commun « classe », posé par « Marquer traité » (le mail reste dans le
+ * dossier du binôme, seul l'intranet sait qu'il est traité). Boîte PERSO : aucun, Outlook fait
+ * foi. Un mail archivé a quitté la réception et n'est plus lu ; un mail qu'on y a remis
+ * (glissé dans Outlook) est de nouveau à traiter, même si la base dit encore « classe ».
+ * Un mail sans `boite` (fixture ancienne) est de la boîte perso.
+ */
+export function traitesAuChargement(
+  mails: readonly Pick<MailEntrant, "id" | "boite" | "statutTraitement">[],
+  boites: readonly Pick<BoiteMail, "id" | "personnelle">[],
+): Set<string> {
+  const partagees = new Set(boites.filter((b) => !b.personnelle).map((b) => b.id));
+  return new Set(mails.filter((m) => m.statutTraitement === "classe" && m.boite !== undefined && partagees.has(m.boite)).map((m) => m.id));
 }

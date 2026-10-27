@@ -153,21 +153,17 @@ async function cibleStatut(g: Gestionnaire, emailId: string, coproCode: string, 
 // visite prend l'etat persiste.
 // --- Actions d'etat (retour void : sur entree/auth invalide, on ne fait rien) -----------
 
-/** Conclure l'événement : le mail sort de la liste « à traiter », sans bouger dans Outlook. */
+/**
+ * « Marquer traité » (boîte partagée) : le mail sort de « À traiter » pour tout le binôme
+ * (statut commun), sans bouger dans Outlook. Plus de « Rouvrir » ni d'onglet « Conclus »
+ * depuis le 27/10/2026 (REA-422) : devaliderMailAction, sans appelant, est retirée.
+ */
 export async function marquerTraiteAction(emailId: string, coproCode: string, boite?: string): Promise<void> {
   if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success) return;
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok) return;
   const cible = await cibleStatut(auth.g, emailId, coproCode, boite);
   if (cible) await enregistrerStatut(cible, "classe", []);
-}
-
-export async function devaliderMailAction(emailId: string, coproCode: string, boite?: string): Promise<void> {
-  if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success) return;
-  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
-  if (!auth.ok) return;
-  const cible = await cibleStatut(auth.g, emailId, coproCode, boite);
-  if (cible) await enregistrerStatut(cible, "nouveau", []);
 }
 
 export async function editBrouillonAction(emailId: string, coproCode: string, brouillon: string): Promise<void> {

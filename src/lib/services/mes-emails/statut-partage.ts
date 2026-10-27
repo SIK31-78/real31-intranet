@@ -1,8 +1,10 @@
 // Statut de traitement PARTAGÉ sur une boîte partagée (décision Sekou du 15/10/2026).
-// Sur une boîte partagée, l'assistante conclut pour le gestionnaire : le mail doit sortir de
+// Sur une boîte partagée, l'assistante traite pour le gestionnaire : le mail doit sortir de
 // « À traiter » pour les deux, pas seulement pour elle (6 mails chez elle, 22 chez lui le même matin). Seul le
-// statut (et les étapes posées avec lui) se partage ; « lu », le brouillon et le reste de
-// l'état restent propres à chacun.
+// statut (et les étapes posées avec lui) se partage ; le brouillon et le reste de l'état
+// restent propres à chacun. « Classe » = « Marquer traité » (le bouton « Conclure l'événement »
+// renommé, REA-422 du 27/10/2026), « repondu » = une réponse ou un transfert partis de l'écran.
+// Le « lu », lui, se partage par Outlook (isRead commun à la boîte), plus par cette ligne.
 //
 // Stockage sans changement de schéma : une ligne de intranet_mes_emails_etat dont le
 // gestionnaire_id vaut « boite:<adresse> » porte le statut commun. Elle gagne toujours.
