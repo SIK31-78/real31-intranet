@@ -8,10 +8,10 @@
 ## Où on en est
 
 - **Prod** : `real31.app`, branche `main` (le tronc, renommé le 25/09/2026, anciennement `increment/02-supabase`), déployée via le Vercel de la collègue qui suit `main`.
-- **Branche active** : `main` (le tronc). Le module « Contrats & contrôles » (REA-333, ADR-048) est **en production depuis le 20/10/2026** : il remplace l'application Suivi des Contrats Copros du patron (assurance, gaz, CTQ ascenseur et VMC). Runbook de bascule : `docs/runbook-bascule-contrats-controles.md` (étapes 1 et 2 faites : SQL passés, prestataires repris).
+- **Branche active** : `fix/objet-adresse-complete` dans le worktree `real31-mail-v12`, **V2 du mail** (audit REA-417 et lots REA-418 à REA-423, 27/10/2026) : 53 commits au-dessus de `main`, tests verts, à pousser sur le go de Sekou. Ensuite `main` (le tronc). Le module « Contrats & contrôles » (REA-333, ADR-048) est **en production depuis le 20/10/2026** : il remplace l'application Suivi des Contrats Copros du patron (assurance, gaz, CTQ ascenseur et VMC). Runbook de bascule : `docs/runbook-bascule-contrats-controles.md` (étapes 1 et 2 faites : SQL passés, prestataires repris).
 - **Branches en pause** :
   - `chantier/mcp-distant` : MCP distant pour Claude Team, 4 lots codés et testés (ADR-042), sauvegardée sur GitHub, mise de côté le 25/09. Tout pour reprendre est dans le ticket REA-5.
-  - `chantier/mail-v12` : chantier « Mes e-mails », en pause depuis fin août, non mergée (REA-15).
+  - `chantier/mail-v12` : ancien chantier « Mes e-mails » (REA-15), remplacé par la V2 ci-dessus ; branche et worktree à retirer après le push.
 
 ## Ce qui bloque ou attend
 
@@ -21,7 +21,9 @@
 
 ## Prochaine action
 
-Contrats & contrôles, étape 3 du runbook : prévenir Emmanuel et les neuf gestionnaires actifs, publier la fiche process sur l'extranet, puis figer l'ancienne appli (`LECTURE_SEULE=1` dans son `canWrite.ts`). Ensuite fusionner les 5 quasi-doublons d'entreprises, nettoyer les 44 échéances douteuses via « À compléter », et armer les rappels sujet par sujet (`CONTRATS_RAPPELS_SUJETS`).
+**Mail V2 → syndic2 (REA-424)** : passer `intranet_tri_journal_etat.sql` et `intranet_tri_verrou.sql`, pousser la V2 (statut Vercel vérifié), importer `MAIL_TRI_BOITES` et `MAIL_BOITES_AGENCE` sur Vercel, premier passage du cron de syndic2, revue du journal de syndic2 mardi soir et vendredi ; après le déploiement, passer `intranet_mes_emails_analyse_suppression_2026-10-27.sql`.
+
+Puis Contrats & contrôles, étape 3 du runbook : prévenir Emmanuel et les neuf gestionnaires actifs, publier la fiche process sur l'extranet, puis figer l'ancienne appli (`LECTURE_SEULE=1` dans son `canWrite.ts`). Ensuite fusionner les 5 quasi-doublons d'entreprises, nettoyer les 44 échéances douteuses via « À compléter », et armer les rappels sujet par sujet (`CONTRATS_RAPPELS_SUJETS`).
 
 ## Où trouver quoi
 
