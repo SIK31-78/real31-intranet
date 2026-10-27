@@ -198,4 +198,59 @@ export class GraphMailboxProvider implements MailboxProvider {
     const a = (await r.json()) as { name: string; contentType: string; contentBytes?: string };
     return { nom: a.name, type: a.contentType, base64: a.contentBytes ?? "" };
   }
+
+  async marquerLu(p: { boite: string; internetMessageId: string; lu: boolean }): Promise<void> {
+    if (!p.boite) throw new Error("Lu : boite manquante.");
+    const tk = await jetonGraph();
+    const id = await resoudreMessageId(tk, p.boite, p.internetMessageId);
+    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ isRead: p.lu }),
+    });
+    if (!r.ok) throw new Error(`Graph lu ${r.status} : ${(await r.text()).slice(0, 200)}`);
+  }
+
+  async lireEtatsLu(p: { boite: string; internetMessageIds: string[] } | { boite: string; recents: number }): Promise<Map<string, boolean>> {
+    if (!p.boite) throw new Error("Etat lu : boite manquante.");
+    const tk = await jetonGraph();
+    const u = `${GRAPH}/users/${encodeURIComponent(p.boite)}`;
+    const h = { Authorization: `Bearer ${tk}` };
+    const out = new Map<string, boolean>();
+    // Un meme mail peut exister en plusieurs copies (Elements envoyes…) : lu seulement si
+    // toutes le sont, une copie envoyee (toujours lue) ne cache pas la reception non lue.
+    const noter = (l: { internetMessageId?: string; isRead?: boolean }[] | undefined) => {
+      for (const m of l ?? []) {
+        if (!m.internetMessageId) continue;
+        out.set(m.internetMessageId, (out.get(m.internetMessageId) ?? true) && Boolean(m.isRead));
+      }
+    };
+    if ("recents" in p) {
+      // La meme fenetre que la lecture de la reception, sans le corps : une page legere.
+      const n = Math.min(Math.max(Math.trunc(p.recents), 1), 1000);
+      let url = `${u}/mailFolders/inbox/messages?$top=${n}&$orderby=receivedDateTime desc&$select=internetMessageId,isRead`;
+      let lus = 0;
+      while (url && lus < n) {
+        const r = await graphFetch(url, { headers: h });
+        if (!r.ok) throw new Error(`Graph etat lu ${r.status} : ${(await r.text()).slice(0, 200)}`);
+        const j = (await r.json()) as { value?: { internetMessageId?: string; isRead?: boolean }[]; "@odata.nextLink"?: string };
+        noter(j.value);
+        lus += j.value?.length ?? 0;
+        url = j["@odata.nextLink"] ?? "";
+      }
+      return out;
+    }
+    // Par lots de 10 (filtre OR), comme la lecture des mails par id.
+    const ids = [...new Set(p.internetMessageIds.filter(Boolean))];
+    for (let i = 0; i < ids.length; i += 10) {
+      const filtre = ids
+        .slice(i, i + 10)
+        .map((id) => `internetMessageId eq '${id.replace(/'/g, "''")}'`)
+        .join(" or ");
+      const r = await graphFetch(`${u}/messages?$filter=${encodeURIComponent(filtre)}&$select=internetMessageId,isRead&$top=50`, { headers: h });
+      if (!r.ok) throw new Error(`Graph etat lu ${r.status} : ${(await r.text()).slice(0, 200)}`);
+      noter(((await r.json()) as { value?: { internetMessageId?: string; isRead?: boolean }[] }).value);
+    }
+    return out;
+  }
 }

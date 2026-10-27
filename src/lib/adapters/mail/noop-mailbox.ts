@@ -39,4 +39,12 @@ export class NoopMailboxProvider implements MailboxProvider {
   async lirePieceJointe(): Promise<{ nom: string; type: string; base64: string }> {
     throw new Error("Pieces jointes indisponibles (boite non branchee).");
   }
+
+  async marquerLu(): Promise<void> {
+    // Pas d'Outlook : seul l'etat intranet compte.
+  }
+
+  async lireEtatsLu(): Promise<Map<string, boolean>> {
+    return new Map();
+  }
 }

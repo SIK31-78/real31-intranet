@@ -1,6 +1,6 @@
-// Port "boite aux lettres" : operations d'ecriture sur la boite (deplacer, plus
-// tard categoriser/marquer lu). Sert a refleter le classement du cockpit dans
-// Outlook. Le type DossierBoite vit dans le domaine (mes-emails).
+// Port "boite aux lettres" : operations d'ecriture sur la boite (deplacer, corbeille,
+// marquer lu) et lectures d'appoint (dossiers, pieces jointes, etat lu). Sert a refleter
+// dans Outlook ce qui est fait dans l'intranet. Le type DossierBoite vit dans le domaine.
 
 import type { DossierBoite, PieceJointeRef } from "@/lib/domain/mes-emails";
 
@@ -44,6 +44,20 @@ export interface MailboxProvider {
     internetMessageId: string;
     attachmentId: string;
   }): Promise<{ nom: string; type: string; base64: string }>;
+
+  /**
+   * Pose le « lu » d'Outlook sur le mail (REA-422, 27/10/2026) : ouvrir un mail dans l'intranet
+   * le marque lu dans Outlook aussi. Sur une boite partagee, le lu d'Outlook est commun aux
+   * collegues : c'est voulu (on repond depuis l'un ou l'autre outil, sans difference).
+   */
+  marquerLu(p: { boite: string; internetMessageId: string; lu: boolean }): Promise<void>;
+
+  /**
+   * Le « lu » d'Outlook des mails affiches, cle internetMessageId (REA-422). Par identifiants
+   * (boite partagee : les mails distribues) ou les N plus recents de la reception (boite perso).
+   * Un mail absent de la reponse n'est pas dans la carte : l'appelant le tient pour non lu.
+   */
+  lireEtatsLu(p: { boite: string; internetMessageIds: string[] } | { boite: string; recents: number }): Promise<Map<string, boolean>>;
 }
 
 export interface ResultatCorbeille {
