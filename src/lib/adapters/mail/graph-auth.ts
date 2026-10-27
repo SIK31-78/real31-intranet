@@ -60,8 +60,12 @@ export async function graphFetch(
   return r;
 }
 
-/** Un appel aux mails d'une boite (elements ou dossiers), pas au calendrier ni a SharePoint. */
-const URL_MAIL = /\/(messages|mailFolders)(\/|\?|\(|$)/i;
+/**
+ * Un appel Graph aux mails d'une boite (elements ou dossiers), pas au calendrier ni a
+ * SharePoint. Graph seulement : une URL de session d'upload (outlook.office.com, deja signee)
+ * ne recoit pas d'en-tete en plus.
+ */
+const URL_MAIL = /^https:\/\/graph\.microsoft\.com\/[^?]*\/(messages|mailFolders)(\/|\(|$)/i;
 
 /**
  * Ajoute `IdType="ImmutableId"` aux preferences d'un appel mail, sans ecraser celles deja

@@ -74,15 +74,18 @@ describe("identifiants immuables (REA-420)", () => {
     expect(new Headers(spy.mock.calls[0]![1]?.headers).get("authorization")).toBe("Bearer t");
   });
 
-  it("ne touche ni au calendrier, ni a SharePoint, ni a un IdType deja pose", async () => {
+  it("ne touche ni au calendrier, ni a SharePoint, ni a une session d'upload, ni a un IdType deja pose", async () => {
     const spy = vi.fn<(url: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () => reponse(200));
     vi.stubGlobal("fetch", spy);
     await graphFetch("https://graph.microsoft.com/v1.0/users/b%40x.fr/events", { headers: { Prefer: 'outlook.timezone="Europe/Paris"' } });
     await graphFetch("https://graph.microsoft.com/v1.0/drives/d/root:/messages:/children");
     await graphFetch("https://graph.microsoft.com/v1.0/users/b%40x.fr/messages", { headers: { Prefer: 'IdType="RestId"' } });
+    await graphFetch("https://outlook.office.com/api/v2.0/Users('x')/Messages('y')/AttachmentSessions('z')", { method: "PUT" });
     expect(prefer(spy.mock.calls[0]![1])).toBe('outlook.timezone="Europe/Paris"');
     expect(prefer(spy.mock.calls[1]![1])).toBeNull();
     expect(prefer(spy.mock.calls[2]![1])).toBe('IdType="RestId"');
+    // Session d'upload deja signee, hors Graph : rien en plus.
+    expect(prefer(spy.mock.calls[3]![1])).toBeNull();
   });
 
   it("resoudreMessageId garde l'id en cache : pas de second $filter pour le meme mail", async () => {
