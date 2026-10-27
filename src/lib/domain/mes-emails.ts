@@ -251,6 +251,8 @@ export interface MesEmails {
   dossiers: Dossier[];
   /** La boîte perso a rempli son plafond : « Plus de mails » en charge davantage. */
   plusDeMails?: boolean;
+  /** Adresses des boîtes qui n'ont pas pu être lues : l'écran le dit au-dessus de la liste. */
+  boitesIllisibles?: string[];
   /** Copros du portefeuille du gestionnaire (rempli par le service ; rattachement manuel). */
   coprosDuGestionnaire?: { code: string; nom: string; adresse?: string }[];
 }

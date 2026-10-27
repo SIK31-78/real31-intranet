@@ -57,6 +57,7 @@ import { SegmentedControl } from "@/components/ui/segmented";
 import { Button, classesBouton } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
+import { Callout } from "@/components/ui/callout";
 import { formatDateLongue } from "@/lib/format-date";
 import { TransmettreFacture } from "./transmettre-facture";
 import { ReponseEnvoyee } from "./reponse-envoyee";
@@ -956,6 +957,14 @@ export function MesEmailsVue({
         </div>
         )}
       </div>
+
+      {/* Une boîte que Graph n'a pas pu lire (droits Exchange, panne) : on le dit, au lieu d'une
+          liste vide qui laissait croire qu'il n'y avait rien (27/10/2026). */}
+      {(data.boitesIllisibles ?? []).map((adresse) => (
+        <Callout key={adresse} ton="warn">
+          La boîte {adresse} n&apos;a pas pu être lue. Réessaie dans un instant.
+        </Callout>
+      ))}
 
       {fouille ? (
         <ResultatsFouille fouille={fouille} onFermer={() => setFouille(null)} />

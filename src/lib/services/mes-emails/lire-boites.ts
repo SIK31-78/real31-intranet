@@ -29,6 +29,7 @@ import {
 import { cleDeReference, suggererCopro, type ReferentielTri } from "@/lib/domain/tri-emails";
 import { recuDepuisDebutTri } from "@/lib/domain/mail-gate";
 import { jourParis } from "@/lib/services/date-du-jour";
+import { signalerException } from "@/lib/observabilite";
 import { distributionDe } from "./boites-visibles";
 
 // Plafond par BOITE (et non global) : une boite partagee tres active ne doit pas
@@ -49,6 +50,9 @@ export interface TriageLive {
   nbMailsAnalyses: number;
   /** La boite perso a rempli son plafond : un « Plus de mails » a du sens. */
   plusDeMails: boolean;
+  /** Adresses des boites qui n'ont pas pu etre lues (droits Exchange, panne Graph) :
+   *  l'ecran le dit au lieu d'afficher une liste vide (27/10/2026). */
+  erreurs: string[];
 }
 
 function priorite(type: TypeMail, ticketable: boolean): Severite {
@@ -80,9 +84,10 @@ function nomCourt(from: string): string {
  * Ingere UNE boite. Boite perso : sa reception. Boite PARTAGEE : seulement les mails que le
  * tri a distribues aux binomes du gestionnaire (journal), relus par leur internetMessageId,
  * avec la copro choisie au tri. Une boite en echec (droits Exchange, panne Graph) ne fait
- * pas tomber l'ecran : on journalise et on rend une liste vide.
+ * pas tomber l'ecran : on signale (Sentry) et on rend une liste vide, avec `erreur` pour
+ * que l'ecran dise que la boite n'a pas pu etre lue (jusqu'au 27/10/2026 : liste vide muette).
  */
-async function ingererBoite(g: Gestionnaire, boite: BoiteMail, maxPerso: number): Promise<{ boite: BoiteMail; bruts: RawMail[] }> {
+async function ingererBoite(g: Gestionnaire, boite: BoiteMail, maxPerso: number): Promise<{ boite: BoiteMail; bruts: RawMail[]; erreur?: string }> {
   try {
     const ingestion = getMailIngestionProvider();
     if (boite.personnelle) return { boite, bruts: await ingestion.lireRecents({ email: boite.adresse, max: maxPerso }) };
@@ -99,7 +104,8 @@ async function ingererBoite(g: Gestionnaire, boite: BoiteMail, maxPerso: number)
     return { boite, bruts };
   } catch (err) {
     console.warn(`[mes-emails] boite ${boite.adresse} illisible :`, (err as Error).message);
-    return { boite, bruts: [] };
+    signalerException(err, { source: "mes-emails-lecture", detail: { boite: boite.adresse } });
+    return { boite, bruts: [], erreur: boite.adresse };
   }
 }
 
@@ -113,7 +119,7 @@ export async function lireBoitesLive(
   coprosEnCours: Copropriete[] | Promise<Copropriete[]>,
   maxPerso: number = MAX_PERSO,
 ): Promise<TriageLive> {
-  if (boites.length === 0) return { mails: [], dossiers: [], nbMailsAnalyses: 0, plusDeMails: false };
+  if (boites.length === 0) return { mails: [], dossiers: [], nbMailsAnalyses: 0, plusDeMails: false, erreurs: [] };
 
   // Boites, portefeuille (ESTALE en direct) et referentiel du tri sont lus EN PARALLELE :
   // leurs latences ne s'additionnent pas (mesure prod du 14/10 : jusqu'a 7 s en serie).
@@ -135,6 +141,7 @@ export async function lireBoitesLive(
   const coproAdresseDe = (code: string) => (code ? adresseDe.get(cleDeReference(code) ?? code) : undefined);
   // La boite perso est pleine : il en reste sans doute d'autres a charger.
   const plusDeMails = parBoite.some(({ boite, bruts: lot }) => boite.personnelle && lot.length >= maxPerso);
+  const erreurs = parBoite.flatMap(({ erreur }) => (erreur ? [erreur] : []));
   const boiteDe = new Map<string, string>();
   const bruts: RawMail[] = [];
   for (const { boite, bruts: lot } of parBoite) {
@@ -143,7 +150,7 @@ export async function lireBoitesLive(
       bruts.push(b);
     }
   }
-  if (bruts.length === 0) return { mails: [], dossiers: [], nbMailsAnalyses: 0, plusDeMails: false };
+  if (bruts.length === 0) return { mails: [], dossiers: [], nbMailsAnalyses: 0, plusDeMails: false, erreurs };
 
   // Copro des mails que le tri n'a pas tranches : le MOTEUR DU TRI (codes, annuaire ESTALE+Crypto,
   // immatriculation, nom/adresse hors signature), seulement quand il est SUR. L'ancien
@@ -271,5 +278,5 @@ export async function lireBoitesLive(
     };
   });
 
-  return { mails, dossiers, nbMailsAnalyses: bruts.length, plusDeMails };
+  return { mails, dossiers, nbMailsAnalyses: bruts.length, plusDeMails, erreurs };
 }
