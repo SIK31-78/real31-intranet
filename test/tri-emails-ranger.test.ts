@@ -4,7 +4,7 @@ import type { RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 import type { ReferentielTri } from "@/lib/domain/tri-emails";
 import { annulerRangement, corrigerCopro, rangerMail, type DemandeRangement, type DepsRangement } from "@/lib/services/tri-emails/ranger";
 
-const BOITE = "copro2@real31.fr";
+const BOITE = "syndic2@real31.fr";
 
 const REF: ReferentielTri = {
   copros: [

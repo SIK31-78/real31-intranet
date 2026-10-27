@@ -5,7 +5,7 @@ import type { ReferentielTri } from "@/lib/domain/tri-emails";
 import type { DepsRangement } from "@/lib/services/tri-emails/ranger";
 import { reconcilierRangements } from "@/lib/services/tri-emails/reconcilier";
 
-const BOITE = "copro2@real31.fr";
+const BOITE = "syndic2@real31.fr";
 const gest = (email: string) => ({ nomComplet: email, email });
 const REF: ReferentielTri = {
   copros: [

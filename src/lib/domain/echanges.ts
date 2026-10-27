@@ -12,7 +12,7 @@
 /** Agence (code court, ex. « HLS ») -> ses boîtes communes. */
 export type BoitesParAgence = Record<string, string[]>;
 
-/** « HLS=syndic4@real31.fr;LGC=syndic2@real31.fr,copro2@real31.fr » -> table. */
+/** « HLS=syndic4@real31.fr;LGC=syndic2@real31.fr » -> table (plusieurs boîtes par agence : séparées par des virgules). */
 export function lireBoitesParAgence(brut: string | undefined): BoitesParAgence {
   const out: BoitesParAgence = {};
   for (const bloc of (brut ?? "").split(";")) {

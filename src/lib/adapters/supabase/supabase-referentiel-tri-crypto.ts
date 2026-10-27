@@ -1,5 +1,5 @@
-// Referentiel du tri pour les copros Crypto (decision du 12/10/2026 : syndic4 couvre toute
-// l'agence de Houilles, dont 33 copros sur 35 ne sont pas dans ESTALE). LECTURE SEULE.
+// Referentiel du tri pour les copros Crypto (decision du 12/10/2026 : une boite triee couvre
+// toute son agence, dont la plupart des copros ne sont pas encore dans ESTALE). LECTURE SEULE.
 //   - les copros de l'agence (actives, et inactives marquees comme telles) et leur equipe :
 //     table Copropriete + User ;
 //   - les adresses connues : intranet_crypto_annuaire, synchronise chaque nuit depuis

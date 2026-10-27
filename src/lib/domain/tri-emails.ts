@@ -3,8 +3,9 @@
 // mail part dans le sous-dossier du gestionnaire (increment 2). On repond dans Outlook.
 // Domaine pur : aucune lecture d'env, aucun appel reseau -> testable tel quel.
 //
-// Perimetre : les coproprietes ESTALE ET Crypto de l'agence de la boite (decision Sekou du
-// 12/10/2026 : syndic4, agence de Houilles, avant la migration). Un mail qui cite une copro
+// Perimetre : les coproprietes ESTALE ET Crypto des agences de la boite (decision Sekou du
+// 12/10/2026, avant la migration ; une boite par agence ou groupe d'agences depuis le
+// 27/10/2026, config MAIL_TRI_BOITES). Un mail qui cite une copro
 // hors de ce perimetre est signale « hors périmètre », jamais rattache. Le code de nature
 // reste "hors-estale" : il est deja ecrit dans le journal.
 
@@ -854,7 +855,7 @@ function suggestionBrute(
   }
 
   // 4. Nom de l'immeuble ou adresse cite (prestataires : « LE CYRANO », « 71 rue de Bezons »).
-  // Indice faible, mais sur UNE copro il est range sans clic sur syndic4 (origine
+  // Indice faible, mais sur UNE copro il est range sans clic quand l'automatique est ouvert (origine
   // « nom-adresse », decision du 26/10/2026 ; plusieurs copros : a choisir). On ne lit que
   // l'objet et le DEBUT du corps : l'adresse du cabinet, en signature de bas de mail, ne
   // doit pas rattacher tous les mails (constat du 13/10/2026).
@@ -980,7 +981,7 @@ export function cheminDossierHorsBinome(d: DossierHorsBinome): string {
 /**
  * Un binome tenu dans l'intranet : un gestionnaire et UN de ses assistants. Un gestionnaire
  * a au plus un assistant principal, et peut en avoir d'autres quand ses copros sont
- * partagees (Sandy : Galiano et Julie, arbitrage du 08/10/2026).
+ * partagees (une gestionnaire et ses deux assistantes, arbitrage du 08/10/2026).
  */
 export interface Binome {
   id: string;
@@ -1376,7 +1377,7 @@ export function coproDuDossier(
 export interface DossierChoisissable {
   cle: string;
   nom: string;
-  /** Ce qu'on lit dans la liste, ex "SC-GG · Sandy CARRIER avec Galiano GUAETTA". */
+  /** Ce qu'on lit dans la liste, ex "AB-CD · Alice BERNARD avec Claude DUPONT". */
   libelle: string;
 }
 

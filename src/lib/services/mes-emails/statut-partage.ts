@@ -1,13 +1,13 @@
 // Statut de traitement PARTAGÉ sur une boîte partagée (décision Sekou du 15/10/2026).
-// Sur syndic4, Mylène conclut pour Nicolas : le mail doit sortir de « À traiter » pour les
-// deux, pas seulement pour elle (6 mails chez elle, 22 chez lui le même matin). Seul le
+// Sur une boîte partagée, l'assistante conclut pour le gestionnaire : le mail doit sortir de
+// « À traiter » pour les deux, pas seulement pour elle (6 mails chez elle, 22 chez lui le même matin). Seul le
 // statut (et les étapes posées avec lui) se partage ; « lu », le brouillon et le reste de
 // l'état restent propres à chacun.
 //
 // Stockage sans changement de schéma : une ligne de intranet_mes_emails_etat dont le
 // gestionnaire_id vaut « boite:<adresse> » porte le statut commun. Elle gagne toujours.
 // Sans elle (mails conclus avant ce partage), le statut d'un autre membre qui a conclu
-// ou répondu est repris : l'historique de Mylène vaut aussi chez Nicolas.
+// ou répondu est repris : l'historique de l'une vaut aussi chez l'autre.
 
 import type { StatutTraitement } from "@/lib/domain/mes-emails";
 import type { StatutEcrit } from "@/lib/ports/mes-emails-etat-provider";

@@ -1,4 +1,4 @@
-// « Pas pour moi » (REA-327, Mylène 15/10/2026) : un mail de la boîte partagée rangé chez le
+// « Pas pour moi » (REA-327, demande d'une assistante, 15/10/2026) : un mail de la boîte partagée rangé chez le
 // mauvais binôme (St Martin rangé comme Les Rosiers) doit pouvoir PARTIR chez le binôme de la
 // bonne copro, même si cette copro n'est pas dans le portefeuille de la personne. Le geste
 // passe par le journal du tri : c'est lui qui distribue les mails aux binômes

@@ -1,5 +1,5 @@
 -- TRI DES E-MAILS V2 (ADR-046, REA-29) : trois tables natives pour la boite partagee
--- generique (copro2@real31.fr, affichee « Syndic LGC »).
+-- generique (une boite partagee par agence, ex. syndic2@real31.fr).
 --
 -- A executer une fois dans le SQL editor Supabase de la base cible
 -- (lgrsnrclufsulglbwcqi), comme le reste de supabase/sql/. Idempotent.
@@ -30,7 +30,7 @@ create table if not exists public.intranet_tri_binome (
 );
 
 create table if not exists public.intranet_tri_dossier (
-  boite     text not null,                      -- ex. copro2@real31.fr
+  boite     text not null,                      -- ex. syndic4@real31.fr
   cle       text not null,                      -- 'binome:<email gestionnaire>' | 'comptabilite' | 'divers'
   folder_id text not null,                      -- id Graph du sous-dossier de la boite de reception
   nom       text not null,                      -- nom au dernier rangement, ex. 'SK-CP'

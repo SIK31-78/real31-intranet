@@ -18,7 +18,7 @@ import {
   type EchangeTrouve,
 } from "./echanges";
 
-const PAR_AGENCE = lireBoitesParAgence("HLS=Syndic4@real31.fr ; LGC=syndic2@real31.fr,copro2@real31.fr;ML=");
+const PAR_AGENCE = lireBoitesParAgence("HLS=Syndic4@real31.fr ; LGC=syndic2@real31.fr,lgc-bis@exemple.fr;ML=");
 const mylene = { email: "mylene@real31.fr", agence: "HLS", superAdmin: false };
 const lgc = { email: "sandy@real31.fr", agence: "LGC", superAdmin: false };
 const ml = { email: "x@real31.fr", agence: "ML", superAdmin: false };
@@ -26,7 +26,7 @@ const sekou = { email: "sekou.koma@real31.fr", agence: "LGC", superAdmin: true }
 
 describe("qui voit quelles boîtes (décision du 12/10/2026)", () => {
   it("lit la configuration par agence", () => {
-    expect(PAR_AGENCE).toEqual({ HLS: ["syndic4@real31.fr"], LGC: ["syndic2@real31.fr", "copro2@real31.fr"] });
+    expect(PAR_AGENCE).toEqual({ HLS: ["syndic4@real31.fr"], LGC: ["syndic2@real31.fr", "lgc-bis@exemple.fr"] });
   });
 
   it("chacun voit la boîte commune de son agence et la sienne ; une agence sans boîte n'a pas l'écran", () => {

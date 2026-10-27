@@ -1,8 +1,8 @@
 "use client";
 
 // « Réponse envoyée » : sous un mail répondu, la réponse partie de la boîte, pour savoir
-// ce qui a été dit sans ouvrir Outlook (Sekou, 15/10/2026 : « qu'est-ce que Mylène a
-// répondu ? »). Replié par défaut, la réponse n'est lue qu'au clic.
+// ce qui a été dit sans ouvrir Outlook (Sekou, 15/10/2026 : « qu'est-ce que ma collègue
+// a répondu ? »). Replié par défaut, la réponse n'est lue qu'au clic.
 
 import { useState } from "react";
 import { ChevronRight, CornerUpLeft, ExternalLink } from "lucide-react";

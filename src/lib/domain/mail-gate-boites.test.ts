@@ -67,7 +67,7 @@ describe("boitesTri : config, repli et config illisible", () => {
     vi.stubEnv("MAIL_BOITE_TRI", "autre@real31.fr");
     expect(boitesTri().map((b) => b.boite)).toEqual(["syndic4@real31.fr", "syndic2@real31.fr"]);
     expect(boiteTri("SYNDIC2@real31.fr")?.agences).toEqual(["LGC", "ASN"]);
-    expect(boiteTri("syndic3@real31.fr")).toBeNull();
+    expect(boiteTri("inconnue@real31.fr")).toBeNull();
     expect(boiteTriDeLAgence("asn")?.boite).toBe("syndic2@real31.fr");
     expect(boiteTriDeLAgence("ML")).toBeNull();
     expect(boiteTriConfiguree()).toBe("syndic4@real31.fr");

@@ -1,6 +1,6 @@
 "use client";
 
-// « Pas pour moi » (REA-327, Mylène 15/10/2026) : un mail de la boîte partagée rangé chez le
+// « Pas pour moi » (REA-327, demande d'une assistante, 15/10/2026) : un mail de la boîte partagée rangé chez le
 // mauvais binôme part chez le binôme de la bonne copro, même si elle n'est pas dans le
 // portefeuille de la personne. Pas de « rendre au tri » (Sekou, 16/10/2026) : l'équipe
 // connaît ses copros mieux que le tri, elle choisit la bonne. La recherche est tolérante :
