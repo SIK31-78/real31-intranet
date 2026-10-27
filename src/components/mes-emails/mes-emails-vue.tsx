@@ -1929,7 +1929,7 @@ function AnalysePane({
           <TexteAvecLiens texte={m.corps} />
         </div>
         <ImagesMail key={`img-${m.id}`} emailId={m.id} coproCode={coproCode} boite={boiteDuMail} onApercu={onApercu} />
-        <HistoriqueMail key={m.id} emailId={m.id} boite={boiteDuMail} />
+        <HistoriqueMail key={`historique-${m.id}`} emailId={m.id} boite={boiteDuMail} />
           {m.attachments.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
               {piecesJointes === null ? (
@@ -1982,7 +1982,7 @@ function AnalysePane({
           {m.attachments.length > 0 && adresseFactures && onTransmettreFacture && (
             <TransmettreFacture destinataire={adresseFactures} onTransmettre={onTransmettreFacture} />
           )}
-          {(statut === "repondu" || m.reponseOutlook === "repondu") && <ReponseEnvoyee key={m.id} emailId={m.id} boite={boiteDuMail} />}
+          {(statut === "repondu" || m.reponseOutlook === "repondu") && <ReponseEnvoyee key={`reponse-${m.id}`} emailId={m.id} boite={boiteDuMail} />}
       </div>
 
       <div className="px-5 pb-4 flex flex-col gap-3">
