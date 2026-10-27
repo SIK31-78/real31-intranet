@@ -208,14 +208,6 @@ export function TriEmailsVue({ file, binomesModifiables }: { file: FileATrier; b
 
   return (
     <div className="flex flex-col gap-4">
-      {file.corrigesOutlook > 0 && (
-        <div role="status" className="rounded-lg border border-line bg-surface-2 px-3.5 py-2 text-body text-ink-2">
-          {file.corrigesOutlook === 1
-            ? "Un mail déplacé à la main dans Outlook a été pris en compte."
-            : `${file.corrigesOutlook} mails déplacés à la main dans Outlook ont été pris en compte.`}{" "}
-          Voir l&apos;onglet « Rangés sur 7 jours ».
-        </div>
-      )}
       {rangesAuto > 0 && (
         <div role="status" className="rounded-lg border border-line bg-surface-2 px-3.5 py-2 text-body text-ink-2">
           {rangesAuto === 1

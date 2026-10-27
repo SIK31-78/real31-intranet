@@ -2,7 +2,9 @@
 // suit ce que l'equipe a fait. Remis dans la boite generique -> retour dans la file ;
 // glisse dans un autre dossier connu -> etiquette corrigee (ou « copro a preciser »).
 // Ecrit dans la boite (etiquettes) : ne tourne que si l'ecriture est ouverte. Appele par
-// la tache planifiee (/api/cron/tri-emails, toutes les 5 min) ET a l'ouverture de l'ecran.
+// la tache planifiee SEULEMENT (/api/cron/tri-emails, toutes les 5 min). Jusqu'au 27/10/2026
+// l'ecran le lancait aussi a chaque rendu (toutes les 60 s par onglet ouvert, jusqu'a 50
+// appels Graph a chaque fois) : retire, la tache suffit.
 
 import { PAR_OUTLOOK, constaterRangement, coproDuDossier } from "@/lib/domain/tri-emails";
 import { depsParDefaut, type DepsRangement } from "./ranger";

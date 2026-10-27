@@ -34,7 +34,6 @@ import {
   getTriRepository,
 } from "@/lib/adapters/router";
 import { rangementSimule } from "./ranger";
-import { reconcilierRangements } from "./reconcilier";
 import { listerCollaborateurs, listerGestionnairesCabinet, type Collaborateur } from "./binomes";
 
 /** Nombre de mails lus a chaque affichage : la file du jour, pas l'historique. */
@@ -64,8 +63,6 @@ export interface FileATrier {
   dossiers: DossierChoisissable[];
   /** Collaborateurs designables comme assistant. */
   collaborateurs: Collaborateur[];
-  /** Mails que l'equipe a deplaces a la main dans Outlook depuis le dernier affichage. */
-  corrigesOutlook: number;
   /** true = l'ecriture dans la boite est coupee : les rangements sont simules. */
   simulation: boolean;
   /** Message lisible si la boite ou ESTALE n'a pas repondu ; la page reste affichable. */
@@ -144,22 +141,10 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
   const boite = boiteTriConfiguree();
   if (!boite) return null;
 
-  // Suivre ce que l'equipe a fait dans Outlook (un mail remis dans la generique doit
-  // reapparaitre dans la file des cet affichage), EN PARALLELE du chargement : avant, ce
-  // controle (jusqu'a 50 mails, 4 par 4) passait seul devant et allongeait le premier clic.
-  // Seul « deja ranges », lu plus bas, depend de son resultat : on l'attend avant.
-  let corrigesOutlook = 0;
-  let erreurReconciliation: string | null = null;
-  const reconciliation = reconcilierRangements().then(
-    (bilan) => {
-      corrigesOutlook = bilan.remisEnFile + bilan.deplaces;
-    },
-    (e) => {
-      erreurReconciliation = "La vérification des mails déplacés dans Outlook n'a pas abouti.";
-      console.error("[tri-emails] reconciliation :", e instanceof Error ? e.message : e);
-    },
-  );
-
+  // Le suivi des mails glisses a la main dans Outlook (reconcilier.ts) ne tourne plus ici
+  // (27/10/2026) : il relancait jusqu'a 50 appels Graph a chaque rendu, soit toutes les 60 s
+  // par onglet ouvert, alors que la tache planifiee le fait toutes les 5 min. Un mail remis
+  // dans la generique reapparait donc dans la file au plus tard 5 min apres.
   const repo = getTriRepository();
   const [refRes, mailsRes, iniRes, binRes, journalRes, gestRes] = await Promise.allSettled([
     getReferentielTriProvider().charger(),
@@ -170,8 +155,7 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     listerGestionnairesCabinet(),
   ]);
 
-  await reconciliation;
-  const erreurs: string[] = erreurReconciliation ? [erreurReconciliation] : [];
+  const erreurs: string[] = [];
   if (refRes.status === "rejected") erreurs.push("Ni ESTALE ni le référentiel Crypto n'ont répondu : les suggestions sont indisponibles.");
   if (refRes.status === "fulfilled") erreurs.push(...(refRes.value.avertissements ?? []));
   if (mailsRes.status === "rejected") {
@@ -226,7 +210,6 @@ export async function lireFileATrier(): Promise<FileATrier | null> {
     binomes: lignes,
     dossiers: dossiersChoisissables(lignes),
     collaborateurs,
-    corrigesOutlook,
     simulation: rangementSimule(boite),
     erreur: erreurs.length ? erreurs.join(" ") : null,
   };
