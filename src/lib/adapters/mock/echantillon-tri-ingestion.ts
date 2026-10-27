@@ -17,7 +17,7 @@ const mail = (id: number, p: Omit<RawMail, "id" | "internetMessageId" | "to" | "
   ...p,
 });
 
-const ECHANTILLON: RawMail[] = [
+export const ECHANTILLON: RawMail[] = [
   mail(1, { from: "m.delmas@exemple.fr", fromName: "Marc Delmas", subject: "Infiltration plafond salle de bain, lot 14", receivedAt: a("06:12"),
     bodyText: "Bonjour,\nDepuis ce week-end, une tache d'humidité s'étend au plafond de ma salle de bain.\nPouvez-vous faire intervenir quelqu'un rapidement ?\nMarc Delmas",
     attachments: [{ name: "photo_plafond.jpg" }] }),

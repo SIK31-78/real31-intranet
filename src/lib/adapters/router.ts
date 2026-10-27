@@ -43,6 +43,12 @@ import type { ExtracteurPdf } from "@/lib/ports/extracteur-pdf";
 import { PdfjsExtracteur } from "@/lib/adapters/pdf/pdfjs-extracteur";
 import { MockTriRepository } from "@/lib/adapters/mock/mock-tri-repository";
 import { SupabaseTriRepository } from "@/lib/adapters/supabase/supabase-tri-repository";
+import type { ReceptionIndex } from "@/lib/ports/reception-index";
+import type { ReceptionDeltaProvider } from "@/lib/ports/reception-delta";
+import { SupabaseReceptionIndex } from "@/lib/adapters/supabase/supabase-reception-index";
+import { MemoireReceptionIndex } from "@/lib/adapters/mock/memoire-reception-index";
+import { GraphReceptionDelta } from "@/lib/adapters/mail/graph-reception-delta";
+import { EchantillonReceptionDelta } from "@/lib/adapters/mock/echantillon-reception-delta";
 import { BOITE_ECHANTILLON, ecritureTriPour, type BoiteTriConfig } from "@/lib/domain/mail-gate";
 import type { SynchroRepository } from "@/lib/ports/synchro-repository";
 import { MockSynchroRepository } from "@/lib/adapters/mock/mock-synchro-repository";
@@ -462,6 +468,21 @@ export function getIngestionTri(boite: string): MailIngestionProvider {
   if (boite.trim().toLowerCase() === BOITE_ECHANTILLON) return new EchantillonTriIngestion();
   if (process.env.MAIL_SOURCE === "graph") return new GraphMailIngestionProvider();
   return new EchantillonTriIngestion();
+}
+
+// Index de la reception des boites triees (REA-419, 27/10/2026) : la file et l'automatique
+// le lisent au lieu de relire la boite. Memoire (une instance pour le process) hors Supabase.
+let receptionIndexMemoire: MemoireReceptionIndex | null = null;
+export function getReceptionIndex(): ReceptionIndex {
+  if (coproSourceEstSupabase()) return new SupabaseReceptionIndex();
+  return (receptionIndexMemoire ??= new MemoireReceptionIndex());
+}
+
+// Lecture incrementale de la reception d'une boite triee (REA-419) : Graph (requete delta) si
+// MAIL_SOURCE=graph, sinon et pour la boite « echantillon », les mails fictifs.
+export function getReceptionDelta(boite: string): ReceptionDeltaProvider {
+  if (boite.trim().toLowerCase() !== BOITE_ECHANTILLON && process.env.MAIL_SOURCE === "graph") return new GraphReceptionDelta();
+  return new EchantillonReceptionDelta();
 }
 
 // Referentiel ESTALE du tri partage entre instances (1 h par defaut) : cf. cache-partage-referentiel-tri.

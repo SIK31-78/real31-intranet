@@ -19,7 +19,8 @@ function correspondants(l: AdresseGraph[] | undefined): Correspondant[] {
     .filter((c) => c.adresse);
 }
 
-type GraphMessage = {
+/** Un message tel que Graph le rend (lecture de la reception, et son delta : graph-reception-delta.ts). */
+export type GraphMessage = {
   id: string;
   internetMessageId?: string;
   conversationId?: string;
@@ -39,7 +40,11 @@ type GraphMessage = {
 /** Le dernier geste d'Outlook (répondu, transféré) : propriété MAPI 0x1081, vérifiée le 13/10/2026. */
 const EXPAND_VERBE = "$expand=" + encodeURIComponent("singleValueExtendedProperties($filter=id eq 'Integer 0x1081')");
 
-function versRaw(m: GraphMessage): RawMail {
+/** Les champs lus d'un mail : partages avec la lecture incrementale (graph-reception-delta.ts). */
+export const SELECT_MESSAGE =
+  "id,internetMessageId,conversationId,subject,from,toRecipients,ccRecipients,replyTo,receivedDateTime,bodyPreview,body,hasAttachments,webLink";
+
+export function versRaw(m: GraphMessage): RawMail {
   return {
     id: m.id,
     internetMessageId: m.internetMessageId ?? m.id,
@@ -81,8 +86,7 @@ export class GraphMailIngestionProvider implements MailIngestionProvider {
     const boite = opts.email;
     if (!boite) throw new Error("Ingestion Graph : adresse de la boite a lire manquante.");
     const tk = await jetonGraph();
-    const select =
-      "id,internetMessageId,conversationId,subject,from,toRecipients,ccRecipients,replyTo,receivedDateTime,bodyPreview,body,hasAttachments,webLink";
+    const select = SELECT_MESSAGE;
     // Dossier precis (sous-dossier du binome dans la boite partagee) ou boite de reception.
     const dossier = opts.folderId ? encodeURIComponent(opts.folderId) : "inbox";
     let url: string =
@@ -110,8 +114,7 @@ export class GraphMailIngestionProvider implements MailIngestionProvider {
   async lireParIds(email: string, internetMessageIds: string[]): Promise<RawMail[]> {
     if (!email) throw new Error("Ingestion Graph : adresse de la boite a lire manquante.");
     const tk = await jetonGraph();
-    const select =
-      "id,internetMessageId,conversationId,subject,from,toRecipients,ccRecipients,replyTo,receivedDateTime,bodyPreview,body,hasAttachments,webLink";
+    const select = SELECT_MESSAGE;
     const ids = [...new Set(internetMessageIds.filter(Boolean))];
     const out: RawMail[] = [];
     // Par lots de 10 (filtre OR) : une URL raisonnable, peu d'appels.
