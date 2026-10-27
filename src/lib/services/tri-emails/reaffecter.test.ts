@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { AUCUN_BINOME, type EntreeJournalTri } from "@/lib/domain/tri-emails";
 import type { DepsRangement } from "./ranger";
-import { envoyerABonneCopro, rendreAuTri } from "./reaffecter";
+import { envoyerABonneCopro } from "./reaffecter";
 
 const BOITE = "syndic4@real31.fr";
 
@@ -64,15 +64,10 @@ function deps(journal: EntreeJournalTri[]) {
 }
 
 describe("« Pas pour moi » : un mail rangé chez le mauvais binôme", () => {
-  it("rendre au tri annule le rangement en cours", async () => {
-    const { d, repo } = deps([entree()]);
-    await rendreAuTri(BOITE, "<m1@x>", "mylene.pin@real31.fr", d);
-    expect(repo.marquerAnnule).toHaveBeenCalledWith("j1", "mylene.pin@real31.fr");
-  });
-
-  it("un mail jamais rangé par le tri ne peut pas être rendu", async () => {
-    const { d } = deps([entree({ annuleLe: "2026-10-15T09:00:00Z" })]);
-    await expect(rendreAuTri(BOITE, "<m1@x>", "mp", d)).rejects.toThrow(/pas été rangé/);
+  it("un mail jamais rangé par le tri (ou dont le rangement est annulé) ne peut pas être réaffecté", async () => {
+    const { d, repo } = deps([entree({ annuleLe: "2026-10-15T09:00:00Z" })]);
+    await expect(envoyerABonneCopro(BOITE, "<m1@x>", "S0109", "mp", d)).rejects.toThrow(/pas été rangé/);
+    expect(repo.marquerAnnule).not.toHaveBeenCalled();
   });
 
   it("envoyer à la bonne copro : annule, puis range chez le binôme de cette copro", async () => {

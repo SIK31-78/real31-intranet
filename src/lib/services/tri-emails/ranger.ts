@@ -261,6 +261,7 @@ export async function preciserCopro(
 ): Promise<void> {
   const e = await deps.repo.entree(journalId);
   if (!e || e.annuleLe) throw new Error("Ce rangement n'existe plus.");
+  if (e.boite !== deps.boite) throw new Error("Ce rangement concerne une autre boîte.");
   if (e.coproReference) throw new Error("La copropriété de ce mail est déjà connue.");
   if (!e.dossierCle?.startsWith("binome:")) throw new Error("Ce mail n'est pas dans un dossier de binôme.");
   const dossier = await resoudreDossier({ type: "copro", reference }, deps);

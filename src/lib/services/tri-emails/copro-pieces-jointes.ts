@@ -19,10 +19,18 @@ export interface CoproDepuisPj {
 }
 
 const MAX_PDF = 5;
+/**
+ * Au-dela, le PDF n'est pas lu (27/10/2026) : Graph le rend en base64 et pdfjs le decode
+ * entierement en memoire, dans la fonction du cron (60 s, memoire bornee) a cote des autres
+ * lectures du passage. Un plan ou un rapport scanne de 20 Mo n'a de toute facon pas de texte.
+ */
+const TAILLE_MAX_PDF = 5 * 1024 * 1024;
 const estPdf = (p: PieceJointeRef) => /\.pdf$/i.test(p.nom) || /pdf/i.test(p.type);
 
 async function pdfsDuMail(internetMessageId: string): Promise<PieceJointeRef[]> {
-  return (await listerPiecesJointesTri(internetMessageId)).filter(estPdf).slice(0, MAX_PDF);
+  return (await listerPiecesJointesTri(internetMessageId))
+    .filter((p) => estPdf(p) && p.taille <= TAILLE_MAX_PDF)
+    .slice(0, MAX_PDF);
 }
 
 /** Le texte d'un PDF, ou null s'il est illisible ou scanne (sans couche texte). */

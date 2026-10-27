@@ -50,6 +50,10 @@ function gardeBinomes(email: string | null | undefined) {
   if (!estSuperAdmin(email)) throw new Refus("Les binômes se règlent avec l'administrateur.");
 }
 
+// Ranger, supprimer, annuler, preciser : pas de revalidatePath (27/10/2026). La page est
+// force-dynamic et la vue fait router.refresh() apres chaque action : avec les deux, chaque
+// clic rendait la page deux fois. Les actions sur les binomes le gardent (l'ecran et
+// d'autres pages lisent les binomes).
 export async function rangerMailAction(
   input: unknown,
 ): Promise<Res<{ journalId: string; dossierNom: string; simulation: boolean; etiquetteNonPosee: boolean }>> {
@@ -57,7 +61,6 @@ export async function rangerMailAction(
     await gardeTri(g);
     const r = await rangerMail(d, g.email ?? g.id);
     oublierCompteur();
-    revalidatePath("/tri-emails");
     return r;
   });
 }
@@ -77,7 +80,6 @@ export async function supprimerMailAction(
     await gardeTri(g);
     const r = await supprimerMail(d, g.email ?? g.id);
     oublierCompteur();
-    revalidatePath("/tri-emails");
     return r;
   });
 }
@@ -87,7 +89,6 @@ export async function annulerRangementAction(input: unknown): Promise<Res> {
     await gardeTri(g);
     await annulerRangement(d.journalId, g.email ?? g.id);
     oublierCompteur();
-    revalidatePath("/tri-emails");
   });
 }
 
@@ -137,7 +138,8 @@ export async function listerPiecesJointesTriAction(input: unknown): Promise<Res<
 
 export async function lirePieceJointeTriAction(input: unknown): Promise<Res<{ nom: string; type: string; base64: string }>> {
   return actionGestionnaire(
-    z.object({ internetMessageId: zMessage, attachmentId: z.string().min(1).max(400) }),
+    // Id Graph d'une piece jointe : base64 URL-safe (un identifiant, jamais un chemin).
+    z.object({ internetMessageId: zMessage, attachmentId: z.string().min(1).max(600).regex(/^[A-Za-z0-9_\-=+\/]+$/) }),
     input,
     "tri-emails-pj",
     async (d, g) => {
@@ -162,7 +164,6 @@ export async function preciserCoproAction(input: unknown): Promise<Res> {
     async (d, g) => {
       await gardeTri(g);
       await preciserCopro(d.journalId, d.reference);
-      revalidatePath("/tri-emails");
     },
   );
 }

@@ -1,8 +1,9 @@
 // « Pas pour moi » (REA-327, Mylène 15/10/2026) : un mail de la boîte partagée rangé chez le
-// mauvais binôme (St Martin rangé comme Les Rosiers) doit pouvoir REVENIR au tri, ou PARTIR
-// chez le binôme de la bonne copro, même si cette copro n'est pas dans le portefeuille de
-// la personne. Les deux gestes passent par le journal du tri : c'est lui qui distribue les
-// mails aux binômes (boites-visibles), et il garde qui a fait quoi.
+// mauvais binôme (St Martin rangé comme Les Rosiers) doit pouvoir PARTIR chez le binôme de la
+// bonne copro, même si cette copro n'est pas dans le portefeuille de la personne. Le geste
+// passe par le journal du tri : c'est lui qui distribue les mails aux binômes
+// (boites-visibles), et il garde qui a fait quoi. Le retour pur et simple au tri
+// (rendreAuTri) n'avait aucun appelant hors de son test : retiré le 27/10/2026.
 
 import type { EntreeJournalTri } from "@/lib/domain/tri-emails";
 import type { CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
@@ -18,12 +19,6 @@ async function rangementEnCours(boite: string, internetMessageId: string, deps: 
   const e = await deps.repo.rangementActif(boite, internetMessageId, depuis);
   if (!e) throw new Error("Ce mail n'a pas été rangé par le tri : rien à rendre.");
   return e;
-}
-
-/** Rend le mail au tri : il revient dans la boîte de réception de la boîte partagée. */
-export async function rendreAuTri(boite: string, internetMessageId: string, par: string, deps: DepsRangement = depsParDefaut()): Promise<void> {
-  const e = await rangementEnCours(boite, internetMessageId, deps);
-  await annulerRangement(e.id, par, deps);
 }
 
 /**
