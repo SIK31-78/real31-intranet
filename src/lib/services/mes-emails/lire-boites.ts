@@ -1,31 +1,23 @@
 // Lecture LIVE des boites du gestionnaire (decision Sekou 2026-08-23 : plus de
 // bouton "Synchroniser", plus d'instantane en base). A chaque affichage : ingestion
-// Graph des boites visibles -> pipeline DETERMINISTE (prefiltre, nettoyage,
-// rattachement copro, regroupement par fil) -> cartes.
+// Graph des boites visibles -> pipeline DETERMINISTE (nettoyage, rattachement copro,
+// regroupement par fil) -> cartes.
 //
-// Ce qui a disparu par rapport a la synchro : l'appel au modele au chargement. Le
-// pipeline de rattachement copro, lui, RESTE : il ne coute rien (recherche de texte,
-// annuaire Crypto, heritage par fil), il n'a jamais ete de l'IA. Les classifications
-// deja calculees par le passe sont relues du cache EN LOT, sans jamais rappeler le
-// modele ; un mail jamais analyse sort simplement sans type ("autre"), et le
-// brouillon IA reste declenche a la demande. Passe par le routeur (ADR-001).
+// Aucun modele : le rattachement copro ne coute rien (recherche de texte, annuaire,
+// heritage par fil), il n'a jamais ete de l'IA. L'ancien cache de classification et le
+// brouillon IA ont ete retires le 27/10/2026 (REA-423) : chaque mail sort en type
+// « autre ». Passe par le routeur (ADR-001).
 
-import type { BadgeUrgence, MailEntrant, TypeMail, UrgenceTon } from "@/lib/domain/mes-emails";
+import type { MailEntrant } from "@/lib/domain/mes-emails";
 import { reponseDepuisVerbe } from "@/lib/domain/mes-emails";
-import type { Severite } from "@/lib/domain/commun";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import type { BoiteMail } from "@/lib/domain/boites-mail";
 import type { Copropriete } from "@/lib/domain/copropriete";
-import type { AnalyseCachee } from "@/lib/ports/analyse-cache-store";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import { cleanBody, significantAttachments } from "@/lib/domain/tri-mail/clean";
 import { groupAffaires } from "@/lib/domain/tri-mail/group";
 import { resoudreExpediteur } from "@/lib/domain/tri-mail/sender";
-import {
-  getAnalyseCacheStore,
-  getMailIngestionProvider,
-  getReferentielTriProvider,
-} from "@/lib/adapters/router";
+import { getMailIngestionProvider, getReferentielTriProvider } from "@/lib/adapters/router";
 import { cleDeReference, suggererCopro, type ReferentielTri } from "@/lib/domain/tri-emails";
 import { recuDepuisDebutTri } from "@/lib/domain/mail-gate";
 import { jourParis } from "@/lib/services/date-du-jour";
@@ -38,10 +30,6 @@ import { distributionDe } from "./boites-visibles";
 // serie) ; « Plus de mails » en demande davantage.
 export const MAX_PERSO = 40;
 const MAX_PARTAGEE = 80;
-// Bumpe cette version si tu changes les prompts/modele -> le cache se reanalyse tout seul.
-// v3 : invalide les sorties MOCK mises en cache quand MISTRAL_API_KEY etait absent
-// (le routeur servait le mock) ; force la reanalyse via le vrai modele.
-const VERSION_ANALYSE = "v3";
 
 export interface TriageLive {
   mails: MailEntrant[];
@@ -52,18 +40,6 @@ export interface TriageLive {
   /** Adresses des boites qui n'ont pas pu etre lues (droits Exchange, panne Graph) :
    *  l'ecran le dit au lieu d'afficher une liste vide (27/10/2026). */
   erreurs: string[];
-}
-
-function priorite(type: TypeMail, ticketable: boolean): Severite {
-  if (!ticketable) return "ok";
-  if (type === "sinistre_degat_eaux" || type === "panne_intervention") return "late";
-  return "soon";
-}
-
-function badge(p: Severite): BadgeUrgence {
-  if (p === "late") return { texte: "URGENT", ton: "err" as UrgenceTon };
-  if (p === "soon") return { texte: "À TRAITER", ton: "warn" as UrgenceTon };
-  return { texte: "INFO", ton: "neutral" as UrgenceTon };
 }
 
 // Le jour de réception À PARIS : Graph horodate en UTC, et `receivedAt.slice(0, 10)` faisait
@@ -192,35 +168,10 @@ export async function lireBoitesLive(
   // Un mail = une carte, les plus recents d'abord.
   const tous = [...bruts].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
 
-  // Classifications DEJA calculees, relues en LOT. Aucun appel au modele ici : un mail
-  // jamais analyse sort en "autre" / non ticketable, ce qui est honnete (on ne sait pas)
-  // et n'empeche rien -- le brouillon IA reste declenchable a la demande.
-  const cache = await getAnalyseCacheStore().lirePar(
-    g.id,
-    tous.map((m) => m.internetMessageId).filter(Boolean),
-  );
-  const analyseDe = (imid: string): AnalyseCachee => {
-    const an = cache.get(imid);
-    if (an && an.promptVersion === VERSION_ANALYSE) return an;
-    return {
-      internetMessageId: imid,
-      type: "autre",
-      ticketable: false,
-      estNouveauTicket: true,
-      confidence: 0,
-      rationale: "non analysé (lecture live)",
-      brouillon: "",
-      etapes: [],
-      promptVersion: "absent",
-    } satisfies AnalyseCachee;
-  };
-
   const mails: MailEntrant[] = tous.map((m) => {
-    const an = analyseDe(m.internetMessageId);
     const idx = idxAffaireDe.get(m.id);
     const aff = idx !== undefined ? affaires[idx] : undefined;
     const filMultiple = (aff?.mails.length ?? 1) > 1;
-    const prio = priorite(an.type, an.ticketable);
     const corps = cleanBody(m);
     return {
       id: m.internetMessageId || m.id,
@@ -243,17 +194,12 @@ export async function lireBoitesLive(
       lu: false,
       corps: corps || "(corps vide)",
       attachments: significantAttachments(m).map((x) => ({ nom: x.name })),
-      type: an.type,
-      ticketable: an.ticketable,
-      priorite: prio,
-      badge: badge(prio),
+      type: "autre",
       rattachement: {
         statut: filMultiple ? "existant" : "nouveau",
         dossierId: idx !== undefined ? `S${idx + 1}` : `N-${m.id}`,
         dossierLabel: aff?.label ?? (m.subject || "(sans objet)"),
-        ...(filMultiple ? { confiance: Math.round(an.confidence * 100) } : {}),
       },
-      ...(an.brouillon ? { brouillonReponse: an.brouillon } : {}),
     };
   });
 

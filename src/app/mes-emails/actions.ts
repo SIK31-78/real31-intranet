@@ -26,7 +26,6 @@ import { boitesVisibles, conversationsDistribuees } from "@/lib/services/mes-ema
 import { reporterCoproAuTri } from "@/lib/services/mes-emails/reporter-copro-tri";
 import { creerBrouillonReponse } from "@/lib/services/mes-emails/creer-brouillon";
 import { classerDansDossier, creerDossierBoite, listerDossiersBoite } from "@/lib/services/mes-emails/classer";
-import { genererBrouillonMail } from "@/lib/services/mes-emails/generer-brouillon";
 import { listerImagesMail, listerPiecesJointesMail, lirePieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
 import { reponsesEnvoyees } from "@/lib/services/mes-emails/reponses-envoyees";
 import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
@@ -421,28 +420,6 @@ export async function transmettreFactureAction(
     const r = await transmettreFacture({ boite: cible, internetMessageId: emailId, facture });
     if (r.simulation) return { ok: true, message: `Aperçu : « ${r.objet} » vers ${r.destinataire} (boîte non branchée, rien créé).` };
     return { ok: true, ...(r.webLink ? { webLink: r.webLink } : {}), message: `Brouillon de transfert « ${r.objet} » créé vers ${r.destinataire} : à relire puis envoyer dans Outlook.` };
-  } catch (e) {
-    return { ok: false, message: messageUtilisateur(e, "mes-emails") };
-  }
-}
-
-// --- Brouillon IA a la demande -----------------------------------------------
-
-export async function genererBrouillonAction(
-  emailId: string,
-  coproCode: string,
-): Promise<{ ok: boolean; brouillon?: string; message?: string }> {
-  if (!z.object({ emailId: zId, coproCode: zCopro }).safeParse({ emailId, coproCode }).success)
-    return { ok: false, message: "Données invalides." };
-  const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
-  if (!auth.ok) return auth;
-  const g = auth.g;
-  try {
-    const reponse = await genererBrouillonMail(g, emailId);
-    if (reponse === null) return { ok: false, message: "Mail introuvable." };
-    if (reponse) await enregistrerBrouillon(cibleDe(g, emailId, coproCode), reponse);
-    revalidatePath("/mes-emails");
-    return { ok: true, brouillon: reponse };
   } catch (e) {
     return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }

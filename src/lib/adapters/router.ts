@@ -29,9 +29,6 @@ import type { CryptoContactsProvider } from "@/lib/ports/crypto-contacts-provide
 import type { ListesDiffusionProvider } from "@/lib/ports/listes-diffusion-provider";
 import { SupabaseListesDiffusionRepository } from "@/lib/adapters/supabase/supabase-listes-diffusion-repository";
 import { MockListesDiffusionRepository } from "@/lib/adapters/mock/mock-listes-diffusion-repository";
-import type { AnalyseMailProvider } from "@/lib/ports/analyse-mail-provider";
-import { MistralAnalyseProvider } from "@/lib/adapters/mistral/mistral-analyse-provider";
-import { MockAnalyseProvider } from "@/lib/adapters/mock/mock-analyse-provider";
 import type { MailIngestionProvider } from "@/lib/ports/mail-ingestion-provider";
 import { SampleMailIngestionProvider } from "@/lib/adapters/mail/sample-mail-ingestion";
 import { GraphMailIngestionProvider } from "@/lib/adapters/mail/graph-mail-ingestion";
@@ -64,9 +61,6 @@ import { SigniticSignatureProvider } from "@/lib/adapters/signitic/signitic-sign
 import { MockSignatureProvider } from "@/lib/adapters/mock/mock-signature-provider";
 import { SansSignatureProvider } from "@/lib/adapters/mock/sans-signature-provider";
 import { mailModuleActif } from "@/lib/domain/mail-gate";
-import type { AnalyseCacheStore } from "@/lib/ports/analyse-cache-store";
-import { MockAnalyseCacheStore } from "@/lib/adapters/mock/mock-analyse-cache-store";
-import { SupabaseAnalyseCacheStore } from "@/lib/adapters/supabase/supabase-analyse-cache-store";
 import type { MailOutboundProvider } from "@/lib/ports/mail-outbound-provider";
 import { GraphMailOutboundProvider } from "@/lib/adapters/mail/graph-mail-outbound";
 import { NoopMailOutboundProvider } from "@/lib/adapters/mail/noop-mail-outbound";
@@ -439,20 +433,6 @@ export function getMesEvenementsProvider(): MesEvenementsProvider {
 export function getMesEmailsEtatRepository(): MesEmailsEtatRepository {
   if (coproSourceEstSupabase()) return new SupabaseMesEmailsEtatRepository();
   return new MockMesEmailsEtatRepository();
-}
-
-// Analyse d'un mail (classification + reponse/plan). Mistral si MISTRAL_API_KEY est
-// presente, sinon mock deterministe (permet de tester l'ingestion sans cle).
-export function getAnalyseMailProvider(): AnalyseMailProvider {
-  if (process.env.MISTRAL_API_KEY) return new MistralAnalyseProvider();
-  return new MockAnalyseProvider();
-}
-
-// Cache d'analyse par mail (table native intranet_mes_emails_analyse) : memoisation
-// LLM, un mail deja analyse n'est jamais renvoye au modele. Meme bascule mock/supabase.
-export function getAnalyseCacheStore(): AnalyseCacheStore {
-  if (coproSourceEstSupabase()) return new SupabaseAnalyseCacheStore();
-  return new MockAnalyseCacheStore();
 }
 
 // Annuaire de contacts Crypto (table native intranet_crypto_contacts) : email -> copro,

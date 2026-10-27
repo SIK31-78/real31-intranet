@@ -3,7 +3,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Mail,
-  Sparkles,
   Search,
   Link2,
   FilePlus2,
@@ -100,7 +99,6 @@ import {
   editBrouillonAction,
   marquerLuAction,
   creerBrouillonAction,
-  genererBrouillonAction,
   envoyerReponseAction,
   chargerPiecesJointesAction,
   telechargerPieceJointeAction,
@@ -496,18 +494,6 @@ export function MesEmailsVue({
       return null;
     });
 
-  // Brouillon IA A LA DEMANDE : genere le texte sur clic, le met dans l'editeur (edits).
-  async function genererBrouillon(m: MailEntrant) {
-    setMsgBrouillon("Génération du brouillon…");
-    const r = await genererBrouillonAction(m.id, coproDe(m).code);
-    if (r.ok) {
-      setEdits((p) => new Map(p).set(m.id, r.brouillon ?? ""));
-      oublierHtml(m.id);
-      setMsgBrouillon(r.brouillon ? null : "Aucune réponse externe pertinente pour ce mail.");
-    } else {
-      setMsgBrouillon(`Échec : ${r.message ?? ""}`);
-    }
-  }
 
   const q = recherche.trim().toLowerCase();
   // « À traiter » = ce qui reste à conclure ; « Conclus » = les événements fermés, avec leur réponse.
@@ -1090,7 +1076,6 @@ export function MesEmailsVue({
               }}
               signatureHtml={signatureHtml}
               onCreerBrouillon={() => void creerBrouillon(selection)}
-              onGenererBrouillon={() => void genererBrouillon(selection)}
               compose={composeParMail.has(selection.id)}
               onRepondre={(tous) => repondre(selection, tous)}
               fichiers={fichiersDe(selection)}
@@ -1681,7 +1666,6 @@ function AnalysePane({
   onBlurBrouillon,
   signatureHtml,
   onCreerBrouillon,
-  onGenererBrouillon,
   compose,
   onRepondre,
   fichiers,
@@ -1762,7 +1746,6 @@ function AnalysePane({
   onBlurBrouillon: () => void;
   signatureHtml?: string | null;
   onCreerBrouillon: () => void;
-  onGenererBrouillon: () => void;
   compose: boolean;
   onRepondre: (tous: boolean) => void;
   fichiers: FichierJoint[];
@@ -1815,7 +1798,6 @@ function AnalysePane({
   suppressionEnCours?: boolean;
 }) {
   const classe = statut === "classe";
-  const genEnCours = (msgBrouillon ?? "").startsWith("Génération");
   // Fichiers glissés sur l'éditeur de réponse : joints comme avec « Ajouter une pièce jointe ».
   const depotPj = useDepotFichiers((l) => onAjouterFichiers(l));
 
@@ -1858,12 +1840,6 @@ function AnalysePane({
         <EnTeteMail m={m} />
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {!(brouillon || compose) && m.ticketable ? (
-            <Button onClick={onGenererBrouillon} loading={genEnCours}>
-              <Sparkles strokeWidth={1.5} />
-              {genEnCours ? "Génération…" : "Brouillon IA"}
-            </Button>
-          ) : null}
           <span className="inline-flex items-center gap-1 text-meta">
             <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
             <Select

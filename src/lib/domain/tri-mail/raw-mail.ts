@@ -1,13 +1,12 @@
-// Domaine du tri de mail (porte depuis assistant-ia). Types purs partages par le
-// pipeline (clean/prefilter/group/sender) et le port d'analyse. Ne depend que du
-// domaine (la taxonomie TypeMail est deja definie dans mes-emails).
+// Domaine du tri de mail (porte depuis assistant-ia). Types purs partages par
+// l'ingestion et le pipeline deterministe (clean/group/sender). Ne depend que du domaine.
 
-import type { Correspondant, TypeMail } from "@/lib/domain/mes-emails";
+import type { Correspondant } from "@/lib/domain/mes-emails";
 
 /** Mail normalise, issu de l'ingestion (Graph) ou d'un echantillon de test. */
 export interface RawMail {
   id: string;
-  /** Message-Id RFC, immuable et global -> cle de memoisation (cache d'analyse). */
+  /** Message-Id RFC, immuable et global -> cle stable du mail (etat, journal du tri). */
   internetMessageId: string;
   /** Id de conversation Graph (le fil) -> ancre d'affaire. */
   conversationId?: string;
@@ -30,33 +29,4 @@ export interface RawMail {
   attachments: { name: string; contentType?: string; sizeBytes?: number }[];
   /** Lien Outlook sur le web vers ce mail (Graph `webLink`), si connu. */
   webLink?: string;
-}
-
-/** Les 10 types de tete (memes valeurs que TypeMail) pour la validation runtime. */
-export const MAIL_TYPES: readonly TypeMail[] = [
-  "panne_intervention",
-  "sinistre_degat_eaux",
-  "demande_copro_cs",
-  "devis_validation",
-  "facture_contrat_fournisseur",
-  "comptabilite",
-  "ag_cs",
-  "vefa_reserves",
-  "non_ticketable",
-  "autre",
-];
-
-/** Sortie de l'etape de classification. */
-export interface Classification {
-  ticketable: boolean;
-  type: TypeMail;
-  est_nouveau_ticket: boolean;
-  confidence: number;
-  rationale: string;
-}
-
-/** Proposition de reponse + plan d'action. */
-export interface PlanPropose {
-  reponse: string;
-  etapes: string[];
 }

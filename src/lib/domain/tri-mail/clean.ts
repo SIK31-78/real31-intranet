@@ -83,11 +83,3 @@ function aere(texte: string): string {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
-
-const SCAN_SUBJECT = /attached image|image jointe|num[ée]risation|scan(?!ner)/i;
-
-/** Courrier papier scanne (objet generique + corps vide + PDF) -> file OCR. */
-export function isAttachedImageScan(mail: RawMail): boolean {
-  const hasPdf = mail.attachments.some((a) => /\.pdf$/i.test(a.name));
-  return hasPdf && cleanBody(mail).length < 40 && SCAN_SUBJECT.test(mail.subject ?? "");
-}

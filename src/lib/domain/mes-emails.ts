@@ -1,23 +1,10 @@
 // Domaine de l'ecran "Mes emails" : cockpit de traitement des mails entrants.
-// Flux par mail : reception -> analyse -> rattachement a un dossier (ou
-// nouveau) -> historique du dossier -> reponse + flow d'actions proposes ->
-// classement + MAJ du dossier. Types metier purs (ADR-001).
-//
-// Note archi : l'analyse vient d'un port (AnalyseMailProvider, a venir) ; mock
-// aujourd'hui, API demain, modele local plus tard = swap d'adapter, sans toucher ici.
+// Flux par mail : reception -> rattachement copro / dossier -> reponse -> classement.
+// Types metier purs (ADR-001). Plus d'analyse par modele depuis le 27/10/2026 (REA-423).
 
-import type { Severite } from "@/lib/domain/commun";
 import type { TypeDossier } from "@/lib/domain/dossier";
 import type { BoiteMail } from "@/lib/domain/boites-mail";
 import { cleDeReference, referencesCitees } from "@/lib/domain/tri-emails";
-
-/** Ton du badge de priorite : rouge (urgent), ambre (a traiter), neutre (info). */
-export type UrgenceTon = "err" | "warn" | "neutral";
-
-export interface BadgeUrgence {
-  texte: string;
-  ton: UrgenceTon;
-}
 
 /** Un dossier reel de la boite Outlook (selecteur de classement du cockpit). */
 export interface DossierBoite {
@@ -44,7 +31,8 @@ export function grouperDossiersBoite(dossiers: readonly DossierBoite[]): { recep
   };
 }
 
-/** Taxonomie de tete du tri (cf. assistant-ia/src/types.ts). */
+/** Taxonomie de tete de l'ancien tri par modele. Plus aucune analyse ne la remplit (REA-423) :
+ *  les mails sortent en « autre », ce qui garde la suggestion de type de dossier neutre. */
 export type TypeMail =
   | "panne_intervention"
   | "sinistre_degat_eaux"
@@ -57,21 +45,6 @@ export type TypeMail =
   | "non_ticketable"
   | "autre";
 
-/** Libelle affichable du type classe. */
-export const LIBELLE_TYPE: Record<TypeMail, string> = {
-  panne_intervention: "Panne / intervention",
-  sinistre_degat_eaux: "Sinistre dégât des eaux",
-  demande_copro_cs: "Demande copro / CS",
-  devis_validation: "Devis / validation",
-  facture_contrat_fournisseur: "Facture / contrat",
-  comptabilite: "Comptabilité",
-  ag_cs: "AG / CS",
-  vefa_reserves: "VEFA / réserves",
-  non_ticketable: "Sans action",
-  autre: "Autre",
-};
-
-
 /** Etat de traitement d'un mail par le gestionnaire (persiste, cloisonne). */
 export type StatutTraitement = "nouveau" | "repondu" | "classe";
 
@@ -80,8 +53,6 @@ export interface Rattachement {
   statut: "existant" | "nouveau";
   dossierId: string;
   dossierLabel: string;
-  /** Confiance du rattachement (%) si dossier existant. */
-  confiance?: number;
   /** true = dossier REEL du module Dossiers (intranet_dossiers) -> lien /dossiers/[id].
    *  false/absent = simple fil de conversation (legacy, non persiste comme dossier). */
   intranet?: boolean;
@@ -176,11 +147,8 @@ export interface MailEntrant {
   /** Corps du mail (deja nettoye : sans l'historique cite, qui se charge a la demande). */
   corps: string;
   attachments: PieceJointe[];
-  // --- Analyse ---
+  /** Toujours « autre » depuis le retrait de l'analyse (REA-423) ; garde pour typeDossierSuggere. */
   type: TypeMail;
-  ticketable: boolean;
-  priorite: Severite;
-  badge: BadgeUrgence;
   rattachement: Rattachement;
   // --- Reponse en cours (editee, persistee) ---
   brouillonReponse?: string;
@@ -190,7 +158,6 @@ export interface MailEntrant {
   dossierClasseId?: string;
   dossierClasseNom?: string;
 }
-
 
 /**
  * Contexte metier REEL d'une copropriete, source eStale (CS, AG, comptes...).
@@ -217,7 +184,7 @@ export interface MesEmails {
   /** Boites visibles par le gestionnaire (perso + partagees). Jamais fusionnees :
    *  le rail en affiche une par une (decision Sekou 5, 2026-08-18). */
   boites: BoiteMail[];
-  /** Nombre de mails du backtest passes au tri. */
+  /** Nombre de mails bruts lus, toutes boites confondues. */
   nbMailsAnalyses: number;
   mails: MailEntrant[];
   /** La boîte perso a rempli son plafond : « Plus de mails » en charge davantage. */
@@ -246,7 +213,6 @@ export function mailsDeLaBoite(
   const perso = boites.find((b) => b.personnelle)?.id;
   return mails.filter((m) => (m.boite ?? perso) === boiteId);
 }
-
 
 // --- La reponse a un mail : quatre regles metier, hors de l'ecran (audit 16/09/2026) -----
 
