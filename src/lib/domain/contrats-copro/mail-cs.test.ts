@@ -189,19 +189,19 @@ describe("composerMailCs", () => {
 });
 
 describe("destinatairesMailCs", () => {
-  it("À = le conseil sans les adresses @real31.fr, dédoublonné ; Cc = le binôme sans ceux déjà en À", () => {
+  it("À = le conseil sans les adresses @real31.fr, dédoublonné ; Cc = la copie du binôme sans ceux déjà en À", () => {
     const d = destinatairesMailCs({
       conseil: ["pres@gmail.com", "PRES@gmail.com", "gestion@real31.fr", " membre@orange.fr ", ""],
-      gestionnaireEmail: "gestion@real31.fr",
-      assistantEmail: "Membre@orange.fr",
+      copie: ["gestion@real31.fr", "Membre@orange.fr"],
     });
     expect(d.a).toEqual(["pres@gmail.com", "membre@orange.fr"]);
     expect(d.cc).toEqual(["gestion@real31.fr"]);
   });
 
-  it("sans conseil, À est vide et le binôme reste en copie (jamais déplacé en À)", () => {
-    const d = destinatairesMailCs({ conseil: [], gestionnaireEmail: "g@real31.fr", assistantEmail: "g@real31.fr" });
+  it("sans conseil, À est vide et la copie reste en copie (jamais déplacée en À) ; sans copie, Cc vide", () => {
+    const d = destinatairesMailCs({ conseil: [], copie: ["g@real31.fr", "G@real31.fr"] });
     expect(d.a).toEqual([]);
     expect(d.cc).toEqual(["g@real31.fr"]);
+    expect(destinatairesMailCs({ conseil: ["pres@gmail.com"] }).cc).toEqual([]);
   });
 });

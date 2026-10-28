@@ -8,7 +8,8 @@
 // supabase/sql/intranet_contrats_modeles_mail_seed.sql). Sans modèle en base, un texte de
 // secours minimal et un avertissement : rien ne bloque, mais le modèle est à créer.
 // Destinataires : la cascade de l'intranet (ESTALE, puis liste Crypto) pour le conseil, moins
-// les adresses du cabinet ; le binôme de la copro en copie.
+// les adresses du cabinet ; en copie, l'autre membre du binôme de la copro que l'auteur
+// (28/10/2026, domain/copie-binome : plus de copie à soi-même), retirable dans l'aperçu.
 //
 // L'AVERTISSEMENT AVANT DÉPART (décision 9) est l'affaire de l'écran : une confirmation qui
 // rappelle les destinataires et « ce mail part vraiment » ; le service, lui, refuse ce qui ne
@@ -18,7 +19,7 @@
 // (gate global + allowlist, `mailModuleActifPour`), à la différence du mail de réunion qui ne
 // regarde que le gate global. Allowlist vide = tout le monde, une fois le pilote concluant.
 
-import { getGestionnaireRepository, getMailOutboundProvider, getModeleMailRepository, getSignatureProvider } from "@/lib/adapters/router";
+import { getMailOutboundProvider, getModeleMailRepository, getSignatureProvider } from "@/lib/adapters/router";
 import {
   composerMailCs,
   destinatairesMailCs,
@@ -36,7 +37,7 @@ import { adresseMailValide } from "@/lib/domain/mes-emails-composition";
 import { ModelesMailNonConfigureError, type ModeleMailStocke } from "@/lib/domain/modeles-mail";
 import { destinatairesConseilSyndical, type SourceDestinataires } from "@/lib/services/coproprietes/destinataires-conseil";
 import { exigerPerimetre } from "@/lib/services/coproprietes/exiger-perimetre";
-import { coproEnLecture } from "@/lib/services/coproprietes/perimetre-lecture";
+import { binomeEnCopieParCode } from "@/lib/services/coproprietes/assistante-de-copro";
 import { jourParis } from "@/lib/services/date-du-jour";
 import { journaliser } from "./journal";
 import { suiviDeCopro } from "./lecture";
@@ -123,26 +124,6 @@ function donneesOffres(suivi: SuiviCopro, sujet: SujetSuivi): DonneesOffresMailC
   }
 }
 
-/**
- * Les e-mails du binôme de la copro (gestionnaire, assistant) : les ids d'équipe du
- * référentiel résolus par le port des gestionnaires. Illisible -> absents (l'aperçu le dit).
- */
-async function emailsBinome(coproCode: string): Promise<{ gestionnaire?: string; assistant?: string }> {
-  try {
-    const copro = await coproEnLecture(coproCode);
-    if (!copro) return {};
-    const repo = getGestionnaireRepository();
-    const [g, a] = await Promise.all([
-      copro.managerId ? repo.findById(copro.managerId) : Promise.resolve(null),
-      copro.assistantId ? repo.findById(copro.assistantId) : Promise.resolve(null),
-    ]);
-    return { gestionnaire: g?.email, assistant: a?.email };
-  } catch (e) {
-    console.warn(`[contrats-copro] binôme de ${coproCode} illisible :`, (e as Error).message);
-    return {};
-  }
-}
-
 async function signatureDe(email: string | undefined): Promise<string | null> {
   if (!email) return null;
   try {
@@ -169,10 +150,10 @@ export async function preparerMailCs(
   const suivi = await chargerSuivi(p.coproCode, auteur.id);
   const avertissements: string[] = [];
 
-  const [modeles, conseil, binome, signatureHtml] = await Promise.all([
+  const [modeles, conseil, copie, signatureHtml] = await Promise.all([
     modelesContrats(),
     destinatairesConseilSyndical(suivi.coproCode),
-    emailsBinome(suivi.coproCode),
+    binomeEnCopieParCode(suivi.coproCode, auteur.email),
     signatureDe(auteur.email),
   ]);
 
@@ -189,9 +170,8 @@ export async function preparerMailCs(
   if (avecMarqueur && tableau.nombre === 0) avertissements.push("Aucune offre à comparer : le tableau dira « Aucune proposition reçue à ce jour. »");
   if (p.variante === "devis_unique" && variables.devis_prestataire === "-") avertissements.push("Aucun devis retenu (ni devis unique) : le prestataire et le montant sont à compléter dans le texte.");
 
-  const destinataires = destinatairesMailCs({ conseil: conseil.emails, gestionnaireEmail: binome.gestionnaire, assistantEmail: binome.assistant });
+  const destinataires = destinatairesMailCs({ conseil: conseil.emails, copie: copie.map((m) => m.email) });
   if (destinataires.a.length === 0) avertissements.push("Aucune adresse de conseil syndical connue : saisis les destinataires à la main.");
-  if (!binome.gestionnaire && !binome.assistant) avertissements.push("Aucun e-mail de gestionnaire ou d'assistant sur cette copropriété : personne du cabinet en copie.");
   if (!signatureHtml) avertissements.push("Signature Signitic indisponible : le mail partira sans signature.");
 
   return {

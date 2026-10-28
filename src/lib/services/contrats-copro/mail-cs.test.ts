@@ -15,6 +15,8 @@ const etat = vi.hoisted(() => ({
   envois: [] as Record<string, unknown>[],
   journal: [] as NouvelleEntreeJournal[],
   signature: "<p>Sekou</p>" as string | null,
+  copie: [] as { nomComplet: string; email: string }[],
+  appelsBinome: [] as unknown[][],
 }));
 
 vi.mock("@/lib/observabilite", () => ({ signalerException: () => undefined }));
@@ -29,8 +31,11 @@ vi.mock("@/lib/services/coproprietes/exiger-perimetre", () => ({
     if (etat.perimetreRefuse) throw new Error("Copropriété hors du périmètre du gestionnaire.");
   },
 }));
-vi.mock("@/lib/services/coproprietes/perimetre-lecture", () => ({
-  coproEnLecture: async (code: string) => (code === "S0247" ? { code, nom: "LES MARRONNIERS", managerId: "g1", assistantId: "g2" } : null),
+vi.mock("@/lib/services/coproprietes/assistante-de-copro", () => ({
+  binomeEnCopieParCode: async (...args: unknown[]) => {
+    etat.appelsBinome.push(args);
+    return etat.copie;
+  },
 }));
 vi.mock("@/lib/services/coproprietes/destinataires-conseil", () => ({ destinatairesConseilSyndical: async () => etat.conseil }));
 vi.mock("@/lib/adapters/router", () => ({
@@ -39,9 +44,6 @@ vi.mock("@/lib/adapters/router", () => ({
       if (etat.modelesKo) throw new Error("PGRST205 table absente");
       return etat.modeles;
     },
-  }),
-  getGestionnaireRepository: () => ({
-    findById: async (id: string) => ({ g1: { id, email: "gest@real31.fr" }, g2: { id, email: "assist@real31.fr" } })[id] ?? null,
   }),
   getSignatureProvider: () => ({ getSignatureHtml: async () => etat.signature }),
   getMailOutboundProvider: () => ({
@@ -122,6 +124,12 @@ beforeEach(() => {
   etat.modeles = [];
   etat.modelesKo = false;
   etat.conseil = { source: "estale", emails: ["pres@gmail.com", "gest@real31.fr"] };
+  // L'auteur (sekou@) n'est ni le gestionnaire ni l'assistant : les deux en copie.
+  etat.copie = [
+    { nomComplet: "Gestion", email: "gest@real31.fr" },
+    { nomComplet: "Assistante", email: "assist@real31.fr" },
+  ];
+  etat.appelsBinome = [];
   etat.suivi = suivi();
   etat.perimetreRefuse = false;
   etat.envois = [];
@@ -167,12 +175,23 @@ describe("preparerMailCs", () => {
     expect(a.tableauTexte).toContain(`- Engie (retenue) : type de prix Fixe, montant 10${NBSP}500${NBSP}€`);
     expect(a.a).toEqual(["pres@gmail.com"]);
     expect(a.cc).toEqual(["gest@real31.fr", "assist@real31.fr"]);
+    expect(etat.appelsBinome[0]).toEqual(["S0247", "sekou@real31.fr"]);
     expect(a.sourceDestinataires).toBe("estale");
     expect(a.signatureHtml).toBe("<p>Sekou</p>");
     expect(a.avertissements).toEqual([]);
   });
 
-  it("modèle demandé explicitement -> il prime sur le titre attendu", async () => {
+  it("copie du binôme (28/10/2026) : seulement l'autre membre que l'auteur, rien sans binôme connu", async () => {
+    etat.modeles = [modele()];
+    etat.copie = [{ nomComplet: "Assistante", email: "assist@real31.fr" }];
+    expect((await preparerMailCs({ coproCode: "S0247", sujet: "gaz", variante: "comparatif" }, AUTEUR)).cc).toEqual(["assist@real31.fr"]);
+    etat.copie = [];
+    const a = await preparerMailCs({ coproCode: "S0247", sujet: "gaz", variante: "comparatif" }, AUTEUR);
+    expect(a.cc).toEqual([]);
+    expect(a.avertissements).toEqual([]);
+  });
+
+    it("modèle demandé explicitement -> il prime sur le titre attendu", async () => {
     etat.modeles = [modele(), modele({ id: "perso", titre: "Contrats : ma variante gaz", sujet: "Objet perso", corps: "Perso {{offres}}" })];
     const a = await preparerMailCs({ coproCode: "S0247", sujet: "gaz", variante: "comparatif", modeleId: "perso" }, AUTEUR);
     expect(a.modeleId).toBe("perso");

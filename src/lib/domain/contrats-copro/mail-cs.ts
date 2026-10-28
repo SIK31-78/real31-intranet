@@ -321,11 +321,12 @@ function uniques(emails: readonly (string | undefined | null)[]): string[] {
 /**
  * À = le conseil syndical SANS les adresses du cabinet (le mail part aux copropriétaires ;
  * un gestionnaire inscrit dans la liste CS ne doit pas s'y retrouver), dédoublonné.
- * Cc = le binôme (gestionnaire, assistant), sans ceux déjà en À.
+ * Cc = la copie du binôme (l'autre membre que l'auteur, cf. domain/copie-binome, 28/10/2026),
+ * sans celles déjà en À.
  */
-export function destinatairesMailCs(p: { conseil: readonly string[]; gestionnaireEmail?: string | null; assistantEmail?: string | null }): { a: string[]; cc: string[] } {
+export function destinatairesMailCs(p: { conseil: readonly string[]; copie?: readonly (string | null | undefined)[] }): { a: string[]; cc: string[] } {
   const a = uniques(p.conseil).filter((e) => !e.toLowerCase().endsWith(DOMAINE_CABINET));
   const dejaEnA = new Set(a.map((e) => e.toLowerCase()));
-  const cc = uniques([p.gestionnaireEmail, p.assistantEmail]).filter((e) => !dejaEnA.has(e.toLowerCase()));
+  const cc = uniques(p.copie ?? []).filter((e) => !dejaEnA.has(e.toLowerCase()));
   return { a, cc };
 }
