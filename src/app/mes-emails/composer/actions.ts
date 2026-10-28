@@ -67,11 +67,14 @@ export async function rechercherDestinatairesAction(input: unknown): Promise<Res
 }
 
 export async function listerContactsCompositionAction(input: unknown): Promise<Res<ContactsComposition>> {
-  if (!(await gestionnaire())) return echec(INDISPONIBLE);
+  const g = await gestionnaire();
+  if (!g) return echec(INDISPONIBLE);
   const d = z.object({ reference: zReference }).safeParse(input);
   if (!d.success) return echec("Référence de copropriété invalide.");
   try {
-    return { ok: true, donnees: await listerContactsComposition(d.data.reference) };
+    // L'envoyeur = la personne connectée (session), jamais un paramètre client : il décide
+    // qui du binôme passe en copie avec le conseil syndical (28/10/2026).
+    return { ok: true, donnees: await listerContactsComposition(d.data.reference, g.email) };
   } catch (e) {
     return echecDepuis(e, CTX);
   }

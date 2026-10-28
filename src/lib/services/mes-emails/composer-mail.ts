@@ -20,6 +20,7 @@ import { BOITE_ECHANTILLON, boitesTri, envoiMailPour, mailModuleActif, type Boit
 import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { destinatairesConseilSyndical } from "@/lib/services/coproprietes/destinataires-conseil";
+import { binomeEnCopie } from "@/lib/services/coproprietes/assistante-de-copro";
 import { conseilPourComposition, enLots, fusionnerContactsCopro, type ContactsComposition, type CoproChoisissable, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
 import { cleDeReference } from "@/lib/domain/tri-emails";
 import { normaliserRef } from "@/lib/domain/copro-fusion";
@@ -108,8 +109,10 @@ export async function rechercherDestinataires(texte: string, config: BoiteTriCon
  * copropriété s'en sert pour alerter (plus de copropriétaires que de lots = liste suspecte).
  * Le bouton « Conseil syndical » prend `conseil` : la cascade du mail de date d'AG (ESTALE,
  * sinon liste de diffusion CS), pas les fiches de l'annuaire cochées « conseil syndical ».
+ * Il ajoute aussi en Cc `copieBinome` (28/10/2026) : l'autre membre du binôme de la copro que
+ * `envoyeur` (la personne connectée, pas la boîte partagée), comme sur Crypto.
  */
-export async function listerContactsComposition(reference: string): Promise<ContactsComposition> {
+export async function listerContactsComposition(reference: string, envoyeur?: string | null): Promise<ContactsComposition> {
   const ref = normaliserRef(reference);
   const [crypto, estale, proprietaires, copro, cascadeCS] = await Promise.all([
     getContactsCoproProvider().listerParCopro(reference),
@@ -132,10 +135,13 @@ export async function listerContactsComposition(reference: string): Promise<Cont
     }),
   ]);
   const contacts = fusionnerContactsCopro(crypto, proprietaires, estale?.conseilSyndical ?? []);
+  // Best-effort : un binôme introuvable ne prive pas des contacts (liste vide).
+  const copieBinome = envoyeur ? await binomeEnCopie(copro, envoyeur) : [];
   return {
     contacts,
     lotsPrincipaux: copro?.lotsPrincipaux && copro.lotsPrincipaux > 0 ? copro.lotsPrincipaux : null,
     conseil: conseilPourComposition(cascadeCS, contacts),
+    copieBinome,
   };
 }
 

@@ -4,6 +4,8 @@
 // l'annuaire rend la personne avec TOUTES ses adresses (certains en veulent deux) et ses
 // immeubles ; on choisit l'immeuble auquel rattacher le mail, ou aucun (c'est parfois perso).
 // Le conseil syndical s'ajoute d'un clic, toute la copropriété aussi (en copie cachée, REA-305).
+// Avec le conseil syndical, l'autre membre du binôme de la copro arrive en Cc, comme sur Crypto
+// (28/10/2026) : retirable d'un clic, et retiré de lui-même si plus aucun membre du CS n'est en « À ».
 // L'objet est taggé par la copro (code · nom) pour le tri.
 // Pièces jointes et signature (Signitic) partent avec. Le bouton ENVOIE quand l'envoi depuis
 // la boîte partagée est ouvert (MAIL_ENVOI=on) ; sinon il crée un BROUILLON, relu puis
@@ -51,6 +53,7 @@ import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./gli
 import { EditeurRiche } from "./editeur-riche";
 import { BoutonReformuler } from "./bouton-reformuler";
 import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
+import { conseilEncoreDestinataire, phraseCopieBinome } from "@/lib/domain/copie-binome";
 import { useAlerteSortie } from "./alerte-sortie";
 
 type DossierAffiche = { id: string; titre: string; type: TypeDossier };
@@ -111,6 +114,10 @@ function formatTaille(octets: number): string {
   return `${octets} o`;
 }
 
+/** Clé des personnes mises en Cc d'office avec le conseil syndical (binôme de la copro). */
+const CLE_COPIE_BINOME = "binome:";
+const estCopieBinome = (p: Personne) => p.cle.startsWith(CLE_COPIE_BINOME);
+
 export const adresses = (l: Personne[]) => [...new Set(l.flatMap((p) => p.emails.map((e) => e.toLowerCase())))];
 
 export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine, modeles, pilote = false, reformulation = false, onSaisie }: Props) {
@@ -124,6 +131,10 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   const [autreCopro, setAutreCopro] = useState(false);
   // Le conseil syndical : même source que le mail de date d'AG (ESTALE, sinon liste de diffusion).
   const [conseil, setConseil] = useState<ConseilComposition | null>(null);
+  // L'autre membre du binôme de la copro, mis en Cc avec le conseil syndical (28/10/2026).
+  const [copieBinome, setCopieBinome] = useState<{ nomComplet: string; email: string }[]>([]);
+  // Les adresses du CS ajoutées d'un clic : tant que l'une reste en « À », la copie du binôme a un sens.
+  const conseilAjoute = useRef<string[]>([]);
   // Toute la copropriété (REA-305) : les adresses des copropriétaires, envoyées en copie cachée.
   const [touteCopro, setTouteCopro] = useState<string[] | null>(null);
   // Garde-fou de l'envoi à toute la copropriété (REA-356) : N adresses pour M copropriétaires.
@@ -157,6 +168,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     if (modele && corps === corpsDuModele.current) remplirModele(modele, nouvelle);
     setRefCopro(ref);
     setConseil(null);
+    setCopieBinome([]);
     setTouteCopro(null);
     setControleCopro(null);
     setCciCopro(false);
@@ -174,6 +186,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       if (rc.ok) {
         const contacts = rc.donnees?.contacts ?? [];
         setConseil(rc.donnees?.conseil ?? { source: "aucune", membres: [] });
+        setCopieBinome(rc.donnees?.copieBinome ?? []);
         setTouteCopro(adressesTouteLaCopro(contacts));
         setControleCopro(controleTouteLaCopro(contacts, rc.donnees?.lotsPrincipaux));
       }
@@ -189,13 +202,27 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     if (!copro && d.copros.length === 1) choisirCopro(d.copros[0]!.reference);
   }
 
+  // Le « À » change : plus aucun membre du CS ajouté d'un clic -> la copie du binôme s'en va.
+  function majA(l: Personne[]) {
+    setA(l);
+    if (!conseilEncoreDestinataire(adresses(l), conseilAjoute.current)) {
+      conseilAjoute.current = [];
+      setCc((c) => (c.some(estCopieBinome) ? c.filter((p) => !estCopieBinome(p)) : c));
+    }
+  }
+
   // Une personne glissée de « À » vers « Cc » (ou l'inverse).
   function deplacer(depuis: string, cle: string) {
-    const [source, setSource, setCible] = depuis === "a" ? [a, setA, setCc] : [cc, setCc, setA];
+    const source = depuis === "a" ? a : cc;
     const p = source.find((x) => x.cle === cle);
     if (!p) return;
-    setSource((l) => l.filter((x) => x.cle !== cle));
-    setCible((l) => (l.some((x) => x.cle === cle) ? l : [...l, p]));
+    if (depuis === "a") {
+      majA(a.filter((x) => x.cle !== cle));
+      setCc((l) => (l.some((x) => x.cle === cle) ? l : [...l, p]));
+    } else {
+      setCc((l) => l.filter((x) => x.cle !== cle));
+      setA((l) => (l.some((x) => x.cle === cle) ? l : [...l, p]));
+    }
   }
 
   function ajouterConseil() {
@@ -203,7 +230,13 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     const deja = new Set(adresses(a));
     const ajout = conseil.membres.filter((c) => !deja.has(c.email)).map((c) => ({ cle: c.email, nom: c.nom, emails: [c.email] }));
     setA((l) => [...l, ...ajout]);
+    conseilAjoute.current = conseil.membres.map((c) => c.email);
+    // Le binôme en Cc (28/10/2026), sauf adresse déjà en « À » ou en « Cc ».
+    const presents = new Set([...deja, ...ajout.flatMap((p) => p.emails), ...adresses(cc)]);
+    const copie = copieBinome.filter((m) => !presents.has(m.email.toLowerCase())).map((m) => ({ cle: `${CLE_COPIE_BINOME}${m.email}`, nom: m.nomComplet, emails: [m.email] }));
+    if (copie.length) setCc((l) => [...l, ...copie]);
   }
+  const phraseBinome = phraseCopieBinome(cc.filter(estCopieBinome).map((p) => p.nom));
 
   // Mêmes limites que la réponse (REA-421) : 25 Mo par fichier, 25 Mo au total, 10 fichiers.
   function ajouterFichiers(liste: FileList | null) {
@@ -394,12 +427,13 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         champ="a"
         label="À"
         personnes={a}
-        onChange={setA}
+        onChange={majA}
         onDeplacer={deplacer}
         onChoisie={personneChoisie}
         placeholder="Nom du destinataire (ou une adresse)…"
       />
       <ChampPersonnes champ="cc" label="Cc" personnes={cc} onChange={setCc} onDeplacer={deplacer} placeholder="Nom ou adresse…" />
+      {phraseBinome ? <p className="-mt-2 text-meta text-ink-3">{phraseBinome}</p> : null}
       {cci.length > 0 && copro ? (
         <div className="flex items-center gap-2">
           <span className="w-6 shrink-0 text-body text-ink-3">Cci</span>

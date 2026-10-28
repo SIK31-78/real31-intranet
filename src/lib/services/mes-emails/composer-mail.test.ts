@@ -11,6 +11,14 @@ const etat = vi.hoisted(() => ({
   cascadeCS: { source: "aucune", emails: [] } as { source: "estale" | "crypto" | "aucune"; emails: string[] },
   panneCS: false,
   referenceCS: "",
+  appelsBinome: [] as unknown[][],
+}));
+
+vi.mock("@/lib/services/coproprietes/assistante-de-copro", () => ({
+  async binomeEnCopie(...args: unknown[]) {
+    etat.appelsBinome.push(args);
+    return [{ nomComplet: "Julie Binôme", email: "julie@real31.fr" }];
+  },
 }));
 
 vi.mock("@/lib/services/coproprietes/destinataires-conseil", () => ({
@@ -107,6 +115,18 @@ describe("listerContactsComposition", () => {
     ]);
     // La présidente ESTALE garde sa casquette dans les contacts, mais n'est pas dans la liste.
     expect(conseil.membres.map((m) => m.email)).not.toContain("presidente@x.fr");
+  });
+
+  it("copie du binôme (28/10/2026) : demandée pour la personne connectée, rien sans elle", async () => {
+    etat.appelsBinome = [];
+    etat.lotsPrincipaux = 12;
+    const r = await listerContactsComposition("S178", "gaelle@real31.fr");
+    expect(r.copieBinome).toEqual([{ nomComplet: "Julie Binôme", email: "julie@real31.fr" }]);
+    const [copro, envoyeur] = etat.appelsBinome[0]!;
+    expect((copro as { code: string }).code).toBe("S178");
+    expect(envoyeur).toBe("gaelle@real31.fr");
+    expect((await listerContactsComposition("S178")).copieBinome).toEqual([]);
+    expect(etat.appelsBinome).toHaveLength(1);
   });
 
   it("conseil syndical illisible : rien de proposé, saisie à la main", async () => {

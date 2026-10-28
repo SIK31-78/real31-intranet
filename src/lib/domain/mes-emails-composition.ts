@@ -350,6 +350,11 @@ export interface ContactsComposition {
   lotsPrincipaux: number | null;
   /** Le conseil syndical à proposer en un clic (cascade ESTALE > liste de diffusion > rien). */
   conseil: ConseilComposition;
+  /**
+   * Le binôme à mettre en Cc quand on ajoute le conseil syndical (28/10/2026, domain/copie-binome) :
+   * l'autre membre que la personne connectée ; vide si personne.
+   */
+  copieBinome?: { nomComplet: string; email: string }[];
 }
 
 const pluriel = (k: number, mot: string) => `${k} ${mot}${k > 1 ? "s" : ""}`;
