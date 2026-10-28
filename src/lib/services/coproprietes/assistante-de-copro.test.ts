@@ -9,9 +9,16 @@ const etat = vi.hoisted(() => ({
   users: {} as Record<string, { id: string; nomComplet: string; initiales: string; email?: string }>,
   binomes: { binomes: [], parCopro: {} } as BinomesTri,
   panneBinomes: false,
+  panneCopro: false,
 }));
 
 vi.mock("@/lib/adapters/router", () => ({
+  getCoproRepository: () => ({
+    async findByCode(code: string) {
+      if (etat.panneCopro) throw new Error("base indisponible");
+      return code === copro.code ? copro : null;
+    },
+  }),
   getGestionnaireRepository: () => ({
     async findById(id: string) {
       return etat.users[id] ?? null;
@@ -25,7 +32,7 @@ vi.mock("@/lib/adapters/router", () => ({
   }),
 }));
 
-import { assistanteDeCopro, copieAvecAssistante } from "./assistante-de-copro";
+import { assistanteDeCopro, binomeEnCopie, binomeEnCopieParCode, copieAvecAssistante } from "./assistante-de-copro";
 
 const GEST = { id: "u-g", nomComplet: "Gaëlle Gestion", initiales: "GG", email: "Gaelle@Example.test" };
 const ASSIST_EQUIPE = { id: "u-a", nomComplet: "Alice Équipe", initiales: "AE", email: "alice@example.test" };
@@ -44,6 +51,7 @@ beforeEach(() => {
     parCopro: {},
   };
   etat.panneBinomes = false;
+  etat.panneCopro = false;
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
 });
 
@@ -87,5 +95,41 @@ describe("copieAvecAssistante", () => {
 
   it("aucune assistante : la copie telle quelle", () => {
     expect(copieAvecAssistante(["g@example.test"], null)).toEqual(["g@example.test"]);
+  });
+});
+
+describe("binomeEnCopie (envoi au conseil syndical, 28/10/2026)", () => {
+  const julie = { nomComplet: "Julie Binôme", email: "julie@example.test" };
+  const gaelle = { nomComplet: "Gaëlle Gestion", email: "gaelle@example.test" };
+
+  it("le gestionnaire envoie : son assistante de binôme en copie", async () => {
+    expect(await binomeEnCopie(copro, "gaelle@example.test")).toEqual([julie]);
+  });
+
+  it("l'assistante envoie : le gestionnaire en copie", async () => {
+    expect(await binomeEnCopie(copro, "Julie@example.test")).toEqual([gaelle]);
+  });
+
+  it("quelqu'un d'autre envoie : les deux", async () => {
+    expect(await binomeEnCopie(copro, "remplacant@example.test")).toEqual([gaelle, julie]);
+  });
+
+  it("déjà destinataire : pas de doublon", async () => {
+    expect(await binomeEnCopie(copro, "gaelle@example.test", ["JULIE@example.test"])).toEqual([]);
+  });
+
+  it("copro sans assistante connue : personne", async () => {
+    etat.binomes = { binomes: [], parCopro: {} };
+    expect(await binomeEnCopie({ ...copro, assistantId: undefined }, "gaelle@example.test")).toEqual([]);
+  });
+
+  it("copro absente : personne, sans erreur", async () => {
+    expect(await binomeEnCopie(null, "gaelle@example.test")).toEqual([]);
+  });
+
+  it("par code : la copro est relue ; lecture en panne -> personne, sans erreur", async () => {
+    expect(await binomeEnCopieParCode("S297", "gaelle@example.test")).toEqual([julie]);
+    etat.panneCopro = true;
+    expect(await binomeEnCopieParCode("S297", "gaelle@example.test")).toEqual([]);
   });
 });

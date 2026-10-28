@@ -18,7 +18,8 @@ import {
   type BinomesTri,
   type MembreTri,
 } from "@/lib/domain/tri-emails";
-import { getGestionnaireRepository, getTriRepository } from "@/lib/adapters/router";
+import { copieBinomeConseil } from "@/lib/domain/copie-binome";
+import { getCoproRepository, getGestionnaireRepository, getTriRepository } from "@/lib/adapters/router";
 
 const minuscules = (e: string) => e.trim().toLowerCase();
 
@@ -96,4 +97,36 @@ export function copieAvecAssistante(
   const email = minuscules(assistante.email);
   const presents = new Set([...cc, ...dejaDestinataires].map(minuscules));
   return presents.has(email) ? [...cc] : [...cc, email];
+}
+
+/**
+ * Le binôme à mettre en copie d'un mail au conseil syndical (28/10/2026) : l'autre membre du
+ * binôme de la copro que `envoyeur` (règle pure : domain/copie-binome). Best-effort : une
+ * lecture qui échoue rend une liste vide, jamais une erreur.
+ */
+export async function binomeEnCopie(
+  copro: CoproPourAssistante | null | undefined,
+  envoyeur: string | null | undefined,
+  dejaDestinataires: readonly string[] = [],
+): Promise<MembreTri[]> {
+  if (!copro) return [];
+  try {
+    const [gestionnaire, assistante] = await Promise.all([gestionnaireDeCopro(copro), assistanteDeCopro(copro)]);
+    return copieBinomeConseil({ envoyeur, gestionnaire, assistante, dejaDestinataires });
+  } catch (e) {
+    console.warn("[assistante-de-copro] binôme en copie non résolu :", (e as Error).message);
+    return [];
+  }
+}
+
+/** Idem, la copro lue par son code (lecture non cloisonnée : c'est une copie, pas un droit). */
+export async function binomeEnCopieParCode(
+  coproCode: string,
+  envoyeur: string | null | undefined,
+  dejaDestinataires: readonly string[] = [],
+): Promise<MembreTri[]> {
+  const copro = await getCoproRepository()
+    .findByCode(coproCode)
+    .catch(() => null);
+  return binomeEnCopie(copro, envoyeur, dejaDestinataires);
 }
