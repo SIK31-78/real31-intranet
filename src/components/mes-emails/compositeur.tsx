@@ -30,6 +30,7 @@ import {
   prefixeObjetCopro,
   remplacerPrefixeCopro,
   resumeDestinataires,
+  sujetDeLObjet,
   type ConseilComposition,
   type ControleTouteLaCopro,
   type SourceConseilComposition,
@@ -117,6 +118,22 @@ function formatTaille(octets: number): string {
 /** Clé des personnes mises en Cc d'office avec le conseil syndical (binôme de la copro). */
 const CLE_COPIE_BINOME = "binome:";
 const estCopieBinome = (p: Personne) => p.cle.startsWith(CLE_COPIE_BINOME);
+
+const MESSAGE_OBJET_REDUIT = "L'objet ne contient que la copropriété : ajoutez le sujet du mail.";
+
+/**
+ * Les immeubles des destinataires choisis, proposés dans « Rattacher à » mais laissés de côté :
+ * on les rappelle dans la confirmation d'un envoi sans copro. Rien de deviné, rien à charger.
+ */
+function suggestionCopro(proposees: readonly CoproChoisissable[]): string {
+  if (!proposees.length) return "";
+  const noms = proposees.slice(0, 3).map((c) => prefixeObjetCopro(c, false));
+  const reste = proposees.length - noms.length;
+  const liste = noms.join(", ") + (reste > 0 ? ` et ${reste} autre${reste > 1 ? "s" : ""}` : "");
+  return proposees.length === 1
+    ? ` Les destinataires sont rattachés à ${liste} : choisissez-la dans « Rattacher à » si le mail la concerne.`
+    : ` Les destinataires sont rattachés à ${liste} : choisissez la bonne dans « Rattacher à » si le mail en concerne une.`;
+}
 
 export const adresses = (l: Personne[]) => [...new Set(l.flatMap((p) => p.emails.map((e) => e.toLowerCase())))];
 
@@ -302,7 +319,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   // Quelque chose est écrit : destinataire, objet au-delà du préfixe copro, message ou fichier.
   const [parti, setParti] = useState(false);
   const saisieEnCours =
-    !parti && Boolean(a.length || cc.length || fichiers.length || corps.trim() || remplacerPrefixeCopro(objet, copro, null).replace(/\s*-$/, ""));
+    !parti && Boolean(a.length || cc.length || fichiers.length || corps.trim() || sujetDeLObjet(objet, copro));
   useAlerteSortie(saisieEnCours);
   useEffect(() => {
     onSaisie?.(saisieEnCours);
@@ -323,7 +340,11 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   }
 
   const cci = cciCopro ? (touteCopro ?? []) : [];
-  const pretAEnvoyer = Boolean(objet.trim().replace(/\s*-$/, "") && (adresses(a).length || cci.length) && corps.trim());
+  // L'objet doit dire de quoi parle le mail : le préfixe copro seul ne suffit pas (incident du 28/10/2026).
+  const aUnSujet = Boolean(sujetDeLObjet(objet, copro));
+  const pretAEnvoyer = Boolean(aUnSujet && (adresses(a).length || cci.length) && corps.trim());
+  // Tout est prêt sauf l'objet, réduit à la copro : on dit pourquoi le bouton reste grisé.
+  const objetReduitACopro = Boolean(copro && !aUnSujet && (adresses(a).length || cci.length) && corps.trim());
   const adressesInvalides = [...adresses(a), ...adresses(cc)].filter((e) => !adresseMailValide(e));
 
   async function creerBrouillon() {
@@ -331,9 +352,26 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       toast.err(`Adresse invalide : ${adressesInvalides.map((e) => `« ${e} »`).join(", ")}. À retirer ou corriger avant l'envoi.`);
       return;
     }
+    if (objetReduitACopro) {
+      toast.err(MESSAGE_OBJET_REDUIT);
+      return;
+    }
     if (!pretAEnvoyer) {
       toast.err("Il manque un destinataire, l'objet ou le message.");
       return;
+    }
+    // Sans copro, le mail n'est rattaché à rien et le tri ne le classera pas : on le fait
+    // confirmer, sans l'interdire (identifiants extranet, pré-état daté… sont légitimes).
+    // Toute la copropriété suppose une copro : les deux confirmations ne s'empilent jamais.
+    if (!copro && brouillonPossible) {
+      const ok = await confirmer({
+        titre: envoiDirect ? "Envoyer sans copropriété ?" : "Créer le brouillon sans copropriété ?",
+        message:
+          "Aucune copropriété n'est choisie : ce mail ne sera rattaché à aucune copro et le tri ne pourra pas le classer." +
+          suggestionCopro(proposees),
+        confirmer: envoiDirect ? "Envoyer quand même" : "Créer le brouillon quand même",
+      });
+      if (!ok) return;
     }
     // Un envoi à toute la copropriété part à des dizaines de personnes : on le fait confirmer.
     if (cci.length && brouillonPossible) {
@@ -605,9 +643,15 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         <Callout ton="warn">Aperçu seulement : la boîte partagée n&apos;est pas branchée ici, rien ne partira.</Callout>
       )}
       <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line pt-3">
-        <span className="text-meta text-ink-3 mr-auto">
-          {brouillonPossible && !envoiDirect ? `Brouillon dans ${boite} : à relire puis envoyer dans Outlook.` : null}
-        </span>
+        {objetReduitACopro ? (
+          <span className="text-meta text-err-700 mr-auto" role="status">
+            {MESSAGE_OBJET_REDUIT}
+          </span>
+        ) : (
+          <span className="text-meta text-ink-3 mr-auto">
+            {brouillonPossible && !envoiDirect ? `Brouillon dans ${boite} : à relire puis envoyer dans Outlook.` : null}
+          </span>
+        )}
         {onTermine ? (
           <Button type="button" variant="ghost" onClick={() => void annuler()} disabled={envoiEnCours}>
             Annuler
