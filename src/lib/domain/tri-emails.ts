@@ -1000,6 +1000,68 @@ ${corps}`);
   return { nature: "aucune", candidats: [], raison: "Adresse inconnue dans ESTALE et dans Crypto, et aucun code de copropriété dans le mail." };
 }
 
+// Reference de dossier du cabinet citee dans un echange : « Réf : RG/4431363 », « SC/4218461 »
+// (initiales du gestionnaire, barre, numero). Sensible a la casse : des initiales en capitales.
+const MOTIF_REF_DOSSIER = /\b([A-Z]{2,3})\/\d{6,8}\b/g;
+
+/**
+ * Departage par le gestionnaire (decision Sekou du 28/10/2026) : quand plusieurs copros sont
+ * proposees, celles du gestionnaire que le mail designe passent EN TETE de la liste. Il est
+ * designe par :
+ *   - une reference de dossier « SC/4218461 » dont les initiales sont les siennes (initiales
+ *     de l'intranet, uniques) ;
+ *   - sa signature dans l'historique cite, « Prénom NOM <…@real31.fr> » (« Le 22 octobre…,
+ *     Romain GOBERT <syndic4@real31.fr> a écrit »), nom complet d'au moins deux mots.
+ * Un seul gestionnaire designe parmi ceux des candidates, sinon rien ne change. Prudence
+ * decidee : la nature et l'ensemble des candidates ne changent pas, seul l'ordre. Ce depart
+ * n'est donc jamais a lui seul un argument de rangement automatique : le mail n'est range
+ * seul que si ses candidates y suffisaient deja (toutes dans le meme dossier de binome).
+ * Pas d'historique par expediteur (decision du 19/10/2026).
+ */
+export function departagerParGestionnaire(
+  s: Suggestion,
+  texte: string,
+  ref: ReferentielTri,
+  initialesParEmail: Record<string, string>,
+): Suggestion {
+  if (s.candidats.length < 2) return s;
+  const gestionnaireDe = new Map<string, MembreTri>();
+  for (const r of s.candidats) {
+    const g = ref.copros.find((c) => c.reference === r)?.gestionnaire;
+    if (g) gestionnaireDe.set(r, g);
+  }
+  const leurs = new Map([...gestionnaireDe.values()].map((g) => [minuscules(g.email), g]));
+  if (leurs.size < 2) return s;
+
+  const designes = new Map<string, string>();
+  // Initiales -> gestionnaire, seulement des initiales portees par une seule personne.
+  const parInitiales = new Map<string, string | null>();
+  for (const [email, ini] of Object.entries(initialesParEmail)) {
+    const cle = ini.trim().toUpperCase();
+    if (cle) parInitiales.set(cle, parInitiales.has(cle) ? null : minuscules(email));
+  }
+  for (const m of texte.matchAll(MOTIF_REF_DOSSIER)) {
+    const email = parInitiales.get(m[1]!);
+    if (email && leurs.has(email)) designes.set(email, `Référence ${m[0]}`);
+  }
+  const plat = normaliser(texte).replace(/\s+/g, " ");
+  for (const [email, g] of leurs) {
+    const nom = normaliser(g.nomComplet).replace(/\s+/g, " ").trim();
+    if (nom.split(" ").length < 2) continue;
+    const echappe = nom.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(?:^|[^a-z])${echappe} ?<[^>\\s]+@real31\\.fr>`).test(plat)) designes.set(email, designes.get(email) ?? `Signature de ${g.nomComplet}`);
+  }
+  if (designes.size !== 1) return s;
+  const [email, source] = [...designes][0]!;
+  const siennes = s.candidats.filter((r) => minuscules(gestionnaireDe.get(r)?.email ?? "") === email);
+  if (siennes.length === 0 || siennes.length === s.candidats.length) return s;
+  return {
+    ...s,
+    candidats: [...siennes, ...s.candidats.filter((r) => !siennes.includes(r))],
+    raison: `${s.raison} ${source} dans l'échange : les copros de ${leurs.get(email)!.nomComplet} d'abord.`,
+  };
+}
+
 /**
  * Historique du tri, MEME CONVERSATION seulement (decision Sekou du 19/10/2026) : un mail de
  * la meme conversation Graph a deja ete range dans `reference`. Jamais une piste sure : une

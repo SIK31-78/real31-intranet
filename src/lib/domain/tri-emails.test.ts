@@ -9,6 +9,7 @@ import {
   expediteursPublicite,
   suggestionCorbeille,
   cleDeReference,
+  departagerParGestionnaire,
   clesDossiersDe,
   clesDossiersLus,
   constaterRangement,
@@ -1277,5 +1278,50 @@ describe("candidates qui mènent toutes au même dossier de binôme (28/10/2026)
     expect(rangeableParPiecesJointes({ suggestion: rien }, ["S0198", "S0261"], ctx)).toEqual({ ok: false, motif: "pj-plusieurs" });
     // Le mail propose d'autres copros que celles des PDF : un humain tranche.
     expect(rangeableParPiecesJointes({ suggestion: plusieurs("S0198", "S0261") }, ["S0198", "S0204"], ctx)).toEqual({ ok: false, motif: "pj-plusieurs" });
+  });
+});
+
+describe("départage par le gestionnaire : en tête, jamais rangé pour autant (28/10/2026)", () => {
+  // Cas réels de syndic2 (signature dans l'historique cité, « SC/4218461 »), noms changés.
+  const REMI = { nomComplet: "Rémi BARDOU", email: "remi@real31.fr" };
+  const SANDY = { nomComplet: "Sandy CARRÉ", email: "sandy@real31.fr" };
+  const ref: ReferentielTri = {
+    copros: [
+      { ...copro("S0209"), gestionnaire: REMI },
+      { ...copro("S0242"), gestionnaire: SANDY },
+      { ...copro("S0244"), gestionnaire: SANDY },
+    ],
+    expediteurs: {},
+  };
+  const ini = { "remi@real31.fr": "RB", "sandy@real31.fr": "SC" };
+  const plusieurs = (...candidats: string[]) => ({ nature: "plusieurs" as const, candidats, raison: "Adresse connue sur 2 copropriétés." });
+
+  it("la signature du gestionnaire dans l'historique cité met ses copros en tête", () => {
+    const texte = "Re: DTG - date de passage\nBonjour, d'accord pour jeudi.\n\nLe 20 oct. 2026 à 10:12, Rémi BARDOU <syndic2@real31.fr> a écrit :\n> Bonjour";
+    const s = departagerParGestionnaire(plusieurs("S0242", "S0209"), texte, ref, ini);
+    expect(s).toMatchObject({ nature: "plusieurs", candidats: ["S0209", "S0242"] });
+    expect(s.raison).toContain("Signature de Rémi BARDOU");
+  });
+
+  it("une référence de dossier « SC/4218461 » met en tête les copros de ses initiales", () => {
+    const s = departagerParGestionnaire(plusieurs("S0209", "S0242", "S0244"), "Rappel RDV d'expertise - 2026ERSK296967 - SC/4218461", ref, ini);
+    expect(s.candidats).toEqual(["S0242", "S0244", "S0209"]);
+    expect(s.raison).toContain("Référence SC/4218461");
+  });
+
+  it("rien ne change : deux gestionnaires désignés, initiales ambiguës, nom d'un seul mot, une seule candidate", () => {
+    const deux = "SC/4218461\nLe 20 oct., Rémi BARDOU <syndic2@real31.fr> a écrit :";
+    expect(departagerParGestionnaire(plusieurs("S0242", "S0209"), deux, ref, ini).candidats).toEqual(["S0242", "S0209"]);
+    expect(departagerParGestionnaire(plusieurs("S0209", "S0242"), "SC/4218461", ref, { ...ini, "autre@real31.fr": "SC" }).candidats).toEqual(["S0209", "S0242"]);
+    const refCourt: ReferentielTri = { ...ref, copros: ref.copros.map((c) => (c.reference === "S0209" ? { ...c, gestionnaire: { nomComplet: "Rémi", email: "remi@real31.fr" } } : c)) };
+    expect(departagerParGestionnaire(plusieurs("S0242", "S0209"), "Rémi <syndic2@real31.fr> a écrit", refCourt, {}).candidats).toEqual(["S0242", "S0209"]);
+    const une = { nature: "faible" as const, candidats: ["S0242"], raison: "" };
+    expect(departagerParGestionnaire(une, "RB/1234567", ref, ini)).toBe(une);
+  });
+
+  it("le départage seul ne range jamais : la piste reste « plusieurs », sur deux dossiers", () => {
+    const s = departagerParGestionnaire(plusieurs("S0242", "S0209"), "RB/1234567", ref, ini);
+    const ctx = { automatique: true, dejaPasse: false, copros: ref.copros, initialesParEmail: ini };
+    expect(rangeableAutomatiquement({ suggestion: s }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
   });
 });

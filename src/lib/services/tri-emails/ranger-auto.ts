@@ -224,7 +224,7 @@ export async function rangerAutomatiquement(
   const ctx = { automatique: true, dejaPasse: false, copros: ref.copros, initialesParEmail, binomes };
   for (const m of [...lus].sort((a, b) => a.receivedAt.localeCompare(b.receivedAt))) {
     bilan.examines++;
-    const mail = mailDeLaFile(m, boite, ref, m.conversationId ? coprosConversations.get(m.conversationId) : null, publicites);
+    const mail = mailDeLaFile(m, boite, ref, m.conversationId ? coprosConversations.get(m.conversationId) : null, publicites, initialesParEmail);
     const dejaPasse = dejaPasses.has(m.internetMessageId);
     const decision = rangeableAutomatiquement(mail, { ...ctx, dejaPasse });
     // Le journal garde le signal reel (« sure » ou « faible ») : c'est lui que la revue mesure.

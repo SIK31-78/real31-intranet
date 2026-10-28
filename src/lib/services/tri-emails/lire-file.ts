@@ -15,6 +15,7 @@
 import {
   AUCUN_BINOME,
   avecMemeConversation,
+  departagerParGestionnaire,
   destinationDe,
   dossiersChoisissables,
   estMailInterne,
@@ -110,6 +111,7 @@ export async function publicitesDeLaFile(repo: TriRepository, boite: string, mai
  * l'ecran et le rangement automatique (ranger-auto.ts) : les deux voient la MEME piste.
  * Sans lecture des pieces jointes : la piste « pj » ne se calcule qu'a l'ecran, a la demande.
  * `coproConversation` : copro d'un mail de la meme conversation deja range (ou null).
+ * `initialesParEmail` : pour le departage par le gestionnaire (reference « SC/4218461 »).
  */
 export function mailDeLaFile(
   m: RawMail,
@@ -118,6 +120,7 @@ export function mailDeLaFile(
   coproConversation: string | null | undefined,
   /** Expediteurs appris comme publicite (publicitesDeLaFile). */
   publicites?: ReadonlySet<string>,
+  initialesParEmail: Record<string, string> = {},
 ): MailDeLaFile {
   const texte = m.bodyText.replace(/\r\n/g, "\n").trim();
   // Non remis, reponse automatique, publicite apprise : la corbeille est proposee a la place
@@ -145,7 +148,13 @@ export function mailDeLaFile(
     suggestion: corbeille
       ? suggestionCorbeille(corbeille)
       : avecMemeConversation(
-          suggererCopro({ ...base, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, ref),
+          // Plusieurs candidates : celles du gestionnaire que l'echange designe d'abord (28/10/2026).
+          departagerParGestionnaire(
+            suggererCopro({ ...base, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, ref),
+            `${base.objet}\n${texte}`,
+            ref,
+            initialesParEmail,
+          ),
           coproConversation,
           ref,
         ),
@@ -218,7 +227,7 @@ export async function lireFileATrier(config: BoiteTriConfig): Promise<FileATrier
 
   const publicites = await publicitesDeLaFile(repo, boite, bruts, ref);
   const mails: MailDeLaFile[] = bruts.map((m) =>
-    mailDeLaFile(m, boite, ref, m.conversationId ? conversations.get(m.conversationId) : null, publicites),
+    mailDeLaFile(m, boite, ref, m.conversationId ? conversations.get(m.conversationId) : null, publicites, initiales),
   );
 
   // L'onglet « Binômes » ne liste que les copros actives : une copro inactive reste
