@@ -72,3 +72,16 @@ export async function natureBoite(g: Personne, cible: string | null | undefined)
   if (!b.personnelle) return "partagee";
   return b.pour ? "deleguee" : "mienne";
 }
+
+/**
+ * La boîte PARTAGÉE d'un mail sur lequel on agit pour le déplacer (« Pas pour moi », bascule,
+ * « Comptabilité ») : une boîte partagée que la personne voit, et le mail est distribué à l'un
+ * de ses binômes (super-admin exempté) ; null sinon (boîte perso, boîte inconnue, mail d'un
+ * autre binôme).
+ */
+export async function boitePartageeDe(g: Personne, boite: string | undefined, emailId: string): Promise<string | null> {
+  const demandee = (boite ?? "").trim().toLowerCase();
+  const b = (await boitesDe(g)).find((x) => x.id === demandee);
+  if (!b || b.personnelle) return null;
+  return estSuperAdmin(g.email) || (await mailDistribue(g, b.id, emailId)) ? b.id : null;
+}

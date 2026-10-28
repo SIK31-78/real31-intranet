@@ -7,17 +7,14 @@
 // La cible peut être une boîte « destination seulement » (syndic1 pour ML, "tri":false) : le
 // mail arrive dans sa réception, sans rangement (rien n'y est trié par l'intranet).
 //
-// Garde : la même que « Pas pour moi » (boitePartageeDe d'actions.ts) : la boîte est une boîte
+// Garde : la même que « Pas pour moi » (boitePartageeDe de gardes-boites.ts) : la boîte est une boîte
 // partagée que la personne voit, et le mail est distribué à l'un de ses binômes (super-admin
 // exempté). La boîte cible n'exige aucun accès (point à valider, ADR-050).
 
 import { z } from "zod";
 import { echec, echecDepuis, type Res } from "@/lib/actions/resultat";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { estSuperAdmin } from "@/lib/auth/roles";
-import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { boiteTri } from "@/lib/domain/mail-gate";
-import { mailDistribue } from "@/lib/services/mes-emails/boites-visibles";
 import { oublierCompteur } from "@/lib/services/tri-emails/compteur";
 import {
   basculerMail,
@@ -27,18 +24,10 @@ import {
   type CoproAutreBoite,
   type DestinationBascule,
 } from "@/lib/services/tri-emails/basculer";
-import { boitesDe } from "./gardes-boites";
+import { boitePartageeDe, boitesDe } from "./gardes-boites";
 
 const zBoite = z.string().trim().min(1).max(320);
 const zId = z.string().trim().min(1).max(600);
-
-/** La boîte partagée du mail si la personne y a accès pour ce mail ; null sinon. */
-async function boitePartageeDe(g: Gestionnaire, boite: string, emailId: string): Promise<string | null> {
-  const demandee = boite.trim().toLowerCase();
-  const b = (await boitesDe(g)).find((x) => x.id === demandee);
-  if (!b || b.personnelle) return null;
-  return estSuperAdmin(g.email) || (await mailDistribue(g, b.id, emailId)) ? b.id : null;
-}
 
 /** Où ce mail peut basculer, et les copros de ces boîtes (pour « Pas pour moi »). Vide si fermé. */
 export async function destinationsBasculeAction(boite: string): Promise<Res<{ boites: DestinationBascule[]; copros: CoproAutreBoite[] }>> {

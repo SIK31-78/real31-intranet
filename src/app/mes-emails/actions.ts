@@ -24,7 +24,7 @@ import {
 } from "@/lib/services/mes-emails/maj-etat";
 import { boiteTri, envoiMailPour } from "@/lib/domain/mail-gate";
 import { conversationsDistribuees, mailDistribue } from "@/lib/services/mes-emails/boites-visibles";
-import { boiteCible, boiteDuMail, boitesDe, natureBoite } from "./gardes-boites";
+import { boiteCible, boiteDuMail, boitePartageeDe, boitesDe, natureBoite } from "./gardes-boites";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { oublierCompteurEmails } from "@/lib/services/mes-emails/compteur-emails";
 import { reporterCoproAuTri } from "@/lib/services/mes-emails/reporter-copro-tri";
@@ -316,17 +316,6 @@ export async function chargerHistoriqueAction(emailId: string, boite?: string): 
 }
 
 // --- « Pas pour moi » (REA-327) : un mail de la boîte partagée rangé chez le mauvais binôme ---
-
-/**
- * La boîte partagée du mail, si la personne la voit ET que le mail est distribué à l'un de ses
- * binômes (super-admin exempté) ; null sinon (boîte perso, boîte inconnue, mail d'un autre binôme).
- */
-async function boitePartageeDe(g: Gestionnaire, boite: string | undefined, emailId: string): Promise<string | null> {
-  const demandee = (boite ?? "").trim().toLowerCase();
-  const b = (await boitesDe(g)).find((x) => x.id === demandee);
-  if (!b || b.personnelle) return null;
-  return estSuperAdmin(g.email) || (await mailDistribue(g, b.id, emailId)) ? b.id : null;
-}
 
 /**
  * Les copros de la boîte triée du mail (pas le seul portefeuille) : celle demandée si elle est
