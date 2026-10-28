@@ -1205,3 +1205,19 @@ describe("mot de rue partagé et suffixe du registre dans les noms (28/10/2026)"
     expect(suggererCopro(mail({ objet: "Résidence Gallieni - porte de garage" }), r).candidats).toEqual(["S0291"]);
   });
 });
+
+describe("un nom de rue composé n'est plus coupé au trait d'union (28/10/2026)", () => {
+  // Adresse réelle d'une copro de syndic2 (registre national), numéros changés.
+  const c = (reference: string, adresse: string): CoproTri => ({ reference, nom: `Copro ${reference}`, adresse, gestionnaire: null, assistant: null });
+  const ref: ReferentielTri = { copros: [c("S0244", "4-6 r jean-baptiste hyacinthe lafolie 92250 La Garenne-Colombes")], expediteurs: {} };
+  const trouve = (texte: string) => suggererCopro(mail({ objet: "Intervention", apercu: texte }), ref).candidats;
+
+  it("« rue Jean » seule ne désigne plus la copro de la rue Jean-Baptiste Hyacinthe Lafolie", () => {
+    expect(trouve("Fuite au 6 rue Jean Jaurès 92250 La Garenne-Colombes")).toEqual([]);
+  });
+
+  it("la rue complète la désigne toujours, et « 4-6 » reste deux numéros", () => {
+    expect(trouve("Fuite au 6 rue Jean-Baptiste Hyacinthe Lafolie 92250 La Garenne-Colombes")).toEqual(["S0244"]);
+    expect(trouve("Fuite au 4 rue Jean Baptiste Hyacinthe Lafolie 92250 La Garenne-Colombes")).toEqual(["S0244"]);
+  });
+});

@@ -308,7 +308,9 @@ function voiesDe(adresse: string): { type: string; mots: string[] }[] {
   if (deja) return deja;
   const avantCP = normaliser(adresse).split(/\b\d{5}\b/)[0] ?? "";
   const voies = avantCP
-    .split(/[-/,;]| et /)
+    // Un trait d'union entre deux lettres lie un nom compose (« rue Jean-Baptiste Lafolie »,
+    // 28/10/2026) : on ne coupe que celui qui separe deux adresses (« 86 rue X - 89 rue Y »).
+    .split(/-(?![a-z])|(?<![a-z])-|[/,;]| et /)
     .map((seg) => {
       const n = seg.replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim().split(" ").map(deplierVoie).join(" ");
       const type = RE_TYPES_VOIE.find(([, re]) => re.test(n))?.[0];
