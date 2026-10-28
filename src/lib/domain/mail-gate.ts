@@ -11,7 +11,11 @@
 //   - mailModuleActifPour(...) : double gate GLOBAL + allowlist (module "Mes e-mails",
 //                                brouillons/agenda sinistre, projection Outlook AG/CS...).
 //   - boitesTri() / boiteTri() : les boites triees et leurs capacites (MAIL_TRI_BOITES,
-//                                27/10/2026), avec les coupe-circuits globaux du tri.
+//                                27/10/2026), avec les coupe-circuits globaux du tri. Une
+//                                entree "tri":false n'y figure JAMAIS (voir plus bas).
+//   - boitesDestinationBascule() : ou un mail peut basculer (ADR-050) = les boites triees
+//                                + les boites « destination seulement » ("tri":false,
+//                                syndic1 pour ML le 28/10/2026, encore relevee par Crypto).
 
 export function mailModuleActif(): boolean {
   return process.env.MAIL_SOURCE === "graph";
@@ -45,6 +49,19 @@ export function mailModuleActifPour(email: string | null | undefined): boolean {
 // Les interrupteurs globaux MAIL_TRI_ECRITURE, MAIL_TRI_AUTO et MAIL_ENVOI restent des
 // coupe-circuits : une capacité n'est active que si l'interrupteur global ET la boîte la
 // donnent. Déplacer ASN sur sa propre boîte = changer la variable, pas le code.
+//
+// Boîte « destination seulement » (ADR-050, décision Sekou du 28/10/2026) : une entrée avec
+// "tri":false (défaut true), ex. {"boite":"syndic1@real31.fr","agences":["ML"],"tri":false,
+// "ecriture":true}. L'équipe ML travaille encore sous Crypto, dont la relève lit la réception
+// de syndic1 : l'intranet ne la trie pas, ne la montre nulle part (tri, « E-mails », comptables,
+// tâche planifiée), mais on peut y FAIRE BASCULER un mail mal arrivé dans une boîte triée.
+// `automatique` et `envoi` y sont facultatifs et ne peuvent pas valoir true. Le jour où ML passe
+// sur l'intranet, on retire "tri":false (et on ajoute depuis/automatique/envoi). Une agence reste
+// dans UNE seule entrée, triée ou non : sa boîte est unique.
+//   - boitesTri() / boiteTri() / boiteTriDeLAgence() : les boîtes TRIÉES seulement (tout ce qui
+//     trie, montre ou compte des mails passe par là) ;
+//   - boitesDestinationBascule() / boiteDestinationBascule() : triées + destination seulement,
+//     pour la seule bascule.
 
 /** Une boîte triée et ce qu'on y permet. */
 export interface BoiteTriConfig {
@@ -62,6 +79,16 @@ export interface BoiteTriConfig {
   envoi: boolean;
 }
 
+/**
+ * Une entrée de MAIL_TRI_BOITES telle que lue : une boîte triée (`tri` true) ou une boîte
+ * « destination seulement » de la bascule (`tri` false). Seules les listes de bascule la rendent ;
+ * boitesTri() rend des BoiteTriConfig sans ce drapeau, et jamais une entrée non triée.
+ */
+export interface BoiteConfig extends BoiteTriConfig {
+  /** La boîte est triée par l'intranet. false = destination de bascule seulement (ADR-050). */
+  tri: boolean;
+}
+
 /** La boîte fictive du développement. */
 export const BOITE_ECHANTILLON = "echantillon";
 
@@ -70,9 +97,11 @@ const RE_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * Lit et valide MAIL_TRI_BOITES. Pur. Lève une erreur LISIBLE (quelle entrée, quel champ) :
  * une config fausse ne doit pas ouvrir une boîte à la mauvaise agence. Refusé aussi : une
- * boîte en double, une agence dans deux boîtes (la boîte d'un collaborateur doit être unique).
+ * boîte en double, une agence dans deux boîtes (la boîte d'un collaborateur doit être unique),
+ * triées ou non. Rend TOUTES les entrées, avec leur drapeau `tri` : les appelants passent par
+ * boitesTri() (triées) ou boitesDestinationBascule() (bascule).
  */
-export function lireBoitesTri(brut: string): BoiteTriConfig[] {
+export function lireBoitesTri(brut: string): BoiteConfig[] {
   let json: unknown;
   try {
     json = JSON.parse(brut);
@@ -80,7 +109,7 @@ export function lireBoitesTri(brut: string): BoiteTriConfig[] {
     throw new Error("MAIL_TRI_BOITES n'est pas un JSON lisible.");
   }
   if (!Array.isArray(json)) throw new Error("MAIL_TRI_BOITES doit être un tableau de boîtes.");
-  const boites: BoiteTriConfig[] = [];
+  const boites: BoiteConfig[] = [];
   const agencesVues = new Map<string, string>();
   json.forEach((e: unknown, i) => {
     const ou = `MAIL_TRI_BOITES[${i}]`;
@@ -103,10 +132,25 @@ export function lireBoitesTri(brut: string): BoiteTriConfig[] {
       if (typeof o.depuis !== "string" || !RE_DATE.test(o.depuis.trim())) throw new Error(`${ou}.depuis doit être une date AAAA-MM-JJ.`);
       depuis = o.depuis.trim();
     }
-    for (const champ of ["ecriture", "automatique", "envoi"] as const) {
+    if (o.tri !== undefined && typeof o.tri !== "boolean") throw new Error(`${ou}.tri doit valoir true ou false (absent = true).`);
+    const tri = o.tri !== false;
+    if (!tri && boite === BOITE_ECHANTILLON) throw new Error(`${ou} : la boîte « echantillon » est forcément triée (pas de "tri":false).`);
+    if (typeof o.ecriture !== "boolean") throw new Error(`${ou}.ecriture doit valoir true ou false.`);
+    for (const champ of ["automatique", "envoi"] as const) {
+      // Destination seulement : rien n'y est trié ni envoyé par l'intranet ; le champ est facultatif.
+      if (!tri && (o[champ] === undefined || o[champ] === false)) continue;
+      if (!tri) throw new Error(`${ou}.${champ} : une boîte non triée ("tri":false) ne peut pas avoir ${champ} à true.`);
       if (typeof o[champ] !== "boolean") throw new Error(`${ou}.${champ} doit valoir true ou false.`);
     }
-    boites.push({ boite, agences, depuis, ecriture: o.ecriture as boolean, automatique: o.automatique as boolean, envoi: o.envoi as boolean });
+    boites.push({
+      boite,
+      agences,
+      depuis,
+      ecriture: o.ecriture,
+      automatique: o.automatique === true,
+      envoi: o.envoi === true,
+      tri,
+    });
   });
   return boites;
 }
@@ -144,8 +188,18 @@ function boiteDuRepli(): BoiteTriConfig[] {
  * l'intranet (la barre latérale lit la config) pour une faute de frappe dans une variable.
  */
 export function boitesTri(): BoiteTriConfig[] {
+  // Une boîte « destination seulement » ("tri":false) n'est JAMAIS rendue ici : ni triée, ni
+  // lue par la tâche planifiée, ni montrée dans le tri, « E-mails » ou l'onglet des comptables.
+  // Le drapeau est retiré : une BoiteTriConfig est toujours une boîte triée.
+  return boitesConfigurees()
+    .filter((b) => b.tri)
+    .map((b) => ({ boite: b.boite, agences: b.agences, depuis: b.depuis, ecriture: b.ecriture, automatique: b.automatique, envoi: b.envoi }));
+}
+
+/** Toutes les entrées de la config (triées ou non), lues à chaque appel ; [] si illisible. */
+function boitesConfigurees(): BoiteConfig[] {
   const brut = (process.env.MAIL_TRI_BOITES ?? "").trim();
-  if (!brut) return boiteDuRepli();
+  if (!brut) return boiteDuRepli().map((b) => ({ ...b, tri: true }));
   try {
     return lireBoitesTri(brut);
   } catch (e) {
@@ -154,11 +208,26 @@ export function boitesTri(): BoiteTriConfig[] {
   }
 }
 
-/** La config d'une boîte triée par son adresse, ou null si elle n'est pas (ou plus) dans la config. */
+/** La config d'une boîte triée par son adresse, ou null si elle n'est pas (ou plus) dans la config, ou pas triée. */
 export function boiteTri(adresse: string | null | undefined): BoiteTriConfig | null {
   const cle = (adresse ?? "").trim().toLowerCase();
   if (!cle) return null;
   return boitesTri().find((b) => b.boite === cle) ?? null;
+}
+
+/**
+ * Les boîtes vers lesquelles un mail peut BASCULER (ADR-050) : les boîtes triées et les boîtes
+ * « destination seulement » ("tri":false), dans l'ordre de la config. Ne sert qu'à la bascule.
+ */
+export function boitesDestinationBascule(): BoiteConfig[] {
+  return boitesConfigurees();
+}
+
+/** Une destination de bascule par son adresse (triée ou destination seulement), ou null. */
+export function boiteDestinationBascule(adresse: string | null | undefined): BoiteConfig | null {
+  const cle = (adresse ?? "").trim().toLowerCase();
+  if (!cle) return null;
+  return boitesConfigurees().find((b) => b.boite === cle) ?? null;
 }
 
 /** La boîte triée d'une agence (code HLS, LGC...), ou null. */

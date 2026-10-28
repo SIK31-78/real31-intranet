@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  boiteDestinationBascule,
   boiteTri,
   boiteTriConfiguree,
   boiteTriDeLAgence,
+  boitesDestinationBascule,
   boitesTri,
   debutTri,
   ecritureTriPour,
@@ -28,8 +30,8 @@ const DEUX_BOITES = JSON.stringify([
 describe("lireBoitesTri (MAIL_TRI_BOITES)", () => {
   it("lit les boîtes, adresses en minuscules, agences en majuscules", () => {
     expect(lireBoitesTri(DEUX_BOITES)).toEqual([
-      { boite: "syndic4@real31.fr", agences: ["HLS"], depuis: "2026-10-14", ecriture: true, automatique: true, envoi: false },
-      { boite: "syndic2@real31.fr", agences: ["LGC", "ASN"], depuis: null, ecriture: false, automatique: false, envoi: true },
+      { boite: "syndic4@real31.fr", agences: ["HLS"], depuis: "2026-10-14", ecriture: true, automatique: true, envoi: false, tri: true },
+      { boite: "syndic2@real31.fr", agences: ["LGC", "ASN"], depuis: null, ecriture: false, automatique: false, envoi: true, tri: true },
     ]);
   });
 
@@ -58,6 +60,88 @@ describe("lireBoitesTri (MAIL_TRI_BOITES)", () => {
     const b = (boite: string, agences: string[]) => ({ boite, agences, ecriture: true, automatique: true, envoi: true });
     expect(() => lireBoitesTri(JSON.stringify([b("a@b.fr", ["HLS"]), b("A@b.fr", ["LGC"])]))).toThrow("déjà décrite");
     expect(() => lireBoitesTri(JSON.stringify([b("a@b.fr", ["HLS"]), b("c@b.fr", ["hls"])]))).toThrow("l'agence HLS est déjà triée dans a@b.fr");
+  });
+});
+
+// Boîte « destination seulement » (ADR-050, 28/10/2026) : syndic1 reçoit les mails de ML par
+// bascule, mais l'intranet ne la trie pas (l'équipe ML travaille sous Crypto).
+const AVEC_ML = JSON.stringify([
+  { boite: "syndic4@real31.fr", agences: ["HLS"], depuis: "2026-10-14", ecriture: true, automatique: true, envoi: true },
+  { boite: "syndic2@real31.fr", agences: ["LGC", "ASN"], depuis: "2026-10-27", ecriture: true, automatique: true, envoi: true },
+  { boite: "syndic1@real31.fr", agences: ["ML"], tri: false, ecriture: true },
+]);
+
+describe("boîte « destination seulement » (tri:false)", () => {
+  it("se lit avec automatique et envoi facultatifs (false), tri absent = true", () => {
+    const lues = lireBoitesTri(AVEC_ML);
+    expect(lues.map((b) => b.tri)).toEqual([true, true, false]);
+    expect(lues[2]).toEqual({ boite: "syndic1@real31.fr", agences: ["ML"], depuis: null, ecriture: true, automatique: false, envoi: false, tri: false });
+  });
+
+  it("refuse un drapeau tri illisible, automatique ou envoi à true, la boîte échantillon non triée", () => {
+    const d = (o: Record<string, unknown>) => JSON.stringify([{ boite: "syndic1@real31.fr", agences: ["ML"], ecriture: true, ...o }]);
+    expect(() => lireBoitesTri(d({ tri: "non" }))).toThrow("MAIL_TRI_BOITES[0].tri doit valoir true ou false");
+    expect(() => lireBoitesTri(d({ tri: false, automatique: true }))).toThrow("MAIL_TRI_BOITES[0].automatique : une boîte non triée");
+    expect(() => lireBoitesTri(d({ tri: false, envoi: true }))).toThrow("MAIL_TRI_BOITES[0].envoi : une boîte non triée");
+    expect(() => lireBoitesTri(d({ tri: false, ecriture: undefined }))).toThrow("MAIL_TRI_BOITES[0].ecriture");
+    expect(() => lireBoitesTri(d({ tri: false, automatique: false, envoi: false }))).not.toThrow();
+    // Une boîte triée garde ses trois champs obligatoires.
+    expect(() => lireBoitesTri(d({ tri: true }))).toThrow("MAIL_TRI_BOITES[0].automatique doit valoir true ou false.");
+    expect(() =>
+      lireBoitesTri(JSON.stringify([{ boite: "echantillon", agences: ["ML"], tri: false, ecriture: false }])),
+    ).toThrow("forcément triée");
+  });
+
+  it("une agence reste dans UNE seule boîte, triée ou non", () => {
+    const b = (boite: string, agences: string[], tri: boolean) => ({ boite, agences, tri, ecriture: true, automatique: false, envoi: false });
+    expect(() => lireBoitesTri(JSON.stringify([b("syndic4@real31.fr", ["HLS", "ML"], true), b("syndic1@real31.fr", ["ML"], false)]))).toThrow(
+      "l'agence ML est déjà triée dans syndic4@real31.fr",
+    );
+    expect(() => lireBoitesTri(JSON.stringify([b("syndic1@real31.fr", ["ML"], false), b("syndic1@real31.fr", ["HLS"], true)]))).toThrow("déjà décrite");
+  });
+
+  it("n'apparaît dans AUCUNE liste ni recherche de boîtes triées", () => {
+    vi.stubEnv("MAIL_TRI_BOITES", AVEC_ML);
+    vi.stubEnv("MAIL_TRI_ECRITURE", "on");
+    vi.stubEnv("MAIL_TRI_AUTO", "on");
+    vi.stubEnv("MAIL_ENVOI", "on");
+    expect(boitesTri().map((b) => b.boite)).toEqual(["syndic4@real31.fr", "syndic2@real31.fr"]);
+    // Le drapeau ne fuit pas : une BoiteTriConfig est toujours triée.
+    expect(boitesTri().every((b) => !("tri" in b))).toBe(true);
+    expect(boiteTri("syndic1@real31.fr")).toBeNull();
+    expect(boiteTri("SYNDIC1@real31.fr")).toBeNull();
+    expect(boiteTriDeLAgence("ML")).toBeNull();
+    expect(boiteTriConfiguree()).toBe("syndic4@real31.fr");
+    expect(envoiMailPour("syndic1@real31.fr")).toBe(false);
+    expect(debutTri("syndic1@real31.fr")).toBeNull();
+    expect(triAutomatiquePour(boiteTri("syndic1@real31.fr"))).toBe(false);
+  });
+
+  it("même placée en PREMIER dans la config, elle ne devient pas la boîte par défaut", () => {
+    vi.stubEnv("MAIL_TRI_BOITES", JSON.stringify([...JSON.parse(AVEC_ML)].reverse()));
+    expect(boitesTri()[0]!.boite).toBe("syndic2@real31.fr");
+    expect(boiteTriConfiguree()).toBe("syndic2@real31.fr");
+    expect(debutTri()).toBe("2026-10-26T23:00:00Z");
+  });
+
+  it("est une destination de bascule, avec les boîtes triées", () => {
+    vi.stubEnv("MAIL_TRI_BOITES", AVEC_ML);
+    vi.stubEnv("MAIL_TRI_ECRITURE", "on");
+    expect(boitesDestinationBascule().map((b) => [b.boite, b.tri])).toEqual([
+      ["syndic4@real31.fr", true],
+      ["syndic2@real31.fr", true],
+      ["syndic1@real31.fr", false],
+    ]);
+    const s1 = boiteDestinationBascule(" Syndic1@real31.fr ");
+    expect(s1).toMatchObject({ boite: "syndic1@real31.fr", agences: ["ML"], tri: false });
+    expect(ecritureTriPour(s1)).toBe(true);
+    expect(boiteDestinationBascule("inconnue@real31.fr")).toBeNull();
+  });
+
+  it("repli sans MAIL_TRI_BOITES : la boîte unique est triée", () => {
+    vi.stubEnv("MAIL_TRI_BOITES", "");
+    vi.stubEnv("MAIL_BOITE_TRI", "syndic4@real31.fr");
+    expect(boitesDestinationBascule()).toEqual([expect.objectContaining({ boite: "syndic4@real31.fr", tri: true })]);
   });
 });
 

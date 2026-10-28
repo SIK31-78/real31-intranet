@@ -74,3 +74,21 @@ describe("tache planifiee : verrou par boite", () => {
     expect(repo.libererVerrou).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("tache planifiee : une boite « destination seulement » (tri:false) n'est jamais traitee", () => {
+  it("/api/cron/tri-emails/syndic1@real31.fr : ignoree, ni verrou ni etape", async () => {
+    vi.stubEnv(
+      "MAIL_TRI_BOITES",
+      JSON.stringify([
+        { boite: BOITE, agences: ["HLS"], ecriture: true, automatique: true, envoi: false },
+        { boite: "syndic1@real31.fr", agences: ["ML"], tri: false, ecriture: true },
+      ]),
+    );
+    const r = await executerTachePlanifiee(requete(), "syndic1@real31.fr");
+    expect(await r.json()).toEqual({ boite: "syndic1@real31.fr", ignoree: "boîte absente de la config du tri" });
+    expect(repo.prendreVerrou).not.toHaveBeenCalled();
+    expect(etapes.lecture).not.toHaveBeenCalled();
+    expect(etapes.reprise).not.toHaveBeenCalled();
+    expect(etapes.automatique).not.toHaveBeenCalled();
+  });
+});
