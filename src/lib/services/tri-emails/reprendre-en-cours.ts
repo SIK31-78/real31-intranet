@@ -16,6 +16,8 @@ import { PAR_SYSTEME, DELAI_RANGEMENT_EN_COURS_MS } from "@/lib/domain/tri-email
 import { signalerException } from "@/lib/observabilite";
 import type { DepsRangement } from "./ranger";
 import { marquerRemis, marquerSortis } from "./synchroniser-reception";
+import { estBascule } from "@/lib/domain/bascule-boites";
+import { reprendreBascule } from "./basculer";
 
 /** Au plus tant de lignes reprises par passage. */
 const MAX_REPRISES = 20;
@@ -38,6 +40,15 @@ export async function reprendreEnCours(deps: DepsRangement, maintenant: () => nu
   // Un par un : 20 appels Graph au plus, et un geste a la fois sur la boite.
   for (const e of lignes) {
     try {
+      // Une bascule vers une autre boite (ADR-050) se reprend a sa facon : copie dans la cible
+      // presente et complete -> on termine ; sinon le mail revient dans la file.
+      if (estBascule(e)) {
+        const issue = await reprendreBascule(e, deps);
+        if (issue === "confirmee") bilan.confirmees++;
+        else if (issue === "annulee") bilan.annulees++;
+        else bilan.echecs++;
+        continue;
+      }
       const pos = await deps.rangement.localiser(boite, e.internetMessageId);
       if (!pos) {
         if (await deps.repo.marquerAnnule(e.id, PAR_SYSTEME, "reprise : mail introuvable dans la boîte")) bilan.introuvables++;

@@ -46,9 +46,12 @@ import { DejaRangeErreur, type NouvelleEntreeJournal, type TriRepository } from 
 import type { ReceptionIndex } from "@/lib/ports/reception-index";
 import { marquerRemis, marquerSortis } from "./synchroniser-reception";
 import { listerGestionnairesCabinet } from "./binomes";
+import type { RecopieInterBoitesProvider } from "@/lib/ports/recopie-inter-boites";
+import { estBascule } from "@/lib/domain/bascule-boites";
 import {
   getGestionnaireRepository,
   getRangementTri,
+  getRecopieInterBoites,
   getReceptionIndex,
   getReferentielTriProvider,
   getTriRepository,
@@ -66,6 +69,8 @@ export interface DepsRangement {
   gestionnaires: () => Promise<MembreTri[]>;
   /** Index de la reception, tenu a jour a chaque geste reel ; absent (tests) = rien a tenir. */
   index?: ReceptionIndex;
+  /** Recopie vers une autre boite (bascule, ADR-050) : sert a la reprise d'une bascule interrompue. */
+  recopie?: RecopieInterBoitesProvider | null;
 }
 
 /** Le rangement est-il simule ? Oui tant que l'ecriture n'est pas ouverte sur cette vraie boite. */
@@ -90,6 +95,7 @@ export function depsParDefaut(config: BoiteTriConfig | null): DepsRangement {
     },
     gestionnaires: listerGestionnairesCabinet,
     index: getReceptionIndex(),
+    recopie: getRecopieInterBoites(),
   };
 }
 
@@ -322,6 +328,9 @@ export async function annulerRangement(
   const e = await deps.repo.entree(journalId);
   if (!e || e.annuleLe) throw new Error("Ce rangement n'existe plus ou a déjà été annulé.");
   if (e.boite !== deps.boite) throw new Error("Ce rangement concerne une autre boîte.");
+  // Une bascule ne s'annule pas en remettant l'original : la copie est deja dans l'autre boite,
+  // on aurait le mail en double (ADR-050). On le renvoie depuis l'autre boite.
+  if (estBascule(e)) throw new Error("Ce mail a été basculé vers une autre boîte : pour le faire revenir, renvoie-le depuis cette boîte.");
   if (!e.simulation) {
     // Un vrai rangement ne s'annule qu'avec l'ecriture ouverte : sinon on marquerait
     // « annule » un mail reste dans le dossier.
