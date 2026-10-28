@@ -10,7 +10,7 @@
 
 import { estMailInterne } from "./tri-emails";
 import type { MailEntrant } from "./mes-emails";
-import type { BoiteMail } from "./boites-mail";
+import { ongletDe, type BoiteMail } from "./boites-mail";
 
 export type PlaceInternes = "meles" | "haut" | "bas";
 
@@ -72,8 +72,10 @@ export function nonLusATraiter(
   boiteParDefaut: string,
   lus: ReadonlySet<string>,
   traites: ReadonlySet<string>,
+  /** Les boites de l'ecran : un onglet qui en regroupe plusieurs les compte toutes (28/10/2026). */
+  boites: readonly BoiteMail[] = [],
 ): number {
-  return mails.filter((m) => (m.boite ?? boiteParDefaut) === boite && !lus.has(m.id) && !traites.has(m.id)).length;
+  return mails.filter((m) => ongletDe(boites, m.boite ?? boiteParDefaut) === boite && !lus.has(m.id) && !traites.has(m.id)).length;
 }
 
 /** Ce que la pastille sait d'une boîte partagée, sans lire Outlook (Supabase seulement). */

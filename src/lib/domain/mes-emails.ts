@@ -3,7 +3,7 @@
 // Types metier purs (ADR-001). Plus d'analyse par modele depuis le 27/10/2026 (REA-423).
 
 import type { TypeDossier } from "@/lib/domain/dossier";
-import type { BoiteMail } from "@/lib/domain/boites-mail";
+import { ongletDe, type BoiteMail } from "@/lib/domain/boites-mail";
 import { cleDeReference, referencesCitees } from "@/lib/domain/tri-emails";
 
 /** Un dossier reel de la boite Outlook (selecteur de classement du cockpit). */
@@ -206,15 +206,17 @@ export function trierMails(mails: MailEntrant[]): MailEntrant[] {
   return [...mails].sort((a, b) => (b.recuLe ?? b.date).localeCompare(a.recuLe ?? a.date));
 }
 
-/** Les mails d'UNE boite. Un mail sans `boite` (fixture ancienne) est rattache a la
- *  boite personnelle : c'est le seul comportement qui ne fait disparaitre aucun mail. */
+/** Les mails d'UN onglet de boite. Un mail sans `boite` (fixture ancienne) est rattache a la
+ *  boite personnelle : c'est le seul comportement qui ne fait disparaitre aucun mail. Un
+ *  onglet qui regroupe plusieurs boites (« Comptabilité » d'un comptable, 28/10/2026) montre
+ *  les mails de toutes ses boites. */
 export function mailsDeLaBoite(
   mails: MailEntrant[],
   boiteId: string,
   boites: BoiteMail[],
 ): MailEntrant[] {
   const perso = boites.find((b) => b.personnelle)?.id;
-  return mails.filter((m) => (m.boite ?? perso) === boiteId);
+  return mails.filter((m) => ongletDe(boites, m.boite ?? perso ?? "") === boiteId);
 }
 
 // --- La reponse a un mail : quatre regles metier, hors de l'ecran (audit 16/09/2026) -----

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { nonLusATraiter, pastilleEmails, placeInternesValide, regrouperInternes, traitesAuChargement } from "./mes-emails-liste";
+import { construireBoites, regrouperPartagees } from "./boites-mail";
 
 const mails = [
   { id: "1", expediteurEmail: "client@gmail.com" },
@@ -81,6 +82,13 @@ describe("nonLusATraiter : le compteur de chaque onglet de boîte (27/10/2026)",
     expect(nonLusATraiter(liste, "moi@real31.fr", "moi@real31.fr", new Set(["a"]), new Set())).toBe(2);
     expect(nonLusATraiter(liste, "syndic2@real31.fr", "moi@real31.fr", new Set(), new Set(["c"]))).toBe(1);
     expect(nonLusATraiter(liste, "syndic2@real31.fr", "moi@real31.fr", new Set(["d"]), new Set(["c"]))).toBe(0);
+  });
+
+  it("l'onglet Comptabilité d'un comptable compte les deux boîtes (28/10/2026)", () => {
+    const boites = regrouperPartagees(construireBoites("moi@real31.fr", "syndic2@real31.fr,syndic4@real31.fr"), "Comptabilité");
+    const avecS4 = [...liste, { id: "f", boite: "syndic4@real31.fr" }];
+    expect(nonLusATraiter(avecS4, "syndic2@real31.fr", "moi@real31.fr", new Set(["d"]), new Set(), boites)).toBe(2);
+    expect(nonLusATraiter(avecS4, "moi@real31.fr", "moi@real31.fr", new Set(), new Set(), boites)).toBe(3);
   });
 });
 

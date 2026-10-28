@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { destinatairesDeReponse, dossierOutlookSuggere, grouperDossiersBoite, nomDossierCopro, sujetDeReponse } from "./mes-emails";
+import { destinatairesDeReponse, dossierOutlookSuggere, grouperDossiersBoite, mailsDeLaBoite, nomDossierCopro, sujetDeReponse, type MailEntrant } from "./mes-emails";
+import { construireBoites, regrouperPartagees } from "./boites-mail";
 
 // Les regles de la reponse a un mail vivaient dans 1 500 lignes de JSX, sans test.
 
@@ -82,5 +83,23 @@ describe("sujetDeReponse tagué copro (mail travaillé pour le tri)", () => {
   it("ne double pas un code déjà cité (S0247 ≡ S247) et ne touche rien sans copro", () => {
     expect(sujetDeReponse({ objet: "RE: [S0247] ODJ", coproCode: "S247", coproNom: "Le Cyrano" })).toBe("RE: [S0247] ODJ");
     expect(sujetDeReponse({ objet: "Fuite", coproCode: "", coproNom: "" })).toBe("Re: Fuite");
+  });
+});
+
+describe("mailsDeLaBoite : un onglet qui regroupe plusieurs boîtes (28/10/2026)", () => {
+  const mails = [
+    { id: "perso", boite: "elsa@real31.fr" },
+    { id: "s2", boite: "syndic2@real31.fr" },
+    { id: "s4", boite: "syndic4@real31.fr" },
+    { id: "ancien" },
+  ] as MailEntrant[];
+  it("l'onglet Comptabilité montre les mails des deux boîtes, Ma boîte les siens", () => {
+    const boites = regrouperPartagees(construireBoites("elsa@real31.fr", "syndic2@real31.fr,syndic4@real31.fr"), "Comptabilité");
+    expect(mailsDeLaBoite(mails, "syndic2@real31.fr", boites).map((m) => m.id)).toEqual(["s2", "s4"]);
+    expect(mailsDeLaBoite(mails, "elsa@real31.fr", boites).map((m) => m.id)).toEqual(["perso", "ancien"]);
+  });
+  it("sans regroupement, une boîte par onglet (comme avant)", () => {
+    const boites = construireBoites("elsa@real31.fr", "syndic2@real31.fr,syndic4@real31.fr");
+    expect(mailsDeLaBoite(mails, "syndic2@real31.fr", boites).map((m) => m.id)).toEqual(["s2"]);
   });
 });

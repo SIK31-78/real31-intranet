@@ -47,7 +47,7 @@ import {
   typeDossierSuggere,
 } from "@/lib/domain/mes-emails";
 import type { BoiteMail } from "@/lib/domain/boites-mail";
-import { boiteReponseParDefaut } from "@/lib/domain/boites-mail";
+import { boiteReponseParDefaut, ongletsDe, origineAffichee } from "@/lib/domain/boites-mail";
 import { TYPE_DOSSIER_LABEL, TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
@@ -913,12 +913,13 @@ export function MesEmailsVue({
       {/* Barre unique : la boîte affichée (onglets), la recherche, les vues. */}
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          {data.boites.length > 1 && (
+          {/* Un onglet par boîte, ou par groupe de boîtes (« Comptabilité » d'un comptable, 28/10/2026). */}
+          {ongletsDe(data.boites).length > 1 && (
             <div role="tablist" aria-label="Boîte affichée" className="inline-flex rounded-md border border-line bg-surface-2 p-0.5">
-              {data.boites.map((b) => {
+              {ongletsDe(data.boites).map((b) => {
                 // Non lus ENCORE à traiter, même règle pour chaque onglet (perso, partagée, délégation) :
                 // un mail archivé ou traité sans avoir été ouvert ne compte plus. Rien d'affiché à 0.
-                const nonLus = nonLusATraiter(data.mails, b.id, boiteParDefaut, lus, classes);
+                const nonLus = nonLusATraiter(data.mails, b.id, boiteParDefaut, lus, classes, data.boites);
                 const actif = b.id === boiteActive;
                 return (
                   <button
@@ -1046,6 +1047,7 @@ export function MesEmailsVue({
                   key={m.id}
                   {...(corbeillePossible ? { coche: coches.has(m.id), onCocher: () => cocher(m.id) } : {})}
                   m={m}
+                  origine={origineAffichee(data.boites, m.boite)}
                   actif={m.id === selection?.id}
                   lu={lus.has(m.id)}
                   reponse={reponseDe(m)}
@@ -1230,6 +1232,7 @@ function StatutBadge({ statut }: { statut: Statut }) {
 /** Une boite dans le rail : libelle + adresse + compteur de non-lus. */
 function LigneMail({
   m,
+  origine = null,
   actif,
   lu,
   reponse,
@@ -1238,6 +1241,8 @@ function LigneMail({
   onCocher,
 }: {
   m: MailEntrant;
+  /** La boîte d'origine (« syndic4 ») quand l'onglet en regroupe plusieurs (28/10/2026). */
+  origine?: string | null;
   /** Case de sélection (corbeille, REA-340) : absente hors pilote et hors boîte perso. */
   coche?: boolean;
   onCocher?: () => void;
@@ -1280,6 +1285,7 @@ function LigneMail({
         <div className="flex items-center gap-1.5 mt-1 pl-4 text-meta text-ink-3">
           <span className={"shrink-0 font-mono " + (m.coproCode ? "text-ink-2" : "text-ink-3")}>{m.coproCode || "-"}</span>
           <span className="truncate">· {qui}</span>
+          {origine ? <span className="shrink-0">· {origine}</span> : null}
           {/* Arrivé par une délégation de portefeuille : pour qui l'on répond (27/10/2026). */}
           {m.pour ? (
             <span className="shrink-0">
