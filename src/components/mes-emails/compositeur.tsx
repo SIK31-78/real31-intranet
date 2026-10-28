@@ -49,6 +49,7 @@ import { deposerFichier } from "./deposer-fichier";
 import { TYPE_DOSSIER_LABEL, type TypeDossier } from "@/lib/domain/dossier";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
 import { EditeurRiche } from "./editeur-riche";
+import { BoutonReformuler } from "./bouton-reformuler";
 import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
 import { useAlerteSortie } from "./alerte-sortie";
 
@@ -77,6 +78,8 @@ type Props = {
   modeles: ModeleMail[];
   /** Pilote (super-admin) : le message se met en forme (REA-345). Hors pilote, zone de texte. */
   pilote?: boolean;
+  /** « Reformuler » proposé (ADR-051) : interrupteur posé et clé présente. */
+  reformulation?: boolean;
   /** Prévient la fenêtre qu'une saisie est en cours (elle ne se ferme plus d'un clic à côté). */
   onSaisie?: (enCours: boolean) => void;
 };
@@ -110,7 +113,7 @@ function formatTaille(octets: number): string {
 
 export const adresses = (l: Personne[]) => [...new Set(l.flatMap((p) => p.emails.map((e) => e.toLowerCase())))];
 
-export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine, modeles, pilote = false, onSaisie }: Props) {
+export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine, modeles, pilote = false, reformulation = false, onSaisie }: Props) {
   const toast = useToast();
   const confirmer = useConfirm();
   const [a, setA] = useState<Personne[]>([]);
@@ -539,6 +542,22 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
             </button>
           </span>
         ))}
+        {reformulation ? (
+          <span className="ml-auto">
+            <BoutonReformuler
+              texte={corps}
+              nature="nouveau"
+              objet={objet}
+              desactive={envoiEnCours}
+              capturer={() => ({ corps, corpsHtml })}
+              appliquer={majCorpsTexte}
+              restaurer={(avant) => {
+                setCorps(avant.corps);
+                setCorpsHtml(avant.corpsHtml);
+              }}
+            />
+          </span>
+        ) : null}
       </div>
 
       {signatureHtml ? (

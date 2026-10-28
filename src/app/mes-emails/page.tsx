@@ -16,6 +16,7 @@ import { BoutonRafraichir } from "./bouton-rafraichir";
 import { Page } from "@/components/ui/page";
 import { EnvoyerEmail } from "@/components/mes-emails/envoyer-email";
 import { boiteDeComposition, boiteEnvoi, brouillonPossible, envoiDirectComposition } from "@/lib/services/mes-emails/composer-mail";
+import { reformulationDisponible } from "@/lib/services/ia/reformuler-mail";
 
 export const metadata: Metadata = { title: "E-mails - REAL31 Intranet" };
 
@@ -56,6 +57,8 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
     getSignatureGestionnaire(g),
     modelesMailPour(agencePersonne),
   ]);
+  // « Reformuler » (ADR-051) : absent tant que IA_REFORMULATION=on et la clé ne sont pas posés.
+  const reformulation = reformulationDisponible();
 
   return (
     <AppShell user={g} active="emails" breadcrumb="E-mails">
@@ -74,6 +77,7 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
             signatureHtml={signatureHtml}
             modeles={modeles}
             pilote={pilote}
+            reformulation={reformulation}
           />
           <form action={rafraichirAction}>
             <BoutonRafraichir />
@@ -87,6 +91,7 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
           maxPerso={maxPerso}
           modeles={modeles}
           pilote={pilote}
+          reformulation={reformulation}
           placeInternesInitiale={placeInternes}
         />
       </Page>

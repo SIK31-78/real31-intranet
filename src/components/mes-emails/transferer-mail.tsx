@@ -17,6 +17,7 @@ import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { transfererMailAction } from "@/app/mes-emails/actions";
 import { ChampPersonnes, LigneExpediteur, adresses, type Personne } from "./compositeur";
 import { useAlerteSortie } from "./alerte-sortie";
+import { BoutonReformuler } from "./bouton-reformuler";
 
 export function TransfererMail({
   emailId,
@@ -25,7 +26,10 @@ export function TransfererMail({
   objet,
   piecesJointes,
   onTransfere,
+  reformulation = false,
 }: {
+  /** « Reformuler » proposé sur le mot du transfert (ADR-051). */
+  reformulation?: boolean;
   emailId: string;
   /** Boîte qui détient le mail : c'est d'elle que part le transfert. */
   boite: string;
@@ -51,6 +55,7 @@ export function TransfererMail({
           objet={objet}
           piecesJointes={piecesJointes}
           {...(onTransfere ? { onTransfere } : {})}
+          reformulation={reformulation}
           onFermer={() => setOuvert(false)}
         />
       ) : null}
@@ -65,8 +70,10 @@ function FenetreTransfert({
   objet,
   piecesJointes,
   onTransfere,
+  reformulation,
   onFermer,
 }: {
+  reformulation: boolean;
   emailId: string;
   boite: string;
   boitePerso: boolean;
@@ -154,6 +161,19 @@ function FenetreTransfert({
             <span className="text-ink-3">Objet : </span>TR: {objet}
           </p>
           <Textarea value={corps} onChange={(e) => setCorps(e.target.value)} rows={6} placeholder="Un mot pour accompagner le transfert (facultatif)…" aria-label="Message du transfert" />
+          {reformulation ? (
+            <div className="flex justify-end">
+              <BoutonReformuler
+                texte={corps}
+                nature="transfert"
+                objet={`TR: ${objet}`}
+                desactive={enCours}
+                capturer={() => corps}
+                appliquer={setCorps}
+                restaurer={setCorps}
+              />
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center gap-1.5 text-meta text-ink-3">
             <Paperclip strokeWidth={1.5} className="w-3.5 h-3.5" />
             {piecesJointes === null

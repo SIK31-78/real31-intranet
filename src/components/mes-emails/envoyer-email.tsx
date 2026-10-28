@@ -23,9 +23,12 @@ export function EnvoyerEmail({
   signatureHtml,
   modeles,
   pilote = false,
+  reformulation = false,
 }: {
   /** Nouveautés en pilote (super-admin) : texte mis en forme (REA-345). */
   pilote?: boolean;
+  /** « Reformuler » proposé (ADR-051). */
+  reformulation?: boolean;
   gestionnaireNom: string;
   agence: string;
   brouillonPossible: boolean;
@@ -96,6 +99,7 @@ export function EnvoyerEmail({
                 signatureHtml={signatureHtml}
                 modeles={modeles}
                 pilote={pilote}
+                reformulation={reformulation}
                 onTermine={fermer}
                 onSaisie={setSaisie}
               />

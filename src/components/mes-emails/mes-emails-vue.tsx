@@ -94,6 +94,7 @@ import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { EnvoyesVue } from "./envoyes-vue";
 import { TransfererMail } from "./transferer-mail";
 import { EditeurRiche } from "./editeur-riche";
+import { BoutonReformuler } from "./bouton-reformuler";
 import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
 import { rechercherEchangesAction } from "@/app/echanges/actions";
 import {
@@ -137,6 +138,22 @@ function jourMois(iso: string): string {
   return formatDateLongue(iso).replace(/ \d{4}$/, "");
 }
 
+/** La réponse avant reformulation : undefined = rien de saisi (le brouillon d'origine fait foi). */
+type InstantaneReponse = { texte: string | undefined; html: string | undefined };
+type ReformulationReponse = {
+  capturer: () => InstantaneReponse;
+  appliquer: (texte: string) => void;
+  restaurer: (avant: InstantaneReponse) => void;
+};
+
+/** La map avec la valeur posée, ou sans la clé si la valeur est absente. */
+function avecOuSans(p: Map<string, string>, id: string, v: string | undefined): Map<string, string> {
+  const n = new Map(p);
+  if (v === undefined) n.delete(id);
+  else n.set(id, v);
+  return n;
+}
+
 function formatTaille(octets: number): string {
   if (octets >= 1_000_000) return `${(octets / 1_000_000).toFixed(1)} Mo`;
   if (octets >= 1000) return `${Math.round(octets / 1000)} Ko`;
@@ -151,8 +168,11 @@ export function MesEmailsVue({
   agence = "",
   modeles,
   pilote = false,
+  reformulation = false,
   placeInternesInitiale = "meles",
 }: {
+  /** « Reformuler » proposé dans la réponse et le transfert (ADR-051). */
+  reformulation?: boolean;
   /** Préférence lue dans le cookie par la page (REA-351). */
   placeInternesInitiale?: PlaceInternes;
   data: MesEmails;
@@ -1149,6 +1169,25 @@ export function MesEmailsVue({
                 setEditsHtml((p) => new Map(p).set(selection.id, h));
                 setEdits((p) => new Map(p).set(selection.id, htmlVersTexte(h)));
               }}
+              reformulation={
+                reformulation
+                  ? {
+                      // L'état exact de la réponse (texte et HTML), pour « Annuler la reformulation ».
+                      capturer: () => ({ texte: edits.get(selection.id), html: editsHtml.get(selection.id) }),
+                      // Le texte reformulé se pose comme un modèle : l'éditeur repart de ce texte.
+                      appliquer: (t: string) => {
+                        const id = selection.id;
+                        oublierHtml(id);
+                        setEdits((p) => new Map(p).set(id, t));
+                      },
+                      restaurer: (avant: InstantaneReponse) => {
+                        const id = selection.id;
+                        setEdits((p) => avecOuSans(p, id, avant.texte));
+                        setEditsHtml((p) => avecOuSans(p, id, avant.html));
+                      },
+                    }
+                  : null
+              }
               onBlurBrouillon={() =>
                 void editBrouillonAction(selection.id, selection.coproCode, brouillonDe(selection))
               }
@@ -1736,7 +1775,10 @@ function AnalysePane({
   pilote = false,
   brouillonHtml,
   onEditBrouillonHtml,
+  reformulation,
 }: {
+  /** « Reformuler » (ADR-051) : null quand il n'est pas proposé. */
+  reformulation: ReformulationReponse | null;
   /** Nouveautés en pilote (super-admin) : « Transférer » (REA-350), mise en forme (REA-345). */
   pilote?: boolean;
   /** La réponse en HTML pour l'éditeur mis en forme (pilote). */
@@ -1851,6 +1893,7 @@ function AnalysePane({
                   objet={m.objet}
                   piecesJointes={m.attachments.length === 0 ? [] : piecesJointes}
                   onTransfere={onTransfere}
+                  reformulation={reformulation !== null}
                 />
               ) : null}
               {onSupprimer ? (
@@ -2101,6 +2144,11 @@ function AnalysePane({
             ) : (
               <Textarea value={brouillon} onChange={(e) => onEditBrouillon(e.target.value)} onBlur={onBlurBrouillon} rows={7} className="resize-y" />
             )}
+            {reformulation ? (
+              <div className="mt-1.5 flex justify-end">
+                <BoutonReformuler key={m.id} texte={brouillon} nature="reponse" objet={sujet} desactive={envoiEnCours} {...reformulation} />
+              </div>
+            ) : null}
             {signatureHtml ? (
               <div className="mt-2">
                 <span className="text-meta text-ink-3">Signature (ajoutée à l’envoi)</span>

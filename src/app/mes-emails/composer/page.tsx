@@ -9,6 +9,7 @@ import { Compositeur } from "@/components/mes-emails/compositeur";
 import { boiteDeComposition, boiteEnvoi, brouillonPossible, envoiDirectComposition, listerCoprosComposition } from "@/lib/services/mes-emails/composer-mail";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import { agenceDesModeles, modelesMailPour } from "@/lib/services/mes-emails/modeles-mail";
+import { reformulationDisponible } from "@/lib/services/ia/reformuler-mail";
 
 export const metadata: Metadata = { title: "Envoyer un e-mail - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
@@ -49,6 +50,7 @@ export default async function ComposerPage() {
           boite={boiteEnvoi(boite)}
           signatureHtml={signatureHtml}
           modeles={modeles}
+          reformulation={reformulationDisponible()}
         />
       </Page>
     </AppShell>
