@@ -39,6 +39,8 @@ import type { RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 import type { TriRepository } from "@/lib/ports/tri-repository";
 import { GraphRangementTri } from "@/lib/adapters/mail/graph-rangement-tri";
 import { SimulationRangementTri } from "@/lib/adapters/mock/simulation-rangement-tri";
+import type { RecopieInterBoitesProvider } from "@/lib/ports/recopie-inter-boites";
+import { GraphRecopieInterBoites } from "@/lib/adapters/mail/graph-recopie-inter-boites";
 import type { ExtracteurPdf } from "@/lib/ports/extracteur-pdf";
 import { PdfjsExtracteur } from "@/lib/adapters/pdf/pdfjs-extracteur";
 import { MockTriRepository } from "@/lib/adapters/mock/mock-tri-repository";
@@ -516,6 +518,13 @@ export function getRangementTri(config: BoiteTriConfig | null): RangementTriProv
     return new GraphRangementTri();
   }
   return new SimulationRangementTri();
+}
+
+// Recopie d'un mail d'une boite triee a une autre (ADR-050, 28/10/2026). Le vrai Graph ou
+// rien : il n'y a pas de bascule simulee (le service refuse tant que l'ecriture n'est pas
+// ouverte sur les DEUX boites, refusBascule).
+export function getRecopieInterBoites(): RecopieInterBoitesProvider | null {
+  return process.env.MAIL_SOURCE === "graph" ? new GraphRecopieInterBoites() : null;
 }
 
 // Extraction du texte des pieces jointes PDF (tri : deduire une copro d'une facture). pdfjs,

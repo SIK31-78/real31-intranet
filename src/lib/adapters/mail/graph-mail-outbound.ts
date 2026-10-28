@@ -28,7 +28,7 @@ const dest = (adresses: string[]) =>
 // faisait echouer toute la reponse.
 
 /** Ouvre la session d'upload d'une piece sur le brouillon ; rend l'URL ou deposer les tranches. */
-async function ouvrirSession(
+export async function ouvrirSession(
   tk: string,
   u: string,
   draftId: string,
@@ -52,7 +52,7 @@ async function ouvrirSession(
  * en-tete Authorization sur ce PUT. 200 = tranche recue, la suite est attendue ; 201 = la
  * piece est complete et jointe au brouillon.
  */
-async function deposerTranche(uploadUrl: string, debut: number, octets: Uint8Array, taille: number): Promise<{ fini: boolean }> {
+export async function deposerTranche(uploadUrl: string, debut: number, octets: Uint8Array, taille: number): Promise<{ fini: boolean }> {
   const r = await graphFetch(
     uploadUrl,
     {
