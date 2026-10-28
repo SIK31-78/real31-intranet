@@ -16,6 +16,7 @@ import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
 import { preparerMailReunionAction, envoyerMailReunionAction } from "./mail-reunion-actions";
 import type { SourceDestinataires } from "@/lib/services/coproprietes/destinataires-conseil";
+import { phraseCopieBinome } from "@/lib/domain/copie-binome";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -43,7 +44,7 @@ export function MailReunionBouton({
   const [sujet, setSujet] = useState("");
   const [corps, setCorps] = useState("");
   const [avertissements, setAvertissements] = useState<string[]>([]);
-  const [assistante, setAssistante] = useState<{ nomComplet: string; email: string } | null>(null);
+  const [enCopie, setEnCopie] = useState<{ nomComplet: string; email: string }[]>([]);
 
   function ouvrir() {
     startPrep(async () => {
@@ -54,9 +55,9 @@ export function MailReunionBouton({
       }
       setSource(r.source);
       setA(r.emails);
-      // REA-343 : l'assistante de la copro arrive en copie, retirable comme toute adresse.
+      // L'autre membre du binome arrive en copie (REA-343, 28/10/2026), retirable comme toute adresse.
       setCc(r.cc);
-      setAssistante(r.assistante);
+      setEnCopie(r.enCopie);
       setSujet(r.sujet);
       setCorps(r.corps);
       setAvertissements(r.avertissements);
@@ -120,7 +121,7 @@ export function MailReunionBouton({
           sujet={sujet}
           corps={corps}
           avertissements={avertissements}
-          assistante={assistante}
+          enCopie={enCopie}
           envoiEnCours={envoiEnCours}
           onA={setA}
           onCc={setCc}
@@ -141,7 +142,7 @@ function ModaleComposition({
   sujet,
   corps,
   avertissements,
-  assistante,
+  enCopie,
   envoiEnCours,
   onA,
   onCc,
@@ -156,7 +157,7 @@ function ModaleComposition({
   sujet: string;
   corps: string;
   avertissements: string[];
-  assistante: { nomComplet: string; email: string } | null;
+  enCopie: { nomComplet: string; email: string }[];
   envoiEnCours: boolean;
   onA: (v: string[]) => void;
   onCc: (v: string[]) => void;
@@ -165,6 +166,7 @@ function ModaleComposition({
   onFermer: () => void;
   onEnvoyer: () => void;
 }) {
+  const phraseEnCopie = phraseCopieBinome(enCopie.filter((m) => cc.includes(m.email)).map((m) => m.nomComplet));
   // Pas de fermeture (Escape, fond, croix) pendant l'envoi.
   const fermer = () => {
     if (!envoiEnCours) onFermer();
@@ -183,12 +185,8 @@ function ModaleComposition({
             <LigneDest label="À" valeurs={a} onChange={onA} />
             <LigneDest label="Cc" valeurs={cc} onChange={onCc} />
           </div>
-          {/* Dit pourquoi une adresse est deja en copie (REA-343) : tant qu'elle y est. */}
-          {assistante && cc.includes(assistante.email) && (
-            <p className="text-meta text-ink-2">
-              {assistante.nomComplet}, assistante de la copro, est en copie. Retirez-la si besoin.
-            </p>
-          )}
+          {/* Dit pourquoi une adresse est deja en copie (REA-343, 28/10/2026) : tant qu'elle y est. */}
+          {phraseEnCopie && <p className="text-meta text-ink-2">{phraseEnCopie}</p>}
 
           <Field label="Objet" htmlFor="mail-cs-objet">
             <Input id="mail-cs-objet" value={sujet} onChange={(e) => onSujet(e.target.value)} />
