@@ -62,6 +62,7 @@ import { ReponseEnvoyee } from "./reponse-envoyee";
 import { HistoriqueMail } from "./historique-mail";
 import { TexteAvecLiens } from "@/components/mes-emails/texte-avec-liens";
 import { PasPourMoi } from "./pas-pour-moi";
+import { EnvoyerEnComptabilite } from "./envoyer-comptabilite";
 import { ImagesMail } from "./images-mail";
 import { useAlerteSortie } from "./alerte-sortie";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
@@ -230,7 +231,7 @@ export function MesEmailsVue({
     setRepondus((p) => add(p, id));
     setReponsesSession((p) => new Map(p).set(id, r));
   };
-  // Mails partis ailleurs (« Pas pour moi ») : retirés de la liste sans attendre le rechargement.
+  // Mails partis ailleurs (« Pas pour moi », « Comptabilité ») : retirés de la liste sans attendre le rechargement.
   // Copro choisie gérée par un autre binôme : l'envoi lui est proposé (REA-327).
   const [envoisProposes, setEnvoisProposes] = useState<Map<string, { reference: string; dossier: string }>>(new Map());
   const [partis, setPartis] = useState<Set<string>>(new Set());
@@ -1854,7 +1855,7 @@ function AnalysePane({
   onToggleSection: (cle: string) => void;
   /** Boîte perso : on range dans un dossier Outlook. Boîte partagée : non (le tri l'a fait). */
   classementOutlook: boolean;
-  /** Le mail a quitté la personne (rendu au tri, envoyé à un autre binôme). */
+  /** Le mail a quitté la personne (envoyé à un autre binôme, en Comptabilité). */
   onParti?: () => void;
   /** « Marquer traité » (boîte partagée) : le mail sort de « À traiter » pour le binôme, sans bouger dans Outlook. */
   onConclure: () => void;
@@ -2259,6 +2260,11 @@ function AnalysePane({
           <>
             {/* Boîte partagée : « ce n'est pas pour moi » (REA-327), ou « Marquer traité ». */}
             {onParti ? <PasPourMoi key={m.id} emailId={m.id} boite={boiteDuMail} onParti={onParti} /> : null}
+            {/* « Comptabilité » (28/10/2026) : pour le binôme. Une boîte regroupée sous un onglet
+                commun est le dossier Comptabilité vu par un comptable : le mail y est déjà. */}
+            {onParti && !boites.find((b) => b.id === boiteDuMail)?.onglet ? (
+              <EnvoyerEnComptabilite key={`compta-${m.id}`} emailId={m.id} boite={boiteDuMail} onParti={onParti} />
+            ) : null}
             <Button variant="primary" size="lg" onClick={onConclure}>
               <CircleCheck strokeWidth={1.75} />
               Marquer traité
