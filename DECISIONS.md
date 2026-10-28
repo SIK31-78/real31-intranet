@@ -2113,6 +2113,14 @@ Mesure (rangements automatiques, avant → après, mails rangés dans une copro 
 
 Le rangement de S220 en S277 (« fermer de 12h30 »), pas encore annulé dans le journal extrait, est compté faux avant. Les faux restants existaient avant (code dans l'objet d'une notification mise à la corbeille, objet recopié d'un autre fil, mail rangé dans un dossier sans copro). Perdus : 3 rangements justes de syndic4 dont la seule piste était une adresse à une lettre près dans un PDF (« Marcel SAMBAT », S210), et le PDF « 3 PL MICHELET » de S158, qui n'est plus rangé seul. Le dossier commun apporte 19 rangements justes sur syndic4 et 2 sur syndic2 ; les adresses sans ville, 7 suggestions, toutes justes.
 
+### Révision du 28/10/2026 : « Comptabilité » depuis « E-mails »
+
+Demande de Sekou du 28/10/2026 : un mail d'une boîte triée rangé chez un binôme doit pouvoir partir en un clic vers la Comptabilité.
+
+- **Le geste.** Dans « E-mails », à côté de « Pas pour moi », un bouton « Comptabilité » (sans menu) sur un mail de boîte partagée. Il n'apparaît pas dans l'onglet commun des comptables (le mail y est déjà). Action `envoyerEnComptabiliteAction` (`app/mes-emails/actions-comptabilite.ts`), même garde que « Pas pour moi » (`boitePartageeDe`, mise en commun dans `gardes-boites.ts`). Service `envoyerEnComptabilite` (`services/tri-emails/reaffecter.ts`) : même mécanique que « Pas pour moi » (rangement en cours annulé, puis `rangerMail` vers `comptabilite` de la MÊME boîte), donc même journal (en_cours puis fait), même simulation tant que l'écriture est fermée, annulable depuis le tri comme tout rangement. Toute boîte triée, rien en dur. Refusé si le mail n'est pas dans un dossier de binôme (déjà en Comptabilité, Divers).
+- **Ce qui change.** Une ligne « Comptabilité » peut désormais porter une copro : celle que le mail avait chez le binôme est gardée au journal (`coproReference`, `copros`) et en catégorie Outlook (`DemandeRangement.coproConnue`). Un rangement en Comptabilité fait depuis le tri reste sans copro. La distribution ne change pas (elle suit la clé de dossier) : le mail quitte le binôme et arrive chez les comptables.
+- **Pas d'« Annuler » dans « E-mails »** : une fois parti, le mail n'est plus distribué au binôme (même règle que « Pas pour moi ») ; l'annulation se fait dans le tri.
+
 ### Liens
 
 ADR-001 (hexagonal), ADR-027 (Graph app-only + Access Policy), ADR-041 (délégations : le remplaçant favorise le dossier du titulaire), `docs/etude-mail-central.md`, maquette https://claude.ai/artifact/93Z4r2TGnimwebjkCud9nr.
