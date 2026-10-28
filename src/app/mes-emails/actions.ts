@@ -22,7 +22,7 @@ import {
   marquerLuDansOutlook,
   type Cible,
 } from "@/lib/services/mes-emails/maj-etat";
-import { envoiMailPour } from "@/lib/domain/mail-gate";
+import { boiteTri, envoiMailPour } from "@/lib/domain/mail-gate";
 import { conversationsDistribuees, mailDistribue } from "@/lib/services/mes-emails/boites-visibles";
 import { boiteCible, boiteDuMail, boitesDe, natureBoite } from "./gardes-boites";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
@@ -328,12 +328,19 @@ async function boitePartageeDe(g: Gestionnaire, boite: string | undefined, email
   return estSuperAdmin(g.email) || (await mailDistribue(g, b.id, emailId)) ? b.id : null;
 }
 
-/** Les copros de la boîte triée de mon agence (pas le seul portefeuille). */
-export async function coprosPourReaffecterAction(): Promise<Res<CoproDestination[]>> {
+/**
+ * Les copros de la boîte triée du mail (pas le seul portefeuille) : celle demandée si elle est
+ * une boîte partagée que je vois (un comptable voit syndic2 et syndic4, 28/10/2026), sinon la
+ * boîte triée de mon agence.
+ */
+export async function coprosPourReaffecterAction(boite?: string): Promise<Res<CoproDestination[]>> {
+  if (!zBoite.safeParse(boite).success) return echec("Données invalides.");
   const g = await getGestionnaireCourant();
   if (!g) return echec("Non connecté.");
   try {
-    return { ok: true, donnees: await coprosPourReaffecter(await boiteDe(g)) };
+    const demandee = (boite ?? "").trim().toLowerCase();
+    const visible = demandee ? (await boitesDe(g)).find((b) => b.id === demandee && !b.personnelle) : undefined;
+    return { ok: true, donnees: await coprosPourReaffecter(visible ? boiteTri(visible.id) : await boiteDe(g)) };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
   }
