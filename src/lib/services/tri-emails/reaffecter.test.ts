@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { AUCUN_BINOME, type EntreeJournalTri } from "@/lib/domain/tri-emails";
 import type { DepsRangement } from "./ranger";
-import { coprosPourReaffecter, envoyerABonneCopro } from "./reaffecter";
+import { coprosPourReaffecter, envoyerABonneCopro, envoyerEnComptabilite } from "./reaffecter";
 
 const BOITE = "syndic4@real31.fr";
 
@@ -84,6 +84,64 @@ describe("« Pas pour moi » : un mail rangé chez le mauvais binôme", () => {
     const { d, repo } = deps([entree()]);
     await expect(envoyerABonneCopro(BOITE, "<m1@x>", "S0999", "mp", d)).rejects.toThrow(/pas dans ESTALE/);
     expect(repo.marquerAnnule).not.toHaveBeenCalled();
+  });
+});
+
+describe("« Comptabilité » : un mail du binôme part dans le dossier Comptabilité de la même boîte", () => {
+  it("annule le rangement chez le binôme puis range en Comptabilité, copro et étiquette gardées", async () => {
+    const { d, repo, rangement } = deps([entree()]);
+    const r = await envoyerEnComptabilite(BOITE, "<m1@x>", "mylene.pin@real31.fr", d);
+    expect(repo.marquerAnnule).toHaveBeenCalledWith("j1", "mylene.pin@real31.fr");
+    expect(repo.journaliser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        boite: BOITE,
+        dossierCle: "comptabilite",
+        dossierNom: "Comptabilité",
+        coproReference: "S0178",
+        copros: ["S0178"],
+        par: "mylene.pin@real31.fr",
+      }),
+    );
+    expect(rangement.etiqueter).toHaveBeenCalledWith(BOITE, "g2", { ajouter: ["S0178"] });
+    expect(r.dossierNom).toBe("Comptabilité");
+  });
+
+  it("copro inconnue : rangé en Comptabilité sans copro ni étiquette", async () => {
+    const { d, repo, rangement } = deps([entree({ coproReference: null, copros: [] })]);
+    await envoyerEnComptabilite(BOITE, "<m1@x>", "mp", d);
+    expect(repo.journaliser).toHaveBeenCalledWith(expect.objectContaining({ dossierCle: "comptabilite", coproReference: null, copros: [] }));
+    expect(rangement.etiqueter).not.toHaveBeenCalled();
+  });
+
+  it("toute boîte triée : la boîte du mail, pas une boîte en dur", async () => {
+    const SYNDIC2 = "syndic2@real31.fr";
+    const { d, repo } = deps([entree({ boite: SYNDIC2 })]);
+    await envoyerEnComptabilite(SYNDIC2, "<m1@x>", "mp", { ...d, boite: SYNDIC2 });
+    expect(repo.journaliser).toHaveBeenCalledWith(expect.objectContaining({ boite: SYNDIC2, dossierCle: "comptabilite" }));
+  });
+
+  it("déjà en Comptabilité, ou hors dossier de binôme : refusé sans toucher au mail", async () => {
+    const dejaCompta = deps([entree({ dossierCle: "comptabilite", dossierNom: "Comptabilité" })]);
+    await expect(envoyerEnComptabilite(BOITE, "<m1@x>", "mp", dejaCompta.d)).rejects.toThrow(/déjà en Comptabilité/);
+    expect(dejaCompta.repo.marquerAnnule).not.toHaveBeenCalled();
+    const divers = deps([entree({ dossierCle: "divers", dossierNom: "Divers" })]);
+    await expect(envoyerEnComptabilite(BOITE, "<m1@x>", "mp", divers.d)).rejects.toThrow(/chez un binôme/);
+    expect(divers.repo.marquerAnnule).not.toHaveBeenCalled();
+  });
+
+  it("un mail jamais rangé, ou d'une autre boîte, est refusé", async () => {
+    const { d, repo } = deps([]);
+    await expect(envoyerEnComptabilite(BOITE, "<m1@x>", "mp", d)).rejects.toThrow(/pas été rangé/);
+    await expect(envoyerEnComptabilite("syndic2@real31.fr", "<m1@x>", "mp", d)).rejects.toThrow(/pas dans la boîte triée/);
+    expect(repo.marquerAnnule).not.toHaveBeenCalled();
+  });
+
+  it("en réel : le mail revenu en réception est retrouvé par son nouvel id avant d'être déplacé", async () => {
+    const { d, rangement } = deps([entree({ simulation: false })]);
+    rangement.localiser.mockResolvedValue({ messageId: "g-reception", enReception: true } as never);
+    const reel = { ...d, simulation: false };
+    await envoyerEnComptabilite(BOITE, "<m1@x>", "mp", reel);
+    expect(rangement.deplacer).toHaveBeenCalledWith(BOITE, "g-reception", "f-mac");
   });
 });
 

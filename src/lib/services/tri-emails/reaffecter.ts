@@ -4,11 +4,20 @@
 // passe par le journal du tri : c'est lui qui distribue les mails aux binômes
 // (boites-visibles), et il garde qui a fait quoi. Le retour pur et simple au tri
 // (rendreAuTri) n'avait aucun appelant hors de son test : retiré le 27/10/2026.
+// « Comptabilité » (28/10/2026) : même geste, vers le dossier Comptabilité de la même boîte.
 
 import type { EntreeJournalTri } from "@/lib/domain/tri-emails";
 import { boiteTri, type BoiteTriConfig } from "@/lib/domain/mail-gate";
 import type { CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
-import { annulerRangement, depsParDefaut, rangerMail, resoudreDossier, type DepsRangement, type ResultatRangement } from "./ranger";
+import {
+  annulerRangement,
+  depsParDefaut,
+  rangerMail,
+  resoudreDossier,
+  type DemandeRangement,
+  type DepsRangement,
+  type ResultatRangement,
+} from "./ranger";
 
 /** Même fenêtre que la distribution aux binômes. */
 const FENETRE_JOURS = 45;
@@ -40,18 +49,51 @@ export async function envoyerABonneCopro(
   if (cible.cle === e.dossierCle && e.coproReference === cible.copro) {
     throw new Error(`Ce mail est déjà rangé pour ${cible.copro}.`);
   }
+  return reranger(e, { cible: { type: "copro", reference: cible.copro ?? reference } }, par, deps);
+}
+
+/**
+ * « Comptabilité » (28/10/2026) : un mail rangé chez un binôme part dans le dossier
+ * Comptabilité de la MÊME boîte, en gardant sa copro (journal et étiquette) si elle est
+ * connue. Même mécanique que « Pas pour moi » : le rangement actuel est annulé, puis le mail
+ * est rangé ; journalisé, annulable depuis le tri comme tout rangement.
+ */
+export async function envoyerEnComptabilite(
+  boite: string,
+  internetMessageId: string,
+  par: string,
+  deps: DepsRangement = depsParDefaut(boiteTri(boite)),
+): Promise<ResultatRangement> {
+  const e = await rangementEnCours(boite, internetMessageId, deps);
+  if (e.dossierCle === "comptabilite") throw new Error("Ce mail est déjà en Comptabilité.");
+  if (!e.dossierCle?.startsWith("binome:")) throw new Error("Seul un mail rangé chez un binôme part en Comptabilité d'ici.");
+  return reranger(
+    e,
+    { cible: { type: "comptabilite" }, coproConnue: { reference: e.coproReference, copros: e.copros } },
+    par,
+    deps,
+  );
+}
+
+/** Annule le rangement en cours puis range le mail ailleurs dans la même boîte. */
+async function reranger(
+  e: EntreeJournalTri,
+  vers: Pick<DemandeRangement, "cible" | "coproConnue">,
+  par: string,
+  deps: DepsRangement,
+): Promise<ResultatRangement> {
   await annulerRangement(e.id, par, deps);
   // En réel le mail a changé d'id en revenant en réception ; en simulation il n'a pas bougé.
-  const pos = e.simulation || deps.simulation ? null : await deps.rangement.localiser(boite, internetMessageId);
+  const pos = e.simulation || deps.simulation ? null : await deps.rangement.localiser(e.boite, e.internetMessageId);
   if (!e.simulation && !deps.simulation && !pos) throw new Error("Le mail est introuvable dans la boîte après son retour au tri.");
   return rangerMail(
     {
       messageId: pos?.messageId ?? e.messageId,
-      internetMessageId,
+      internetMessageId: e.internetMessageId,
       expediteur: e.expediteur,
       objet: e.objet,
-      cible: { type: "copro", reference: cible.copro ?? reference },
       suggestion: null,
+      ...vers,
     },
     par,
     deps,

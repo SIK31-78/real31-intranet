@@ -109,6 +109,12 @@ export interface DemandeRangement {
   /** La suggestion affichee au moment du clic (mesure de fiabilite des signaux) ; « pj » si
    *  la copro venait de la lecture des pieces jointes (signalDuRangement). */
   suggestion: { nature: SignalTri; candidats: string[] } | null;
+  /**
+   * Comptabilité / Divers seulement : la copro deja connue du mail, gardee au journal et en
+   * etiquette (un binome envoie en Comptabilite un mail range chez lui, 28/10/2026). Ignore
+   * pour un dossier de binome : la copro vient alors de la cible.
+   */
+  coproConnue?: { reference: string | null; copros: string[] };
 }
 
 export interface ResultatRangement {
@@ -233,7 +239,10 @@ export async function rangerMail(
     throw new Error(DEJA_RANGE);
   }
 
-  const { cle, nom, copro, copros } = await resoudreDossier(d.cible, deps);
+  const dossier = await resoudreDossier(d.cible, deps);
+  const { cle, nom } = dossier;
+  const horsBinome = d.cible.type !== "copro" && d.cible.type !== "dossier";
+  const { copro, copros } = horsBinome && d.coproConnue ? { copro: d.coproConnue.reference, copros: d.coproConnue.copros } : dossier;
 
   const connu = await deps.repo.dossier(boite, cle);
   const { folderId } = await deps.rangement.assurerDossier(boite, { folderIdConnu: connu?.folderId ?? null, nom });
@@ -265,7 +274,7 @@ export async function rangerMail(
     },
     () => deps.rangement.deplacer(boite, d.messageId, folderId),
     // L'etiquette au code copro, pour chercher dans Outlook (increment 3). Pas d'etiquette
-    // pour Comptabilité / Divers : ils n'ont pas de copro.
+    // pour Comptabilité / Divers, sauf copro deja connue du mail (coproConnue).
     async (messageId) => {
       if (copros.length) etiquetee = await etiqueterSansBloquer(deps, boite, messageId, { ajouter: copros });
     },
