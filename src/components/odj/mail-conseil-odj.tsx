@@ -14,7 +14,7 @@ import { ExternalLink, Mail } from "lucide-react";
 import { Button, ButtonAnchor } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 
-type Resultat = { ok: true; webLink?: string; destinataires: number } | { ok: false; erreur: string };
+type Resultat = { ok: true; webLink?: string; destinataires: number; enCopie: string[] } | { ok: false; erreur: string };
 
 export function MailConseilOdj({ onPreparer }: { onPreparer: () => Promise<Resultat> }) {
   const toast = useToast();
@@ -29,7 +29,9 @@ export function MailConseilOdj({ onPreparer }: { onPreparer: () => Promise<Resul
         return;
       }
       const qui = r.destinataires > 1 ? `${r.destinataires} destinataires` : "1 destinataire";
-      toast.ok(`Brouillon créé dans vos Brouillons Outlook (${qui}, ODJ en PDF joint). Relisez-le avant l'envoi.`);
+      // Le binome en copie (28/10/2026) : dit ici, retirable dans Outlook avant l'envoi.
+      const copie = r.enCopie.length ? ` En copie : ${r.enCopie.join(" et ")} (binôme de la copro).` : "";
+      toast.ok(`Brouillon créé dans vos Brouillons Outlook (${qui}, ODJ en PDF joint).${copie} Relisez-le avant l'envoi.`);
       setLien(r.webLink);
     });
   }

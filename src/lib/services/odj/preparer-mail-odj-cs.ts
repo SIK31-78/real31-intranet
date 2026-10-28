@@ -4,6 +4,8 @@
 // envoi direct. Le brouillon porte :
 //   - les destinataires du CS, par la MEME cascade que le mail des dates (ESTALE d'abord,
 //     liste de diffusion de secours ensuite : destinataires-conseil) ;
+//   - en copie, l'autre membre du binome de la copro (28/10/2026, domain/copie-binome),
+//     retirable dans Outlook avant l'envoi ;
 //   - un objet et un corps courts (domain/odj-mail-cs) ;
 //   - l'ODJ rempli en PDF, genere ICI cote serveur (pas de fetch HTTP de la route).
 // Le gestionnaire l'ouvre par le lien Outlook rendu, relit, et envoie lui-meme.
@@ -21,6 +23,7 @@ import "server-only";
 import { getMailOutboundProvider } from "@/lib/adapters/router";
 import { mailOdjAuConseil } from "@/lib/domain/odj-mail-cs";
 import { destinatairesConseilSyndical } from "@/lib/services/coproprietes/destinataires-conseil";
+import { binomeEnCopieParCode } from "@/lib/services/coproprietes/assistante-de-copro";
 import { getOdj } from "./get-odj";
 import { pdfOdjRempli } from "./generer-odj-rempli";
 
@@ -32,7 +35,13 @@ export const MESSAGE_LISTE_VIDE =
   "Aucune adresse connue pour le conseil syndical de cette copropriété : complétez la liste de diffusion sur la fiche copro, puis recommencez.";
 
 export type ResultatMailOdjCs =
-  | { ok: true; webLink?: string; destinataires: number }
+  | {
+      ok: true;
+      webLink?: string;
+      destinataires: number;
+      /** Le binome mis en copie du brouillon (noms), pour le dire ; vide si personne. */
+      enCopie: string[];
+    }
   | { ok: false; erreur: string };
 
 export async function preparerMailOdjAuConseil(params: {
@@ -57,12 +66,15 @@ export async function preparerMailOdjAuConseil(params: {
   }
 
   const { sujet, corps } = mailOdjAuConseil(odj);
+  // La boite du brouillon est celle de la personne connectee : c'est elle, l'envoyeur.
+  const copie = await binomeEnCopieParCode(odj.copro.code, boite, emails);
   const { webLink } = await getMailOutboundProvider().creerBrouillonNeuf({
     boite,
     sujet,
     corps,
     a: emails,
+    ...(copie.length ? { cc: copie.map((m) => m.email) } : {}),
     piecesJointes: [{ nom: pdf.nomFichier, contentType: "application/pdf", base64: pdf.contenu.toString("base64") }],
   });
-  return { ok: true, destinataires: emails.length, ...(webLink ? { webLink } : {}) };
+  return { ok: true, destinataires: emails.length, enCopie: copie.map((m) => m.nomComplet), ...(webLink ? { webLink } : {}) };
 }
