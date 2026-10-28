@@ -2294,3 +2294,23 @@ Les collaborateurs écrivent leurs mails vite : fautes, phrases mal construites,
 - Les brouillons de réponse générés, l'aide à partir du mail reçu ou d'ESTALE : à décider après quelques semaines de reformulation.
 - Un écran de suivi du budget : la requête est en fin du fichier SQL.
 - Le SDK reste en 0.69 : `output_config`, `between_tools` et `fallbacks` sont envoyés hors des types du SDK. Une montée de version les typerait.
+
+---
+
+## ADR-052 - Envois au conseil syndical : l'autre membre du binôme en copie
+
+**Date** : 2026-10-28 · **Statut** : accepté (décision Sekou du 28/10/2026, retour des gestionnaires) · Complète ADR-046 (binômes), ADR-047 (compositeur), ADR-048 (mail CS des contrats).
+
+### Contexte
+« Avant, sur Crypto, ceux en binôme, quand il y avait un envoi au CS, le deuxième du binôme était en copie. » L'intranet avait perdu ce réflexe : le mail des dates mettait l'assistante en copie même quand c'était elle qui envoyait, le mail CS des contrats mettait gestionnaire et assistant (l'auteur compris), le compositeur et l'ODJ personne.
+
+### Décision
+1. **Périmètre** : tout envoi au conseil syndical **fait par une personne** : bouton « Conseil syndical » du compositeur E-mails, mail des dates de réunion (fiche copro), brouillon du mail au CS de l'ODJ, mail CS des contrats. **Exclu** : le rappel automatique `api/cron/rappel-comptes-cs` (envoi machine, personne à doubler).
+2. **Règle unique, pure** (`domain/copie-binome.ts`, `copieBinomeConseil`) : binôme = gestionnaire + assistante de la copro ; copie = **l'autre membre que la personne connectée** (gestionnaire → assistante, assistante → gestionnaire). Une personne qui n'est ni l'un ni l'autre (remplaçant, admin) : **les deux**, retirables. Rien si le binôme est incomplet (pas d'assistante connue), ni pour soi-même, ni pour une adresse déjà en « À » ou « Cc ».
+3. **Résolution** : `binomeEnCopie` / `binomeEnCopieParCode` (`services/coproprietes/assistante-de-copro.ts`) réutilisent `gestionnaireDeCopro` (managerId → User) et `assistanteDeCopro` (binôme de l'intranet d'abord : affectation, fiche, principal ; équipe de la fiche ensuite). Adresses pro de la table User. Best-effort : une lecture ratée = pas de copie, jamais un envoi bloqué.
+4. **Affichage : Cc visible et retirable**, jamais forcé ni en Cci. Dates de réunion et contrats : pré-rempli dans le Cc de la modale ; ODJ : Cc du brouillon Outlook (retirable dans Outlook), le message de confirmation le nomme ; compositeur : ajouté au clic sur « Conseil syndical », avec une ligne qui le dit, et **retiré de lui-même quand plus aucun membre du CS ajouté n'est en « À »** (une copie de binôme sans CS n'a plus de raison d'être).
+5. **L'envoyeur vient de la session**, jamais du client. En incarnation (« Changer de gestionnaire »), c'est le gestionnaire incarné qui envoie : la règle s'applique à lui.
+
+### Conséquences
+- Mail CS des contrats : l'auteur n'est plus en copie de son propre mail (il l'a dans ses éléments envoyés) ; l'avertissement « personne du cabinet en copie » disparaît (une copro sans assistante n'a légitimement personne).
+- Recap d'AG au comptable : inchangé (ce n'est pas un envoi au CS ; gestionnaire et assistante y restent en copie, REA-348).
