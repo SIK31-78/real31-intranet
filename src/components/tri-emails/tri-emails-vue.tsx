@@ -35,7 +35,10 @@ import {
   rangerMailAction,
   retirerAssistantAction,
   supprimerMailAction,
+  basculerMailAction,
 } from "@/app/tri-emails/actions";
+import type { DestinationBascule } from "@/lib/services/tri-emails/basculer";
+import { estBascule } from "@/lib/domain/bascule-boites";
 import { Badge, type BadgeTon } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -102,7 +105,17 @@ const normaliser = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toL
 type Dernier = { journalId: string; dossierNom: string; objet: string; mailId: string; simulation: boolean };
 
 // binomesModifiables : l'onglet Binômes (qui reçoit quoi) reste au super-admin, l'agence trie.
-export function TriEmailsVue({ file, binomesModifiables }: { file: FileATrier; binomesModifiables: boolean }) {
+// bascules : les autres boîtes triées où envoyer un mail qui n'est pas pour cette agence
+// (ADR-050) ; vide tant que l'écriture n'est pas ouverte des deux côtés.
+export function TriEmailsVue({
+  file,
+  binomesModifiables,
+  bascules = [],
+}: {
+  file: FileATrier;
+  binomesModifiables: boolean;
+  bascules?: DestinationBascule[];
+}) {
   const [onglet, setOnglet] = useState<"file" | "journal" | "binomes">("file");
   // Mails ranges depuis l'affichage : masques tout de suite, sans attendre le rechargement.
   const [masques, setMasques] = useState<Set<string>>(new Set());
@@ -177,6 +190,26 @@ export function TriEmailsVue({ file, binomesModifiables }: { file: FileATrier; b
     });
   }
 
+  // Bascule vers une autre boîte (ADR-050) : le mail y est recopié à l'identique, l'original
+  // part aux éléments supprimés d'ici. Pas d'« Annuler » : on le renvoie depuis l'autre boîte.
+  function basculer(mail: MailDeLaFile, cible: string) {
+    demarrer(async () => {
+      const r = await basculerMailAction({ boite: file.boite, internetMessageId: mail.internetMessageId, cible });
+      if (!r.ok) {
+        toast.err(r.erreur);
+        return;
+      }
+      setMasques((m) => new Set(m).add(mail.id));
+      setDernier(null);
+      toast.ok(
+        r.donnees?.dejaPresent
+          ? `Le mail était déjà dans ${cible} : il a été retiré d'ici.`
+          : `Mail envoyé dans la boîte ${cible} : son tri le rangera.`,
+      );
+      router.refresh();
+    });
+  }
+
   function annuler(journalId: string, mailId?: string) {
     demarrer(async () => {
       const r = await annulerRangementAction({ boite: file.boite, journalId });
@@ -237,7 +270,16 @@ export function TriEmailsVue({ file, binomesModifiables }: { file: FileATrier; b
         </TabList>
         {onglet === "file" && (
           <TabPanel id="tri-p-file" tabId="tri-t-file">
-            <FileVue copros={file.copros} dossiers={file.dossiers} mails={mails} enCours={enCours} ranger={ranger} supprimer={supprimer} />
+            <FileVue
+              copros={file.copros}
+              dossiers={file.dossiers}
+              mails={mails}
+              enCours={enCours}
+              ranger={ranger}
+              supprimer={supprimer}
+              bascules={bascules}
+              basculer={basculer}
+            />
           </TabPanel>
         )}
         {onglet === "journal" && (
@@ -262,6 +304,8 @@ function FileVue({
   enCours,
   ranger,
   supprimer,
+  bascules,
+  basculer,
 }: {
   copros: CoproDeLaFile[];
   dossiers: DossierChoisissable[];
@@ -269,6 +313,8 @@ function FileVue({
   enCours: boolean;
   ranger: (mail: MailDeLaFile, cible: CibleTri) => void;
   supprimer: (mail: MailDeLaFile) => void;
+  bascules: DestinationBascule[];
+  basculer: (mail: MailDeLaFile, cible: string) => void;
 }) {
   const [courantId, setCourantId] = useState<string | null>(mails[0]?.id ?? null);
   const [filtre, setFiltre] = useState("");
@@ -364,6 +410,8 @@ function FileVue({
           enCours={enCours}
           ranger={(cible) => ranger(courant, cible)}
           supprimer={() => supprimer(courant)}
+          bascules={bascules}
+          basculer={(cible) => basculer(courant, cible)}
         />
       ) : (
         <EmptyState>Sélectionnez un mail dans la file.</EmptyState>
@@ -382,6 +430,8 @@ function DetailMail({
   enCours,
   ranger,
   supprimer,
+  bascules,
+  basculer,
 }: {
   mail: MailDeLaFile;
   copros: CoproDeLaFile[];
@@ -392,6 +442,8 @@ function DetailMail({
   enCours: boolean;
   ranger: (cible: CibleTri) => void;
   supprimer: () => void;
+  bascules: DestinationBascule[];
+  basculer: (cible: string) => void;
 }) {
   const boite = useBoiteTri();
   const [recherche, setRecherche] = useState("");
@@ -674,6 +726,23 @@ function DetailMail({
           enCours={enCours}
           ranger={ranger}
         />
+        {bascules.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3 text-meta text-ink-2">
+            <span>Pas pour cette agence ?</span>
+            {bascules.map((b) => (
+              <Button
+                key={b.boite}
+                size="sm"
+                variant="secondary"
+                disabled={enCours}
+                onClick={() => basculer(b.boite)}
+                title={`Recopie le mail tel quel dans la boîte de réception de ${b.boite} (agences ${b.agences.join(", ")}), où son tri le rangera ; l'original part aux éléments supprimés d'ici.`}
+              >
+                Envoyer à {b.boite.split("@")[0]} ({b.agences.join(", ")})
+              </Button>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );
@@ -1031,9 +1100,12 @@ function JournalVue({
                     </td>
                     <td className="px-3 py-2 text-meta text-ink-2">{e.par === PAR_OUTLOOK ? "Glissé dans Outlook" : e.par === PAR_AUTOMATIQUE ? "Rangé automatiquement" : e.par}</td>
                     <td className="px-3 py-2 text-right">
-                      <Button size="sm" variant="ghost" disabled={enCours} onClick={() => annuler(e.id)}>
-                        Annuler
-                      </Button>
+                      {/* Une bascule (ADR-050) ne s'annule pas d'ici : la copie est dans l'autre boîte. */}
+                      {!estBascule(e) && (
+                        <Button size="sm" variant="ghost" disabled={enCours} onClick={() => annuler(e.id)}>
+                          Annuler
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 );

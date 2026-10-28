@@ -22,6 +22,7 @@ import { listerPiecesJointesTri } from "@/lib/services/tri-emails/pieces-jointes
 import { coproDepuisPiecesJointes, type CoproDepuisPj } from "@/lib/services/tri-emails/copro-pieces-jointes";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
+import { basculerMail, depsBascule, type ResultatBascule } from "@/lib/services/tri-emails/basculer";
 
 const zTexte = (max: number) => z.string().max(max);
 // « pj » : copro proposee par la lecture des pieces jointes (journal du tri, 19/10/2026) ;
@@ -142,6 +143,30 @@ export async function affecterCoproAction(input: unknown): Promise<Res> {
       const config = await gardeTri(g, d.boite);
       await affecterCopro(d.reference, d.binomeId, g.email ?? g.id, config.agences);
       revalidatePath("/tri-emails");
+    },
+  );
+}
+
+// --- Bascule vers une autre boite triee (ADR-050, 28/10/2026) ----------------------------
+
+/**
+ * Le mail n'est pas pour cette agence : il part dans la reception de l'autre boite (recopie a
+ * l'identique, l'original aux elements supprimes), ou le tri de cette boite le rangera. Droit :
+ * celui de trier la boite de DEPART (point a valider, ADR-050) ; la cible doit etre une boite
+ * triee de la config, ecriture ouverte des deux cotes (refus lisible sinon, dans le service).
+ */
+export async function basculerMailAction(input: unknown): Promise<Res<ResultatBascule>> {
+  return actionGestionnaire(
+    z.object({ boite: zBoite, internetMessageId: zMessage, cible: zBoite }),
+    input,
+    "tri-emails-basculer",
+    async (d, g) => {
+      const config = await gardeTri(g, d.boite);
+      const deps = depsBascule(config, d.cible);
+      const r = await basculerMail({ internetMessageId: d.internetMessageId }, g.email ?? g.id, deps);
+      oublierCompteur(config.boite);
+      oublierCompteur(r.boiteCible);
+      return r;
     },
   );
 }

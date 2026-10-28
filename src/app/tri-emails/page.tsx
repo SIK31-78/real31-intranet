@@ -7,6 +7,7 @@ import { boitesTri } from "@/lib/domain/mail-gate";
 import { boiteTriAccessible } from "@/lib/services/tri-emails/acces";
 import { lireFileATrier, type FileATrier } from "@/lib/services/tri-emails/lire-file";
 import { MAX_REPLI } from "@/lib/services/tri-emails/synchroniser-reception";
+import { destinationsDeBascule } from "@/lib/services/tri-emails/basculer";
 import { diagnosticAnnuaire } from "@/lib/services/synchro/surveiller-annuaire";
 import { AppShell } from "@/components/layout/app-shell";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -81,6 +82,8 @@ export default async function TriEmailsPage({ searchParams }: { searchParams: Pr
   if (!config) redirect("/accueil");
   const [file, annuaire] = await Promise.all([lireFileATrier(config), diagnosticAnnuaire()]);
   const autresBoites = droits.superAdmin ? boitesTri().map((b) => b.boite) : [];
+  // Boîtes vers lesquelles un mail peut basculer (ADR-050) : vide tant que l'écriture est coupée.
+  const bascules = destinationsDeBascule(file.boite);
 
   return (
     <AppShell user={g} active="tri-emails" breadcrumb="Tri des e-mails">
@@ -111,7 +114,7 @@ export default async function TriEmailsPage({ searchParams }: { searchParams: Pr
             <code>scripts\sync-annuaire-crypto.cmd</code>, sur le PC qui synchronise l&apos;export Crypto.
           </Callout>
         )}
-        <TriEmailsVue file={file} binomesModifiables={droits.superAdmin} />
+        <TriEmailsVue file={file} binomesModifiables={droits.superAdmin} bascules={bascules} />
       </Page>
     </AppShell>
   );
