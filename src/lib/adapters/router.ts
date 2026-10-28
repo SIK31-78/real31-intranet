@@ -201,6 +201,12 @@ import { MockCoffreRepository } from "@/lib/adapters/mock/mock-coffre-repository
 import { MockCoffreIdentiteRepository } from "@/lib/adapters/mock/mock-coffre-identite-repository";
 import { SupabaseCoffreRepository } from "@/lib/adapters/supabase/supabase-coffre-repository";
 import { SupabaseCoffreIdentiteRepository } from "@/lib/adapters/supabase/supabase-coffre-identite-repository";
+import type { ReformulationProvider } from "@/lib/ports/reformulation-provider";
+import type { IaUsageRepository } from "@/lib/ports/ia-usage-repository";
+import { AnthropicReformulationProvider } from "@/lib/adapters/ia/anthropic-reformulation";
+import { MockReformulationProvider } from "@/lib/adapters/mock/mock-reformulation";
+import { SupabaseIaUsageRepository } from "@/lib/adapters/supabase/supabase-ia-usage-repository";
+import { MemoireIaUsageRepository } from "@/lib/adapters/mock/memoire-ia-usage-repository";
 
 export type { DbHealth };
 
@@ -728,6 +734,30 @@ export function getAnnonceRepository(): AnnonceRepository {
 export function getModeleMailRepository(): ModeleMailRepository {
   if (coproSourceEstSupabase()) return new SupabaseModeleMailRepository();
   return new MockModeleMailRepository();
+}
+
+// Reformulation d'un mail par l'IA (ADR-051, 28/10/2026). Interrupteur IA_REFORMULATION :
+// « on » + ANTHROPIC_API_KEY -> Anthropic ; « mock » hors production -> démonstration sans
+// réseau ; absent, « off » ou clé manquante -> null, et le bouton n'apparaît pas. Défaut COUPÉ :
+// il faut poser IA_REFORMULATION=on dans Vercel pour l'ouvrir, et le retirer le coupe sans
+// redéploiement de code.
+export function getReformulationProvider(): ReformulationProvider | null {
+  const mode = (process.env.IA_REFORMULATION ?? "").trim().toLowerCase();
+  if (mode === "on") {
+    const cle = process.env.ANTHROPIC_API_KEY?.trim();
+    return cle ? new AnthropicReformulationProvider(cle) : null;
+  }
+  if (mode === "mock" && process.env.NODE_ENV !== "production") return new MockReformulationProvider();
+  return null;
+}
+
+// Journal d'usage de l'IA (table native intranet_ia_usage) : Supabase en réel, mémoire sinon
+// (une instance par processus, pour que le plafond quotidien se voie en dev).
+let usageIaMemoire: MemoireIaUsageRepository | null = null;
+export function getIaUsageRepository(): IaUsageRepository {
+  if (coproSourceEstSupabase()) return new SupabaseIaUsageRepository();
+  usageIaMemoire ??= new MemoireIaUsageRepository();
+  return usageIaMemoire;
 }
 
 // Health check BDD (lecture cabinet_settings via service_role).

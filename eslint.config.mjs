@@ -64,6 +64,7 @@ const eslintConfig = defineConfig([
         { type: "adapter-signitic",    pattern: "src/lib/adapters/signitic/**" },
         { type: "adapter-docx",        pattern: "src/lib/adapters/docx/**" },
         { type: "adapter-linear",      pattern: "src/lib/adapters/linear/**" },
+        { type: "adapter-ia",          pattern: "src/lib/adapters/ia/**" },
         { type: "router",              pattern: "src/lib/adapters/router*.ts" },
         { type: "services",            pattern: "src/lib/services/**" },
         { type: "jobs",                pattern: "src/lib/jobs/**" },
@@ -106,9 +107,10 @@ const eslintConfig = defineConfig([
           { from: "adapter-signitic",   allow: ["domain", "ports"] },
           { from: "adapter-docx",       allow: ["domain", "ports"] },
           { from: "adapter-linear",     allow: ["domain", "ports"] },
+          { from: "adapter-ia",         allow: ["domain", "ports"] },
 
           // Router : seul endroit qui connaît tous les adapters
-          { from: "router",             allow: ["domain", "ports", "adapter-sharepoint", "adapter-estale", "adapter-supabase", "adapter-composite", "adapter-mock", "adapter-fichier", "adapter-mistral", "adapter-mail", "adapter-signitic", "adapter-docx", "adapter-linear"] },
+          { from: "router",             allow: ["domain", "ports", "adapter-sharepoint", "adapter-estale", "adapter-supabase", "adapter-composite", "adapter-mock", "adapter-fichier", "adapter-mistral", "adapter-mail", "adapter-signitic", "adapter-docx", "adapter-linear", "adapter-ia"] },
 
           // Audit, auth : helpers transverses qui parlent au domaine via ports
           { from: "audit",              allow: ["domain", "ports"] },
@@ -168,6 +170,11 @@ const eslintConfig = defineConfig([
           {
             from: ["domain", "ports", "services", "audit", "auth", "app", "jobs", "router", "adapter-estale", "adapter-sharepoint", "adapter-supabase", "adapter-composite", "adapter-mock"],
             disallow: ["docx", "docxtemplater", "pizzip"],
+          },
+          // SDK Anthropic (reformulation, ADR-051) : uniquement dans adapter-ia.
+          {
+            from: ["domain", "ports", "services", "audit", "auth", "app", "jobs", "router", "adapter-estale", "adapter-sharepoint", "adapter-supabase", "adapter-composite", "adapter-mock", "adapter-mail", "adapter-signitic", "adapter-docx", "adapter-linear", "ui", "components"],
+            disallow: ["@anthropic-ai/sdk"],
           },
           // Clients GraphQL : uniquement dans adapter-estale
           {
