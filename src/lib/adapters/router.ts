@@ -493,7 +493,7 @@ function referentielTriEstalePartage(): ReferentielTriProvider {
   return new CachePartageReferentielTri(
     new EstaleReferentielTri(),
     // v2 (27/10/2026) : chaque copro porte l'agence de son etablissement ESTALE.
-    (charger) => unstable_cache(charger, ["estale-referentiel-tri-v2"], { revalidate: ttl, tags: ["estale-referentiel-tri"] }),
+    (charger) => unstable_cache(charger, ["estale-referentiel-tri-v3"], { revalidate: ttl, tags: ["estale-referentiel-tri"] }),
   );
 }
 
