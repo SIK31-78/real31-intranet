@@ -1398,6 +1398,9 @@ export function pisteRangeable(s: Suggestion): boolean {
  *   - la copro est dans le referentiel, active (deja plafonnee a « faible » par
  *     suggererCopro : on reverifie) et son dossier de binome est connu (gestionnaire au
  *     mandat et initiales).
+ * Plusieurs candidates qui menent TOUTES au meme dossier de binome (28/10/2026) : le mail y
+ * est range, avec l'etiquette de chacune (`dossier`), sans choisir la copro. Toutes actives,
+ * au dossier connu, par la meme resolution que le rangement (destinationDe, binomes reels).
  * Pure : le service fournit le referentiel et le journal.
  */
 export function rangeableAutomatiquement(
@@ -1411,18 +1414,49 @@ export function rangeableAutomatiquement(
     initialesParEmail: Record<string, string>;
     binomes?: BinomesTri;
   },
-): { ok: true; reference: string } | { ok: false; motif: RefusAutomatique } {
+): DecisionAutomatique {
   if (!ctx.automatique) return { ok: false, motif: "automatique-coupe" };
   if (mail.corbeille) return { ok: false, motif: "corbeille" };
   if (mail.interne) return { ok: false, motif: "interne" };
   const s = mail.suggestion;
-  if (!pisteRangeable(s)) return { ok: false, motif: "pas-sure" };
+  if (!pisteRangeable(s)) {
+    const commun = s.nature === "plusieurs" ? dossierCommun(s.candidats, ctx) : null;
+    if (!commun) return { ok: false, motif: "pas-sure" };
+    if (ctx.dejaPasse) return { ok: false, motif: "deja-passe" };
+    return { ok: true, dossier: commun };
+  }
   if (ctx.dejaPasse) return { ok: false, motif: "deja-passe" };
   return coproRangeable(s.candidats[0]!, ctx);
 }
 
 type ContexteAutomatique = Parameters<typeof rangeableAutomatiquement>[1];
-type DecisionAutomatique = ReturnType<typeof rangeableAutomatiquement>;
+
+/**
+ * Decision du rangement automatique : une copro (son dossier de binome, son etiquette), ou un
+ * dossier de binome commun a plusieurs candidates (etiquetees toutes les deux).
+ */
+export type DecisionAutomatique =
+  | { ok: true; reference: string }
+  | { ok: true; dossier: { cle: string; copros: string[] } }
+  | { ok: false; motif: RefusAutomatique };
+
+/**
+ * Le dossier de binome commun a ces copros (au moins deux), ou null : une seule inconnue,
+ * inactive ou sans dossier, ou deux dossiers differents, et on laisse choisir.
+ */
+function dossierCommun(references: string[], ctx: ContexteAutomatique): { cle: string; copros: string[] } | null {
+  const refs = [...new Set(references)];
+  if (refs.length < 2) return null;
+  const cles = new Set<string>();
+  for (const r of refs) {
+    const copro = ctx.copros.find((c) => c.reference === r);
+    if (!copro || copro.inactive) return null;
+    const dest = destinationDe(copro, ctx.initialesParEmail, ctx.binomes);
+    if (!dest?.nomDossier) return null;
+    cles.add(dest.cle);
+  }
+  return cles.size === 1 ? { cle: [...cles][0]!, copros: refs } : null;
+}
 
 /** La copro existe, est active et son dossier de binome est connu. */
 function coproRangeable(reference: string, ctx: ContexteAutomatique): DecisionAutomatique {
@@ -1454,7 +1488,9 @@ export function aLirePiecesJointes(
  *   - les PDF du mail, TOUS lus, designent UNE seule copro (`pdf` : leur union) ;
  *   - si le mail lui-meme propose des copros (« plusieurs », fournisseur, code dans le corps),
  *     celle du PDF doit en faire partie : deux indices qui se contredisent, c'est un humain
- *     qui tranche.
+ *     qui tranche ;
+ *   - plusieurs copros dans les PDF (28/10/2026) : rangees ensemble quand elles menent toutes
+ *     au meme dossier de binome (et, si le mail en propose, qu'elles en font toutes partie).
  */
 export function rangeableParPiecesJointes(
   mail: Pick<MailATrier, "corbeille" | "interne"> & { suggestion: Suggestion },
@@ -1467,9 +1503,12 @@ export function rangeableParPiecesJointes(
   if (ctx.dejaPasse) return { ok: false, motif: "deja-passe" };
   if (mail.suggestion.nature === "hors-estale") return { ok: false, motif: "pas-sure" };
   if (pdf.length === 0) return { ok: false, motif: "pj-aucune" };
-  if (pdf.length > 1) return { ok: false, motif: "pj-plusieurs" };
   const candidats = mail.suggestion.candidats;
-  if (candidats.length > 0 && !candidats.includes(pdf[0]!)) return { ok: false, motif: "pj-conflit" };
+  if (candidats.length > 0 && !pdf.every((r) => candidats.includes(r))) return { ok: false, motif: pdf.length > 1 ? "pj-plusieurs" : "pj-conflit" };
+  if (pdf.length > 1) {
+    const commun = dossierCommun(pdf, ctx);
+    return commun ? { ok: true, dossier: commun } : { ok: false, motif: "pj-plusieurs" };
+  }
   return coproRangeable(pdf[0]!, ctx);
 }
 

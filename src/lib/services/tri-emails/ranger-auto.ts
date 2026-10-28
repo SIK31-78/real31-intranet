@@ -7,6 +7,9 @@
 // (aLirePiecesJointes), quelques-uns par passage, ranges seuls quand leurs PDF ne designent
 // qu'UNE copro (rangeableParPiecesJointes), journal « pj ».
 //
+// Depuis le 28/10/2026, plusieurs candidates (du mail ou des PDF) qui menent toutes au meme
+// dossier de binome : le mail y est range, etiquete de chacune (cible « dossier »).
+//
 // Meme geste qu'un clic : rangerMail (dossier du binome, etiquette, journal), avec
 // par = « automatique ». Annulable d'un clic comme un rangement manuel ; un mail annule une
 // fois n'est plus jamais range tout seul (rangeableAutomatiquement : « deja-passe »).
@@ -28,7 +31,9 @@ import {
   rangeableParPiecesJointes,
   signalDuRangement,
   type BinomesTri,
+  type CibleTri,
   type CoproTri,
+  type DecisionAutomatique,
   type RefusAutomatique,
   type SignalTri,
 } from "@/lib/domain/tri-emails";
@@ -103,6 +108,13 @@ function avecDelai<T>(p: Promise<T>, ms: number): Promise<T> {
     minuteur = setTimeout(() => rejeter(new DelaiDepasse(`lecture des PDF au-delà de ${ms} ms`)), ms);
   });
   return Promise.race([p, delai]).finally(() => clearTimeout(minuteur));
+}
+
+/** Ou ranger le mail d'apres la decision : une copro, ou le dossier commun a plusieurs. */
+function cibleDe(decision: DecisionAutomatique): CibleTri | null {
+  if (!decision.ok) return null;
+  if ("dossier" in decision) return { type: "dossier", cle: decision.dossier.cle, copros: decision.dossier.copros };
+  return { type: "copro", reference: decision.reference };
 }
 
 export interface OptionsAutomatique {
@@ -206,7 +218,7 @@ export async function rangerAutomatiquement(
   };
 
   // Les plus anciens d'abord : un report ne retarde que les derniers arrives.
-  const aRanger: { m: RawMail; reference: string; signal: { nature: SignalTri; candidats: string[] } }[] = [];
+  const aRanger: { m: RawMail; cible: CibleTri; signal: { nature: SignalTri; candidats: string[] } }[] = [];
   const aLirePj: { m: RawMail; mail: MailDeLaFile }[] = [];
   // On est passe au-dela du coupe-circuit : l'automatique est ouvert pour cette boite.
   const ctx = { automatique: true, dejaPasse: false, copros: ref.copros, initialesParEmail, binomes };
@@ -216,14 +228,15 @@ export async function rangerAutomatiquement(
     const dejaPasse = dejaPasses.has(m.internetMessageId);
     const decision = rangeableAutomatiquement(mail, { ...ctx, dejaPasse });
     // Le journal garde le signal reel (« sure » ou « faible ») : c'est lui que la revue mesure.
-    if (decision.ok) aRanger.push({ m, reference: decision.reference, signal: signalDuRangement(mail.suggestion, null) });
-    else bilan.refus[decision.motif] = (bilan.refus[decision.motif] ?? 0) + 1;
+    const cible = cibleDe(decision);
+    if (cible) aRanger.push({ m, cible, signal: signalDuRangement(mail.suggestion, null) });
+    else if (!decision.ok) bilan.refus[decision.motif] = (bilan.refus[decision.motif] ?? 0) + 1;
     if (aLirePiecesJointes(mail, decision, dejaPasse)) aLirePj.push({ m, mail });
   }
 
   const max = opts.max ?? MAX_RANGES;
   const budget = opts.budgetMs ?? BUDGET_MS;
-  const ranger = async (m: RawMail, reference: string, signal: { nature: SignalTri; candidats: string[] }): Promise<boolean> => {
+  const ranger = async (m: RawMail, cible: CibleTri, signal: { nature: SignalTri; candidats: string[] }): Promise<boolean> => {
     try {
       await rangerMail(
         {
@@ -231,7 +244,7 @@ export async function rangerAutomatiquement(
           internetMessageId: m.internetMessageId,
           expediteur: m.from,
           objet: m.subject || "(sans objet)",
-          cible: { type: "copro", reference },
+          cible,
           suggestion: signal,
         },
         PAR_AUTOMATIQUE,
@@ -243,18 +256,18 @@ export async function rangerAutomatiquement(
       // Range entre-temps a la main, copro sortie d'ESTALE... : le mail reste dans la file.
       bilan.echecs++;
       console.error(`[tri-emails:auto] ${m.internetMessageId} : ${e instanceof Error ? e.message : String(e)}`);
-      signalerException(e, { source: "cron-tri-emails", detail: { etape: "rangement", reference } });
+      signalerException(e, { source: "cron-tri-emails", detail: { etape: "rangement", cible: JSON.stringify(cible) } });
       return false;
     }
   };
 
   // Un par un : deux mails vers un dossier pas encore cree le creeraient deux fois.
-  for (const { m, reference, signal } of aRanger) {
+  for (const { m, cible, signal } of aRanger) {
     if (bilan.ranges + bilan.echecs >= max || maintenant() - debut > budget) {
       bilan.reportes++;
       continue;
     }
-    await ranger(m, reference, signal);
+    await ranger(m, cible, signal);
   }
 
   // Les PDF ensuite : un telechargement par piece, les pistes du mail passent d'abord. Une
@@ -287,12 +300,14 @@ export async function rangerAutomatiquement(
       continue;
     }
     const decision = rangeableParPiecesJointes(mail, pdf, ctx);
-    if (!decision.ok) {
-      bilan.pj.refus[decision.motif] = (bilan.pj.refus[decision.motif] ?? 0) + 1;
+    const cible = cibleDe(decision);
+    if (!cible) {
+      if (!decision.ok) bilan.pj.refus[decision.motif] = (bilan.pj.refus[decision.motif] ?? 0) + 1;
       retenirSansSuite(memoire, cleMemoire, maintenant());
       continue;
     }
-    if (await ranger(m, decision.reference, { nature: "pj", candidats: [decision.reference] })) bilan.pj.ranges++;
+    const candidats = cible.type === "copro" ? [cible.reference] : cible.type === "dossier" ? cible.copros : [];
+    if (await ranger(m, cible, { nature: "pj", candidats })) bilan.pj.ranges++;
   }
   return bilan;
 }

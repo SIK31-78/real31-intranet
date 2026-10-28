@@ -958,14 +958,15 @@ describe("piste faible par le nom ou l'adresse : rangeable sans clic (26/10/2026
   // Donnees inventees.
   const actives: CoproTri[] = [
     { ...copro("S0247"), nom: "LE CYRANO", adresse: "12 rue des Lilas 78400 Chatou" },
-    { ...copro("S0305"), nom: "LES PRIMEVERES", adresse: "8 rue des Peupliers 78800 Houilles", nomsUsage: ["Résidence les Glycines"] },
+    // Un autre gestionnaire : deux copros de dossiers differents restent a choisir.
+    { ...copro("S0305", "h@real31.fr"), nom: "LES PRIMEVERES", adresse: "8 rue des Peupliers 78800 Houilles", nomsUsage: ["Résidence les Glycines"] },
     { ...copro("S0410"), nom: "LES CEDRES", adresse: "", inactive: true },
   ];
   const ref: ReferentielTri = {
     copros: actives,
     expediteurs: { "ascenseurs@exemple.fr": [{ reference: "S0247", qualite: "fournisseur" }] },
   };
-  const ctx = { automatique: true, dejaPasse: false, copros: actives, initialesParEmail: { "g@real31.fr": "GG" } };
+  const ctx = { automatique: true, dejaPasse: false, copros: actives, initialesParEmail: { "g@real31.fr": "GG", "h@real31.fr": "HH" } };
   const decider = (m: Parameters<typeof mail>[0]) => rangeableAutomatiquement({ suggestion: suggererCopro(mail(m), ref) }, ctx);
 
   it("le nom de l'immeuble seul, sur une copro : faible d'origine « nom-adresse », rangé", () => {
@@ -1008,8 +1009,8 @@ describe("rangeableParPiecesJointes (PDF lus par la tâche planifiée, 26/10/202
   const ctx = {
     automatique: true,
     dejaPasse: false,
-    copros: [copro("S0297"), copro("S0305"), { ...copro("S0410"), inactive: true }],
-    initialesParEmail: { "g@real31.fr": "GG" },
+    copros: [copro("S0297"), copro("S0305", "h@real31.fr"), { ...copro("S0410"), inactive: true }, copro("S0298")],
+    initialesParEmail: { "g@real31.fr": "GG", "h@real31.fr": "HH" },
   };
   const rien = { nature: "aucune" as const, candidats: [], raison: "" };
 
@@ -1219,5 +1220,62 @@ describe("un nom de rue composé n'est plus coupé au trait d'union (28/10/2026)
   it("la rue complète la désigne toujours, et « 4-6 » reste deux numéros", () => {
     expect(trouve("Fuite au 6 rue Jean-Baptiste Hyacinthe Lafolie 92250 La Garenne-Colombes")).toEqual(["S0244"]);
     expect(trouve("Fuite au 4 rue Jean Baptiste Hyacinthe Lafolie 92250 La Garenne-Colombes")).toEqual(["S0244"]);
+  });
+});
+
+describe("candidates qui mènent toutes au même dossier de binôme (28/10/2026)", () => {
+  // Cas réel de syndic4 (anonymisé) : un prestataire cite deux copros de la même gestionnaire.
+  const SOPHIE = "sophie@real31.fr";
+  const copros: CoproTri[] = [
+    copro("S0198", SOPHIE),
+    copro("S0204", SOPHIE),
+    { ...copro("S0206", SOPHIE), assistant: { nomComplet: "Nadia", email: "nadia@real31.fr" } },
+    copro("S0261", "autre@real31.fr"),
+    { ...copro("S0199", SOPHIE), inactive: true },
+  ];
+  const binomes = {
+    binomes: [
+      { id: "b1", gestionnaireEmail: SOPHIE, assistant: { nomComplet: "Clara", email: "clara@real31.fr" }, principal: true },
+      { id: "b2", gestionnaireEmail: SOPHIE, assistant: { nomComplet: "Nadia", email: "nadia@real31.fr" }, principal: false },
+    ],
+    parCopro: {},
+  };
+  const ctx = {
+    automatique: true,
+    dejaPasse: false,
+    copros,
+    initialesParEmail: { [SOPHIE]: "SK", "clara@real31.fr": "CP", "nadia@real31.fr": "NF", "autre@real31.fr": "AU" },
+    binomes,
+  };
+  const plusieurs = (...candidats: string[]) => ({ nature: "plusieurs" as const, candidats, raison: "" });
+
+  it("rangé dans le dossier commun, étiqueté de chaque candidate", () => {
+    expect(rangeableAutomatiquement({ suggestion: plusieurs("S0198", "S0204") }, ctx)).toEqual({
+      ok: true,
+      dossier: { cle: "binome:sophie@real31.fr", copros: ["S0198", "S0204"] },
+    });
+  });
+
+  it("la vraie résolution du binôme : l'assistante de la fiche mène à un autre dossier (SK-NF)", () => {
+    expect(rangeableAutomatiquement({ suggestion: plusieurs("S0198", "S0206") }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
+  });
+
+  it("deux gestionnaires, une candidate inactive ou inconnue : à choisir", () => {
+    expect(rangeableAutomatiquement({ suggestion: plusieurs("S0198", "S0261") }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
+    expect(rangeableAutomatiquement({ suggestion: plusieurs("S0198", "S0199") }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
+    expect(rangeableAutomatiquement({ suggestion: plusieurs("S0198", "S0999") }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
+  });
+
+  it("jamais pour une piste faible, et pas deux fois", () => {
+    expect(rangeableAutomatiquement({ suggestion: { nature: "faible", candidats: ["S0198"], raison: "" } }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
+    expect(rangeableAutomatiquement({ suggestion: plusieurs("S0198", "S0204") }, { ...ctx, dejaPasse: true })).toEqual({ ok: false, motif: "deja-passe" });
+  });
+
+  it("PDF : plusieurs copros du même dossier, rangé ; sinon refus", () => {
+    const rien = { nature: "aucune" as const, candidats: [], raison: "" };
+    expect(rangeableParPiecesJointes({ suggestion: rien }, ["S0198", "S0204"], ctx)).toEqual({ ok: true, dossier: { cle: "binome:sophie@real31.fr", copros: ["S0198", "S0204"] } });
+    expect(rangeableParPiecesJointes({ suggestion: rien }, ["S0198", "S0261"], ctx)).toEqual({ ok: false, motif: "pj-plusieurs" });
+    // Le mail propose d'autres copros que celles des PDF : un humain tranche.
+    expect(rangeableParPiecesJointes({ suggestion: plusieurs("S0198", "S0261") }, ["S0198", "S0204"], ctx)).toEqual({ ok: false, motif: "pj-plusieurs" });
   });
 });

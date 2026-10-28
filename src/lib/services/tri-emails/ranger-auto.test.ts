@@ -20,12 +20,16 @@ const copro = (reference: string, o: Partial<CoproTri> = {}): CoproTri => ({
   ...o,
 });
 
+// Un second gestionnaire : deux copros de dossiers differents ne se rangent pas seules.
+const HUGO = { nomComplet: "Hugo Gestion", email: "hugo.gestion@real31.fr" };
+
 const REF: ReferentielTri = {
   copros: [
     copro("S0297"),
-    copro("S0305"),
+    copro("S0305", { gestionnaire: HUGO }),
     copro("S0410", { inactive: true }),
-    copro("S0520", { nom: "LE BELVEDERE", adresse: "4 allée des Tilleuls 78800 Houilles" }),
+    copro("S0520", { nom: "LE BELVEDERE", adresse: "4 allée des Tilleuls 78800 Houilles", gestionnaire: HUGO }),
+    copro("S0298"),
   ],
   expediteurs: { "proprio@exemple.fr": [{ reference: "S0297", qualite: "copropriétaire" }] },
 };
@@ -176,7 +180,7 @@ function monter(mails: RawMail[], o: { boite?: string; simulation?: boolean } = 
     rangement: boite.rangement,
     referentiel: { charger },
     repo,
-    initialesParEmail: async () => ({ "gina.gestion@real31.fr": "GG" }),
+    initialesParEmail: async () => ({ "gina.gestion@real31.fr": "GG", "hugo.gestion@real31.fr": "HG" }),
     gestionnaires: async () => [],
   };
   const passer = (opts: Parameters<typeof rangerAutomatiquement>[1] = {}) =>
@@ -474,5 +478,30 @@ describe("rangerAutomatiquement : publicité apprise du journal (26/10/2026)", (
     expect(bilan.ranges).toBe(0);
     expect(bilan.refus).toEqual({ corbeille: 1 });
     expect(lirePdf).not.toHaveBeenCalled();
+  });
+});
+
+describe("rangerAutomatiquement : candidates d'un même dossier de binôme (28/10/2026)", () => {
+  it("deux copros citées, même binôme : rangé dans son dossier, étiqueté des deux", async () => {
+    const m = brut({ subject: "S0297 et S0298 : contrat d'entretien" });
+    const { passer, repo, rangement } = monter([m]);
+    expect(await passer()).toMatchObject({ ranges: 1, refus: {} });
+    const [e] = await repo.journalDepuis(SYNDIC4);
+    expect(e).toMatchObject({ dossierNom: "GG", dossierCle: "binome:gina.gestion@real31.fr", copros: ["S0297", "S0298"], signal: "plusieurs", par: "automatique" });
+    expect(rangement.etiqueter).toHaveBeenCalledWith(SYNDIC4, expect.any(String), { ajouter: ["S0297", "S0298"] });
+  });
+
+  it("deux binômes différents : rien n'est rangé", async () => {
+    const { passer } = monter([brut({ subject: "S0297 et S0305 : contrat d'entretien" })]);
+    expect(await passer()).toMatchObject({ ranges: 0, refus: { "pas-sure": 1 } });
+  });
+
+  it("PDF qui citent deux copros du même binôme : rangé dans son dossier, journal « pj »", async () => {
+    const m = brut({ subject: "Factures", attachments: [{ name: "pj" }] });
+    const { passer, repo } = monter([m]);
+    const bilan = await passer({ lirePdf: vi.fn(async () => ["S0297", "S0298"]), memoirePj: new Map() });
+    expect(bilan).toMatchObject({ ranges: 1, pj: { ranges: 1 } });
+    const [e] = await repo.journalDepuis(SYNDIC4);
+    expect(e).toMatchObject({ dossierNom: "GG", copros: ["S0297", "S0298"], signal: "pj", candidats: ["S0297", "S0298"] });
   });
 });
