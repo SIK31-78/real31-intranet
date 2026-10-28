@@ -388,6 +388,40 @@ function motDeRueCite(mot: string, mots: Set<string>, approche: boolean): boolea
   return false;
 }
 
+// Mots qui separent le type de voie de son nom (« rue DE LA Ferme »), et ceux qui separent le
+// numero du type (« 12 BIS rue », « 6 ET 8 rue »).
+const ARTICLES_VOIE = new Set(["de", "du", "des", "la", "le", "les", "l", "d"]);
+const ENTRE_NUMERO_ET_VOIE = new Set(["bis", "ter", "et", "a", "au", "b", "t"]);
+const MOTIF_NUMERO_DE_RUE = /^(\d{1,4})(?:bis|ter|b|t)?$/;
+
+/**
+ * Le texte cite-t-il « <numero de la copro> <type de voie> <mots de la rue> », dans cet ordre
+ * (28/10/2026) ? Avant, un numero de la copro trouve N'IMPORTE OU dans le texte suffisait :
+ * « CEDEX 9 », « le 28 octobre », « 25/10/2026 » faisaient d'une rue citee sans numero (« RUE
+ * JEAN BONAL ») l'adresse d'une copro. Le numero doit preceder le type de voie (d'autres
+ * numeros, « bis », « et » peuvent s'intercaler : « 41/43 rue », « 6 bis rue »), et les mots de la
+ * rue suivre le type, apres un article eventuel. `approche` : un mot de rue a une lettre pres.
+ */
+function numeroDevantLaRue(jetons: string[], numeros: Set<string>, voie: { type: string; mots: string[] }, approche: boolean): boolean {
+  for (let j = 0; j < jetons.length; j++) {
+    if (jetons[j] !== voie.type) continue;
+    let d = j + 1;
+    while (d < jetons.length && ARTICLES_VOIE.has(jetons[d]!)) d++;
+    const suite = new Set(jetons.slice(d, d + voie.mots.length + 2));
+    if (!voie.mots.every((m) => motDeRueCite(m, suite, approche))) continue;
+    for (let i = j - 1; i >= 0 && j - i <= 8; i--) {
+      const t = jetons[i]!;
+      const n = MOTIF_NUMERO_DE_RUE.exec(t);
+      if (n) {
+        if (numeros.has(String(Number(n[1])))) return true;
+        continue;
+      }
+      if (!ENTRE_NUMERO_ET_VOIE.has(t)) break;
+    }
+  }
+  return false;
+}
+
 function codePostalDe(adresse: string): string {
   return /\b(\d{5})\b/.exec(adresse)?.[1] ?? "";
 }
@@ -484,7 +518,8 @@ export interface OptionsNomAdresse {
  *     (« 12 RUE … ») ne compte pas comme nom ;
  *   - une adresse ne compte que si le type de voie et ses mots porteurs sont cites, ET que
  *     le code postal ou la ville de la copro apparait aussi (« 71 rue de Bezons » a
- *     Carrieres ne matche pas un mail de Bezons), ET l'un de ses numeros. Une lettre d'ecart
+ *     Carrieres ne matche pas un mail de Bezons), ET l'un de ses numeros, juste devant le type
+ *     de voie (numeroDevantLaRue, 28/10/2026). Une lettre d'ecart
  *     dans un mot de rue d'au moins 5 lettres est toleree (« SAMBAT » pour « Sembat ») quand
  *     le numero est cite, et seulement si aucune adresse n'est citee exactement. On rend au
  *     plus une raison par copro : les copros trouvees par le nom d'abord, puis par l'adresse.
@@ -500,6 +535,7 @@ export function indicesNomAdresse(
   const mots = new Set(normaliser(texte).split(/[^a-z0-9]+/).map(deplierVoie));
   const espace = ` ${normaliser(texte).replace(/[^a-z0-9]+/g, " ").trim()} `;
   const jetons = jetonsCompacts(texte);
+  const jetonsVoie = normaliser(texte).split(/[^a-z0-9]+/).filter(Boolean).map(deplierVoie);
   const numerosCites = new Set(jetons.map((t) => /^(\d{1,4})(?:bis|ter|b|t)?$/.exec(t)?.[1]).filter((n): n is string => n !== undefined).map((n) => String(Number(n))));
   const villes = villesDu(copros);
   const noyauTexte = ` ${noyauDe(texte).join(" ")} `;
@@ -542,7 +578,11 @@ export function indicesNomAdresse(
       // la copro du 25 de la meme avenue. Une adresse sans numero en base ne se controle pas.
       const numeros = numerosDe(adresse);
       const numeroCite = [...numeros].some((n) => numerosCites.has(n));
-      const voie = voiesDe(adresse).find((v) => mots.has(v.type) && v.mots.every((m) => mots.has(m)));
+      // Et il doit preceder la rue (28/10/2026) : « 6 rue Jean Bonal », pas « RUE JEAN BONAL …
+      // depuis le 25/10/2026 ».
+      const voie = voiesDe(adresse).find(
+        (v) => mots.has(v.type) && v.mots.every((m) => mots.has(m)) && (numeros.size === 0 || numeroDevantLaRue(jetonsVoie, numeros, v, false)),
+      );
       if (voie && (numeros.size === 0 || numeroCite)) {
         parAdresse.push({ reference: c.reference, raison: `Adresse « ${voie.type} ${voie.mots.join(" ")} » citée dans le mail, à confirmer.` });
         vues.add(cle);
@@ -550,7 +590,10 @@ export function indicesNomAdresse(
       }
       // Une lettre d'ecart dans le nom de rue : seulement si le numero est cite (pas d'adresse
       // sans numero en base), en plus du lieu.
-      const approchee = approche && numeroCite ? voiesDe(adresse).find((v) => mots.has(v.type) && v.mots.every((m) => motDeRueCite(m, mots, true))) : undefined;
+      const approchee =
+        approche && numeroCite
+          ? voiesDe(adresse).find((v) => mots.has(v.type) && v.mots.every((m) => motDeRueCite(m, mots, true)) && numeroDevantLaRue(jetonsVoie, numeros, v, true))
+          : undefined;
       if (approchee && !approchees.some((a) => a.reference === c.reference)) {
         approchees.push({ reference: c.reference, raison: `Adresse proche de « ${approchee.type} ${approchee.mots.join(" ")} » citée dans le mail (une lettre d'écart), à confirmer.`, approchee: true });
       }

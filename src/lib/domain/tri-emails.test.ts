@@ -526,8 +526,11 @@ describe("coprosDansPdf", () => {
     const ferme: CoproTri[] = [{ reference: "S0277", nom: "LES TILLEULS", adresse: "12 rue de la Ferme 78800 Houilles", gestionnaire: null, assistant: null }];
     const pdf = "Intervention au 12 rue Jean Jaurès 78800 Houilles.\nLe magasin va fermer de 12h30 à 14h.";
     expect(coprosDansPdf(pdf, ferme)).toEqual([]);
+    // Une vraie faute de frappe non plus : dans un PDF, l'adresse doit être exacte.
+    const faute = "Intervention au 12 rue de la Farme 78800 Houilles.";
+    expect(coprosDansPdf(faute, ferme)).toEqual([]);
     // Dans le mail, la tolérance reste (à confirmer d'un clic).
-    expect(suggererCopro(mail({ objet: "Intervention", apercu: pdf }), { copros: ferme, expediteurs: {} }).candidats).toEqual(["S0277"]);
+    expect(suggererCopro(mail({ objet: "Intervention", apercu: faute }), { copros: ferme, expediteurs: {} }).candidats).toEqual(["S0277"]);
     // L'adresse exacte dans un PDF, elle, compte toujours.
     expect(coprosDansPdf("Intervention au 12 rue de la Ferme 78800 Houilles.", ferme)).toEqual(["S0277"]);
   });
@@ -1136,5 +1139,36 @@ describe("clesDossiersLus : un comptable lit « Comptabilité », jamais les bin
   it("les autres : leurs dossiers de binôme, comme avant", () => {
     expect(clesDossiersLus({ email: "elsa@real31.fr", comptable: false }, b)).toEqual(clesDossiersDe("elsa@real31.fr", b));
     expect(clesDossiersLus({ email: "sophie@real31.fr", comptable: false }, AUCUN_BINOME).has("comptabilite")).toBe(false);
+  });
+});
+
+describe("le numéro de la copro doit précéder le type de voie (28/10/2026)", () => {
+  // Cas réels de syndic2 et syndic4, noms et numéros changés.
+  const c = (reference: string, adresse: string, nom = `Copro ${reference}`): CoproTri => ({ reference, nom, adresse, gestionnaire: null, assistant: null });
+  const ref: ReferentielTri = {
+    copros: [c("S0217", "6 - 8 - 10 rue Jean Valmont 92250 LA GARENNE-COLOMBES"), c("S0261", "25-33 rue des Tilleuls/2 rue des Pivoines 78500 SARTROUVILLE")],
+    expediteurs: {},
+  };
+  const trouve = (texte: string) => suggererCopro(mail({ objet: "Votre contrat d'eau", apercu: texte }), ref);
+
+  it("une rue citée sans numéro, et un « 10 » dans une date, ne désignent plus la copro", () => {
+    expect(trouve("Adresse desservie :\nRUE JEAN VALMONT\n92250 LA GARENNE COLOMBES\nNous vous informons que depuis le 25/10/2026, votre consommation…").candidats).toEqual([]);
+  });
+
+  it("« UTC+2 », « CEDEX 9 » ou « le 28 octobre » ne sont pas des numéros de rue", () => {
+    expect(trouve("Le jeudi 22 octobre 2026 à 15:59 UTC+2, le cabinet a écrit :\nImmeuble concerné : Rue des Pivoines-SARTROUVILLE").candidats).toEqual([]);
+    expect(trouve("Rue des Pivoines 78500 Sartrouville CEDEX 2, rendez-vous le 28 octobre").candidats).toEqual([]);
+  });
+
+  it("le numéro juste devant la rue la désigne, même avec « bis », « et », un intervalle", () => {
+    expect(trouve("Fuite au 8 rue Jean Valmont 92250 La Garenne-Colombes").candidats).toEqual(["S0217"]);
+    expect(trouve("Fuite au 6 et 8 rue Jean Valmont 92250 La Garenne-Colombes").candidats).toEqual(["S0217"]);
+    expect(trouve("Fuite au 10 bis, rue Jean Valmont 92250 La Garenne-Colombes").candidats).toEqual(["S0217"]);
+    expect(trouve("Passage au 2 rue des Pivoines 78500 Sartrouville").candidats).toEqual(["S0261"]);
+  });
+
+  it("vaut aussi pour l'adresse à une lettre près", () => {
+    expect(trouve("Fuite au 8 rue Jean VALMONS 92250 La Garenne-Colombes").candidats).toEqual(["S0217"]);
+    expect(trouve("Rue Jean VALMONS 92250 La Garenne-Colombes, le 8 novembre").candidats).toEqual([]);
   });
 });
