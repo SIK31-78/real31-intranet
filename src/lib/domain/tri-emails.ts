@@ -41,6 +41,11 @@ export interface CoproTri {
    */
   adressesSecondaires?: string[];
   /**
+   * Noms des coproprietaires ESTALE (« Dupont Jean »), pour retrouver la copro en tapant l'un
+   * d'eux dans le choix de copro (28/10/2026). Les noms seuls : jamais leurs adresses e-mail.
+   */
+  coproprietaires?: string[];
+  /**
    * Copro INACTIVE dans l'intranet (mandat termine) : on recoit encore des mails de l'ancien
    * syndic, de coproprietaires, de locataires. Reconnue, mais au plus en piste faible.
    */

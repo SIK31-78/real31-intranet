@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { AUCUN_BINOME, type EntreeJournalTri } from "@/lib/domain/tri-emails";
 import type { DepsRangement } from "./ranger";
-import { envoyerABonneCopro } from "./reaffecter";
+import { coprosPourReaffecter, envoyerABonneCopro } from "./reaffecter";
 
 const BOITE = "syndic4@real31.fr";
 
@@ -84,5 +84,29 @@ describe("« Pas pour moi » : un mail rangé chez le mauvais binôme", () => {
     const { d, repo } = deps([entree()]);
     await expect(envoyerABonneCopro(BOITE, "<m1@x>", "S0999", "mp", d)).rejects.toThrow(/pas dans ESTALE/);
     expect(repo.marquerAnnule).not.toHaveBeenCalled();
+  });
+});
+
+describe("les copros proposées par « Pas pour moi »", () => {
+  it("portent les noms des copropriétaires, jamais leurs adresses e-mail", async () => {
+    const { d } = deps([]);
+    const avecNoms = {
+      ...d,
+      referentiel: {
+        charger: async () => ({
+          copros: [
+            { reference: "S0109", nom: "STMARTIN", adresse: "Bezons", gestionnaire: null, assistant: null, coproprietaires: ["Dupont Jean"] },
+            { reference: "S0178", nom: "LESROSIERS", adresse: "Sartrouville", gestionnaire: null, assistant: null },
+          ],
+          expediteurs: { "jean.dupont@exemple.fr": [{ reference: "S0109", qualite: "copropriétaire" as const }] },
+        }),
+      },
+    } as DepsRangement;
+    const copros = await coprosPourReaffecter(null, avecNoms);
+    expect(copros).toEqual([
+      { reference: "S0109", nom: "STMARTIN", adresse: "Bezons", gestionnaire: null, coproprietaires: ["Dupont Jean"] },
+      { reference: "S0178", nom: "LESROSIERS", adresse: "Sartrouville", gestionnaire: null },
+    ]);
+    expect(JSON.stringify(copros)).not.toContain("@");
   });
 });

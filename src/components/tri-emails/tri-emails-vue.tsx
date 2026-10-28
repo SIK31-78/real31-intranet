@@ -434,7 +434,8 @@ function DetailMail({
   }, [boite, mail.internetMessageId, mail.aPiecesJointes, aCorbeille, s.nature]);
 
   const resultats = useMemo(() => {
-    // Tolérante : « St Martin » trouve STMARTIN, la ville compte, S109 = S0109 (REA-327).
+    // Tolérante : « St Martin » trouve STMARTIN, la ville compte, S109 = S0109 (REA-327) ;
+    // « Dupont » trouve les copros de ce copropriétaire (28/10/2026).
     return chercherCopros(copros, recherche);
   }, [copros, recherche]);
 
@@ -580,7 +581,7 @@ function DetailMail({
               type="search"
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
-              placeholder="Chercher une copropriété : code, nom, adresse"
+              placeholder="Chercher une copropriété : code, nom, adresse, copropriétaire"
               autoComplete="off"
               className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-body focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
             />
@@ -598,6 +599,7 @@ function DetailMail({
                     >
                       <span className="font-mono text-meta text-green-700 min-w-[52px]">{c.reference}</span>
                       <span className="text-ink">{c.nom}</span>
+                      {c.coproprietaireTrouve && <span className="text-meta text-ink-2">{c.coproprietaireTrouve} · copropriétaire</span>}
                       {c.source === "crypto" && <span className="text-meta text-ink-3">Crypto</span>}
                       <MentionInactive copro={c} />
                       <span className="ml-auto text-meta text-ink-3 truncate">{c.adresse}</span>

@@ -7,6 +7,8 @@
 // grandira. Cache module de 10 min : mesure du 25/09/2026, ~0,6 s pour 9 copros.
 // Depuis le 27/10/2026, l'etablissement de la copro (« REAL 31 - LGC ») donne son agence :
 // une boite triee ne garde que les copros ESTALE de ses agences.
+// Depuis le 28/10/2026, le nom de chaque coproprietaire (fullname) : le choix de copro le
+// cherche (« Dupont » -> ses copros). Les noms seuls, jamais leurs adresses, cote ecran.
 
 import {
   estAssistantDeCopro,
@@ -27,7 +29,7 @@ const Q_COPRO = `query($id: ID!) {
     address { housenumber street postcode city }
     collaborators { id role fullname email }
     serviceBook { mandate { managerID } }
-    owners(archived: false) { email rentalAgent { email } contacts(archived: false) { email tenant } }
+    owners(archived: false) { fullname email rentalAgent { email } contacts(archived: false) { email tenant } }
     council { owner { email } }
     suppliers(archived: false) { contacts(archived: false) { email } }
     sales(archived: false) { notaryPersonnel { email } notaryOffice { personnels { email } } }
@@ -43,6 +45,7 @@ type Condo = {
   serviceBook: { mandate: { managerID: string | null } | null } | null;
   owners:
     | {
+        fullname: string | null;
         email: string | null;
         rentalAgent: { email: string | null } | null;
         contacts: { email: string | null; tenant: boolean }[] | null;
@@ -77,6 +80,9 @@ function versCopro(c: Condo): CoproTri {
         .join(" ")
     : "";
   const agence = codeAgenceDepuisEtablissement(c.establishment?.name);
+  // Les noms des copropriétaires, pour chercher la copro par l'un d'eux. Même requête, aucun
+  // appel de plus (mesure du 28/10/2026 : 292 noms pour 12 copros, ~11 Ko).
+  const coproprietaires = [...new Set((c.owners ?? []).map((o) => (o.fullname ?? "").trim()).filter(Boolean))];
   return {
     reference: c.reference,
     nom: c.name,
@@ -84,6 +90,7 @@ function versCopro(c: Condo): CoproTri {
     gestionnaire: g ? { nomComplet: g.fullname, email: g.email } : null,
     assistant: a ? { nomComplet: a.fullname, email: a.email } : null,
     ...(agence ? { agence } : {}),
+    ...(coproprietaires.length ? { coproprietaires } : {}),
   };
 }
 

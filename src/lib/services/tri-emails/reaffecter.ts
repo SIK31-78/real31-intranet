@@ -66,6 +66,13 @@ export async function coprosPourReaffecter(config: BoiteTriConfig | null, deps: 
   if (!deps.boite) return [];
   const { copros } = await deps.referentiel.charger();
   return copros
-    .map((c) => ({ reference: c.reference, nom: c.nom, adresse: c.adresse, gestionnaire: c.gestionnaire?.nomComplet ?? null }))
+    // Les noms des copropriétaires (pas leurs adresses) : « Dupont » trouve sa copro.
+    .map((c) => ({
+      reference: c.reference,
+      nom: c.nom,
+      adresse: c.adresse,
+      gestionnaire: c.gestionnaire?.nomComplet ?? null,
+      ...(c.coproprietaires?.length ? { coproprietaires: c.coproprietaires } : {}),
+    }))
     .sort((a, b) => a.reference.localeCompare(b.reference));
 }

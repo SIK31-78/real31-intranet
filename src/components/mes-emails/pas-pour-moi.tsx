@@ -4,7 +4,8 @@
 // mauvais binôme part chez le binôme de la bonne copro, même si elle n'est pas dans le
 // portefeuille de la personne. Pas de « rendre au tri » (Sekou, 16/10/2026) : l'équipe
 // connaît ses copros mieux que le tri, elle choisit la bonne. La recherche est tolérante :
-// « St Martin » trouve STMARTIN, la ville compte, S109 = S0109.
+// « St Martin » trouve STMARTIN, la ville compte, S109 = S0109, « Dupont » trouve les copros
+// de ce copropriétaire (28/10/2026).
 // Autre agence (ADR-050, 28/10/2026) : la liste propose aussi les copros des AUTRES boîtes
 // triées ; en choisir une recopie le mail dans la boîte de cette agence (rangé chez le binôme
 // de la copro) et retire l'original d'ici. « Envoyer à syndicN » le dépose dans la réception
@@ -102,7 +103,7 @@ export function PasPourMoi({ emailId, boite, onParti }: { emailId: string; boite
               <Input
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
-                placeholder="Nom, adresse, ville ou code (ex. St Martin, Bezons, S109)"
+                placeholder="Nom, adresse, ville, code ou copropriétaire (ex. St Martin, Bezons, S109, Dupont)"
                 aria-label="Rechercher la copropriété"
                 autoFocus
               />
@@ -123,6 +124,9 @@ export function PasPourMoi({ emailId, boite, onParti }: { emailId: string; boite
                         <span className="text-body text-ink">
                           <span className="font-mono">{c.reference}</span> · {c.nom}
                         </span>
+                        {c.coproprietaireTrouve && (
+                          <span className="block text-meta text-ink-2">{c.coproprietaireTrouve} · copropriétaire</span>
+                        )}
                         <span className="block text-meta text-ink-3">
                           {c.adresse || "Adresse inconnue"}
                           {c.gestionnaire ? ` · gérée par ${c.gestionnaire}` : ""}
