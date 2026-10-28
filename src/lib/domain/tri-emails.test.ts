@@ -516,6 +516,12 @@ describe("coprosDansPdf", () => {
     expect(coprosDansPdf("REAL 31 - 3 place Michelet 78800 Houilles\nSIREN 123", copros)).toEqual([]);
   });
 
+  it("l'adresse du cabinet abrégée « 3 PL MICHELET » est retirée aussi (bon de commande réel du 28/10/2026)", () => {
+    const commande = "Adresse de facturation\nREAL 31\n. .\n3 PL MICHELET\n78800 HOUILLES\nFRANCE METROPOLITAINE\nAdresse de livraison";
+    expect(coprosDansPdf(commande, copros)).toEqual([]);
+    expect(retirerEnteteCabinet("Au 3 Pl. Michelet, 78800 Houilles")).not.toMatch(/michelet/i);
+  });
+
   it("jamais d'adresse à une lettre près dans un PDF (cas réel du 28/10/2026, anonymisé : « fermer » lu « rue de la Ferme »)", () => {
     const ferme: CoproTri[] = [{ reference: "S0277", nom: "LES TILLEULS", adresse: "12 rue de la Ferme 78800 Houilles", gestionnaire: null, assistant: null }];
     const pdf = "Intervention au 12 rue Jean Jaurès 78800 Houilles.\nLe magasin va fermer de 12h30 à 14h.";

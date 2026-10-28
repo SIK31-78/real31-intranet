@@ -598,7 +598,8 @@ export function coprosImmeubleConcerne(texte: string, copros: CoproTri[]): strin
 // espaces, une tabulation ou la fin de ligne).
 const ENTETE_CABINET = [
   /real\s*31/gi,
-  /(?:\d{1,3}\s*,?\s*)?place\s+michelet(?:\s*,?\s*78800)?(?:\s*houilles)?/gi,
+  // « 3 PL MICHELET » : bon de commande d'un fournisseur (28/10/2026, PDF rattache a tort a S158).
+  /(?:\d{1,3}\s*,?\s*)?(?<![a-z])(?:place|pl\.?)\s+michelet(?:\s*,?\s*78800)?(?:\s*houilles)?/gi,
   /(?<![a-z])(?:siren|rcs|naf|carte\s+professionnelle|garantie\s+financi[eè]re).*?(?= {2,}|\x09|$)/gim,
 ];
 
