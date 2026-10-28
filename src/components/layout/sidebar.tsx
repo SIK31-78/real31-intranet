@@ -130,6 +130,9 @@ const GROUPES: { titre: string; items: Item[] }[] = [
 // pour etre surligne quand on est sur /comptabilite (active="compta").
 const NAV_COMPTABLE: Item[] = [
   { key: "compta", label: "Dashboard", href: "/comptabilite", icon: LayoutDashboard },
+  // E-mails (Sekou, 28/10/2026) : sa boîte perso et, en un seul onglet, le dossier
+  // « Comptabilité » de toutes les boîtes triées. Filtrée par emailsComptable.
+  { key: "emails", label: "E-mails", href: "/mes-emails", icon: Inbox },
   { key: "copros", label: "Toutes les copropriétés", href: "/copropriete", icon: Building2 },
   // Recap AG : la file des recaps RECUS (2026-08-17). Le comptable y lit la note de
   // travail du gestionnaire -- budget vote, fonds travaux, appels de fonds, nouveau
@@ -342,6 +345,7 @@ export function Sidebar({
   triATrier = null,
   emailsATraiter = null,
   echangesOuvert = false,
+  emailsComptable = false,
 }: {
   active: NavKey;
   user: { initiales: string; nomComplet: string };
@@ -378,6 +382,8 @@ export function Sidebar({
   emailsATraiter?: number | null;
   /** Entree "Échanges" : l'agence de l'utilisateur a une boite commune configuree (Houilles d'abord), ou super-admin. */
   echangesOuvert?: boolean;
+  /** Entree "E-mails" d'un comptable (role COMPTABLE, module actif) : le dossier « Comptabilité » des boites triees (28/10/2026). */
+  emailsComptable?: boolean;
 }) {
   return (
     <aside className="shrink-0 w-full md:w-60 md:sticky md:top-0 md:h-screen bg-rail text-rail-ink overflow-y-auto defilement-discret flex flex-col shadow-2 md:shadow-none">
@@ -407,9 +413,15 @@ export function Sidebar({
           <div>
             {NAV_COMPTABLE.filter(
               (item) =>
-                (item.key !== "gestion-courante" || gestionCouranteOuverte) && (item.key !== "reprise" || repriseOuverte),
+                (item.key !== "gestion-courante" || gestionCouranteOuverte) &&
+                (item.key !== "reprise" || repriseOuverte) &&
+                (item.key !== "emails" || emailsComptable),
             ).map((item) => (
-              <NavItem key={item.key} item={item} active={item.key === active} />
+              <NavItem
+                key={item.key}
+                item={item.key === "emails" && emailsATraiter ? { ...item, count: emailsATraiter, alerte: true } : item}
+                active={item.key === active}
+              />
             ))}
           </div>
         ) : (
@@ -422,7 +434,8 @@ export function Sidebar({
               // "Mes e-mails" : A VENIR pour les collegues -> super-admins seulement.
               // « E-mails » (boîte + recherche dans tous les échanges, ex-écran Échanges, 13/10/2026) :
               // les admins, et les agences qui ont une boîte commune configurée.
-              if (item.key === "emails") return adminOuvert || echangesOuvert;
+              // Un comptable l'a aussi, pour le dossier « Comptabilité » (28/10/2026).
+              if (item.key === "emails") return adminOuvert || echangesOuvert || emailsComptable;
               // "Reprise" : ouverte aux gestionnaires depuis le 08/10/2026, au pole compta
               // depuis le 16/10/2026 (REA-353). Chacun n'y voit que les reprises dont il fait
               // partie de l'equipe (cf. dossierVisiblePar), la direction voit tout.

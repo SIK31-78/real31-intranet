@@ -7,7 +7,7 @@ import { MobileSidebarProvider } from "@/components/layout/mobile-sidebar-contex
 import { FilArianeProvider } from "@/components/ui/fil-ariane";
 import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { getGestionnaireCourant, impersonationAutorisee, incarnationEnCours, mailModuleActifPour } from "@/lib/auth/session";
-import { peutVoirComptabilite, peutExporterAnnuaireLinkus, estVueComptable, estSuperAdmin, peutVoirGestionCourante, estDirection, estDirectionQuelquePart, estHorsSyndic, peutVoirReprises, peutVoirPropositions, profilDe, droitsTri } from "@/lib/auth/roles";
+import { peutVoirComptabilite, peutExporterAnnuaireLinkus, estVueComptable, estComptableTable, estSuperAdmin, peutVoirGestionCourante, estDirection, estDirectionQuelquePart, estHorsSyndic, peutVoirReprises, peutVoirPropositions, profilDe, droitsTri } from "@/lib/auth/roles";
 import { attacherUtilisateur } from "@/lib/observabilite";
 import { compterMailsATrier } from "@/lib/services/tri-emails/compteur";
 import { compterMailsATraiter } from "@/lib/services/mes-emails/compteur-emails";
@@ -61,11 +61,14 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   const triATrier = boiteTri ? await compterMailsATrier(boiteTri.boite) : null;
   // "Échanges" : l'agence a une boite commune configuree (MAIL_BOITES_AGENCE), ou super-admin.
   const echangesOuvert = g ? echangesOuverts(await utilisateurEchanges(g, adminOuvert).catch(() => null)) : false;
+  // "E-mails" d'un COMPTABLE (role de la table, Sekou 28/10/2026) : quelle que soit son agence,
+  // sa boite perso et le dossier « Comptabilité » de toutes les boites triees (boites-visibles).
+  const emailsComptable = emailsOuvert && estComptableTable(g?.role);
   // Pastille "E-mails" (27/10/2026) : les mails a traiter non lus de mes boites, comptee
   // seulement pour qui voit l'entree ouverte, gardee une minute, abandonnee au-dela de 1,5 s
   // (cf. compteur-emails). En incarnation, sans boite perso, comme l'ecran.
   const emailsATraiter =
-    g && emailsOuvert && (adminOuvert || echangesOuvert)
+    g && emailsOuvert && (adminOuvert || echangesOuvert || emailsComptable)
       ? await compterMailsATraiter(g, { superAdmin: adminOuvert, incarnation: await incarnationEnCours() })
       : null;
   // Entree "Annuaire Linkus" : ADMIN de la table User (Léa, téléphonie) + super-admin.
@@ -114,6 +117,7 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
               triATrier={triATrier}
               emailsATraiter={emailsATraiter}
               echangesOuvert={echangesOuvert}
+              emailsComptable={emailsComptable}
             />
           </SidebarDrawer>
           <main className="flex-1 min-w-0 min-h-0">{children}</main>
