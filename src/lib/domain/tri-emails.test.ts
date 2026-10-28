@@ -515,6 +515,16 @@ describe("coprosDansPdf", () => {
   it("rien quand le PDF ne cite qu'un code hors périmètre ou l'en-tête", () => {
     expect(coprosDansPdf("REAL 31 - 3 place Michelet 78800 Houilles\nSIREN 123", copros)).toEqual([]);
   });
+
+  it("jamais d'adresse à une lettre près dans un PDF (cas réel du 28/10/2026, anonymisé : « fermer » lu « rue de la Ferme »)", () => {
+    const ferme: CoproTri[] = [{ reference: "S0277", nom: "LES TILLEULS", adresse: "12 rue de la Ferme 78800 Houilles", gestionnaire: null, assistant: null }];
+    const pdf = "Intervention au 12 rue Jean Jaurès 78800 Houilles.\nLe magasin va fermer de 12h30 à 14h.";
+    expect(coprosDansPdf(pdf, ferme)).toEqual([]);
+    // Dans le mail, la tolérance reste (à confirmer d'un clic).
+    expect(suggererCopro(mail({ objet: "Intervention", apercu: pdf }), { copros: ferme, expediteurs: {} }).candidats).toEqual(["S0277"]);
+    // L'adresse exacte dans un PDF, elle, compte toujours.
+    expect(coprosDansPdf("Intervention au 12 rue de la Ferme 78800 Houilles.", ferme)).toEqual(["S0277"]);
+  });
 });
 
 const CLARA = { nomComplet: "Clara", email: "clara@real31.fr" };

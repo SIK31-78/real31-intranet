@@ -465,6 +465,16 @@ function nomUsageCite(nomUsage: string, exclus: (m: string) => boolean, mots: Se
   return distinctifs[0]!.length >= 5 && mots.has(distinctifs[0]!);
 }
 
+/** Ce que la reconnaissance nom / adresse tolere, selon d'ou vient le texte. */
+export interface OptionsNomAdresse {
+  /**
+   * Adresse a une lettre pres (faute de frappe dans un mot de rue). Oui par defaut ; jamais dans
+   * une piece jointe (28/10/2026) : un PDF est long, un mot quelconque y trouve son voisin
+   * (« fermer de 12h30 » lu « rue de la Ferme », mail de S220 range a tort en S277).
+   */
+  approche?: boolean;
+}
+
 /**
  * Copros dont le NOM d'immeuble ou l'ADRESSE est cite dans le texte (objet + apercu). Indice
  * faible, a confirmer : les prestataires ecrivent « LE CYRANO » ou « 71 rue de Bezons »
@@ -481,7 +491,12 @@ function nomUsageCite(nomUsage: string, exclus: (m: string) => boolean, mots: Se
  * L'appelant ne passe ici que l'objet et le DEBUT du corps : une adresse de copro dans la
  * signature du cabinet (son bureau) ne doit pas rattacher tous les mails (constat du 13/10).
  */
-export function indicesNomAdresse(texte: string, copros: CoproTri[]): { reference: string; raison: string; approchee?: true }[] {
+export function indicesNomAdresse(
+  texte: string,
+  copros: CoproTri[],
+  options: OptionsNomAdresse = {},
+): { reference: string; raison: string; approchee?: true }[] {
+  const approche = options.approche ?? true;
   const mots = new Set(normaliser(texte).split(/[^a-z0-9]+/).map(deplierVoie));
   const espace = ` ${normaliser(texte).replace(/[^a-z0-9]+/g, " ").trim()} `;
   const jetons = jetonsCompacts(texte);
@@ -535,7 +550,7 @@ export function indicesNomAdresse(texte: string, copros: CoproTri[]): { referenc
       }
       // Une lettre d'ecart dans le nom de rue : seulement si le numero est cite (pas d'adresse
       // sans numero en base), en plus du lieu.
-      const approchee = numeroCite ? voiesDe(adresse).find((v) => mots.has(v.type) && v.mots.every((m) => motDeRueCite(m, mots, true))) : undefined;
+      const approchee = approche && numeroCite ? voiesDe(adresse).find((v) => mots.has(v.type) && v.mots.every((m) => motDeRueCite(m, mots, true))) : undefined;
       if (approchee && !approchees.some((a) => a.reference === c.reference)) {
         approchees.push({ reference: c.reference, raison: `Adresse proche de « ${approchee.type} ${approchee.mots.join(" ")} » citée dans le mail (une lettre d'écart), à confirmer.`, approchee: true });
       }
@@ -595,7 +610,9 @@ export function retirerEnteteCabinet(texte: string): string {
 /**
  * References de copro trouvees dans le texte d'une piece jointe (facture, bon d'intervention),
  * apres avoir retire le papier a en-tete du cabinet : d'abord les codes cites, puis
- * le nom d'immeuble / l'adresse du chantier (meme moteur que le mail). Toujours a confirmer.
+ * le nom d'immeuble / l'adresse du chantier (meme moteur que le mail, sans l'adresse a une
+ * lettre pres : une seule copro trouvee dans les PDF range le mail sans clic). A l'ecran,
+ * toujours a confirmer.
  */
 export function coprosDansPdf(texte: string, copros: CoproTri[]): string[] {
   const utile = retirerEnteteCabinet(texte);
@@ -609,7 +626,7 @@ export function coprosDansPdf(texte: string, copros: CoproTri[]): string[] {
     const c = parCle.get(cle);
     if (c && !refs.includes(c.reference)) refs.push(c.reference);
   }
-  for (const i of indicesNomAdresse(utile, copros)) if (!refs.includes(i.reference)) refs.push(i.reference);
+  for (const i of indicesNomAdresse(utile, copros, { approche: false })) if (!refs.includes(i.reference)) refs.push(i.reference);
   return refs;
 }
 
