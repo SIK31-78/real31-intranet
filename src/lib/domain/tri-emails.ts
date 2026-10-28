@@ -196,6 +196,12 @@ export interface Suggestion {
    *     Jamais pour un fournisseur seul, un code dans le corps, l'historique de la conversation.
    */
   origine?: OrigineSuggestion;
+  /**
+   * La piste vient d'un identifiant explicite de la copro : son code cite dans l'objet, ou son
+   * numero d'immatriculation. Pour une copro INACTIVE (plafonnee a « faible »), c'est la seule
+   * piste qui la range sans clic (decision du 28/10/2026, rangeableAutomatiquement).
+   */
+  identifiant?: true;
 }
 
 export type OrigineSuggestion = "conversation" | "nom-adresse";
@@ -876,13 +882,20 @@ export function suggererCopro(
 
 /**
  * Copros inactives (mandat termine) : au plus une piste faible, et apres les copros actives.
- * Elles restent reconnues : l'ancien syndic, un coproprietaire ou un locataire ecrit encore.
+ * Elles restent reconnues : l'ancien syndic, un coproprietaire ou un locataire ecrit encore
+ * (coordonnees du nouveau syndic a transmettre), et une copro peut etre marquee inactive a
+ * tort. Citee par son code dans l'objet ou son immatriculation, elle garde la marque
+ * `identifiant` : seule piste qui la range sans clic (28/10/2026).
  */
 function plafonnerInactives(s: Suggestion, ref: ReferentielTri): Suggestion {
   const inactives = new Set(ref.copros.filter((c) => c.inactive).map((c) => c.reference));
   if (!s.candidats.some((r) => inactives.has(r))) return s;
   const candidats = [...s.candidats.filter((r) => !inactives.has(r)), ...s.candidats.filter((r) => inactives.has(r))];
-  if (s.nature === "sure") return { nature: "faible", candidats, raison: `${s.raison} Copropriété inactive : à confirmer.` };
+  if (s.nature === "sure") {
+    return s.identifiant
+      ? { nature: "faible", candidats, raison: `${s.raison} Copropriété inactive (mandat terminé).`, identifiant: true }
+      : { nature: "faible", candidats, raison: `${s.raison} Copropriété inactive : à confirmer.` };
+  }
   return { ...s, candidats };
 }
 
@@ -903,7 +916,7 @@ function suggestionBrute(
   // Les notifications de l'ANAH ne portent que ca (ni code, ni expediteur connu).
   const immats = coprosParImmatriculation(`${mail.objet}\n${corps}`, ref.copros);
   if (immats.length === 1) {
-    return { nature: "sure", candidats: immats, raison: `Numéro d'immatriculation de ${immats[0]} cité.` };
+    return { nature: "sure", candidats: immats, raison: `Numéro d'immatriculation de ${immats[0]} cité.`, identifiant: true };
   }
   if (immats.length > 1) {
     return { nature: "plusieurs", candidats: immats, raison: "Plusieurs numéros d'immatriculation cités." };
@@ -927,7 +940,7 @@ function suggestionBrute(
         raison: `Code ${c.reference} cité dans l'objet, mais « Immeuble concerné » désigne ${autres.join(", ")} : à départager.`,
       };
     }
-    return { nature: "sure", candidats: [c.reference], raison: `Code ${c.reference} cité dans l'objet.` };
+    return { nature: "sure", candidats: [c.reference], raison: `Code ${c.reference} cité dans l'objet.`, identifiant: true };
   }
   if (objetEstale.length > 1) {
     return {
@@ -1500,6 +1513,9 @@ export function pisteRangeable(s: Suggestion): boolean {
  *   - la copro est dans le referentiel, active (deja plafonnee a « faible » par
  *     suggererCopro : on reverifie) et son dossier de binome est connu (gestionnaire au
  *     mandat et initiales).
+ * Copro INACTIVE (28/10/2026) : rangee sans clic seulement quand elle est designee par un
+ * identifiant explicite (son code dans l'objet, son immatriculation : `identifiant`), seule
+ * candidate, au dossier connu ; jamais par l'expediteur, le nom, l'adresse ni un PDF.
  * Plusieurs candidates qui menent TOUTES au meme dossier de binome (28/10/2026) : le mail y
  * est range, avec l'etiquette de chacune (`dossier`), sans choisir la copro. Toutes actives,
  * au dossier connu, par la meme resolution que le rangement (destinationDe, binomes reels).
@@ -1521,6 +1537,10 @@ export function rangeableAutomatiquement(
   if (mail.corbeille) return { ok: false, motif: "corbeille" };
   if (mail.interne) return { ok: false, motif: "interne" };
   const s = mail.suggestion;
+  if (s.nature === "faible" && s.identifiant && s.candidats.length === 1) {
+    if (ctx.dejaPasse) return { ok: false, motif: "deja-passe" };
+    return coproRangeable(s.candidats[0]!, ctx, { inactiveAdmise: true });
+  }
   if (!pisteRangeable(s)) {
     const commun = s.nature === "plusieurs" ? dossierCommun(s.candidats, ctx) : null;
     if (!commun) return { ok: false, motif: "pas-sure" };
@@ -1560,11 +1580,14 @@ function dossierCommun(references: string[], ctx: ContexteAutomatique): { cle: s
   return cles.size === 1 ? { cle: [...cles][0]!, copros: refs } : null;
 }
 
-/** La copro existe, est active et son dossier de binome est connu. */
-function coproRangeable(reference: string, ctx: ContexteAutomatique): DecisionAutomatique {
+/**
+ * La copro existe, est active (ou inactive admise : citee par son code) et son dossier de
+ * binome est connu.
+ */
+function coproRangeable(reference: string, ctx: ContexteAutomatique, o: { inactiveAdmise?: boolean } = {}): DecisionAutomatique {
   const copro = ctx.copros.find((c) => c.reference === reference);
   if (!copro) return { ok: false, motif: "copro-inconnue" };
-  if (copro.inactive) return { ok: false, motif: "copro-inactive" };
+  if (copro.inactive && !o.inactiveAdmise) return { ok: false, motif: "copro-inactive" };
   if (!destinationDe(copro, ctx.initialesParEmail, ctx.binomes)?.nomDossier) return { ok: false, motif: "sans-destination" };
   return { ok: true, reference: copro.reference };
 }

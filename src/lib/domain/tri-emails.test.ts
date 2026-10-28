@@ -950,11 +950,33 @@ describe("rangeableAutomatiquement (tri automatique, piste sûre)", () => {
     expect(rangeableAutomatiquement({ suggestion: sure("S0500") }, ctx())).toEqual({ ok: false, motif: "sans-destination" });
   });
 
-  it("une copro inactive citée dans l'objet n'arrive jamais en piste sûre", () => {
-    const ref: ReferentielTri = { copros: [{ ...copro("S0305"), inactive: true }], expediteurs: {} };
+  it("une copro inactive n'arrive jamais en piste sûre ; citée par son code dans l'objet, elle est rangée seule (28/10/2026)", () => {
+    // Cas réel de syndic2 (anonymisé) : copro marquée inactive à tort, le prestataire cite son code.
+    const ref: ReferentielTri = {
+      copros: [{ ...copro("S0305"), inactive: true, immatriculation: "ZZ7654321" }],
+      expediteurs: { "ancien@exemple.fr": [{ reference: "S0305", qualite: "copropriétaire" }] },
+    };
     const s = suggererCopro(mail({ objet: "S0305 - fuite" }), ref);
-    expect(s.nature).toBe("faible");
-    expect(rangeableAutomatiquement({ suggestion: s }, ctx({ copros: ref.copros }))).toEqual({ ok: false, motif: "pas-sure" });
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S0305"], identifiant: true });
+    expect(s.raison).toContain("inactive");
+    expect(rangeableAutomatiquement({ suggestion: s }, ctx({ copros: ref.copros }))).toEqual({ ok: true, reference: "S0305" });
+    const immat = suggererCopro(mail({ objet: "Registre ZZ7654321" }), ref);
+    expect(rangeableAutomatiquement({ suggestion: immat }, ctx({ copros: ref.copros }))).toEqual({ ok: true, reference: "S0305" });
+    // Jamais deux fois, ni sans dossier connu.
+    expect(rangeableAutomatiquement({ suggestion: s }, ctx({ copros: ref.copros, dejaPasse: true }))).toEqual({ ok: false, motif: "deja-passe" });
+    expect(rangeableAutomatiquement({ suggestion: s }, ctx({ copros: ref.copros, initialesParEmail: {} }))).toEqual({ ok: false, motif: "sans-destination" });
+  });
+
+  it("une copro inactive trouvée par l'expéditeur, le nom, le corps ou un PDF : à confirmer d'un clic", () => {
+    const inactive: CoproTri = { ...copro("S0305"), nom: "LES MARRONNIERS", inactive: true };
+    const ref: ReferentielTri = { copros: [inactive], expediteurs: { "ancien@exemple.fr": [{ reference: "S0305", qualite: "copropriétaire" }] } };
+    const c = ctx({ copros: ref.copros });
+    for (const m of [{ deAdresse: "ancien@exemple.fr" }, { objet: "Résidence LES MARRONNIERS" }, { apercu: "Voir S0305." }]) {
+      const s = suggererCopro(mail(m), ref);
+      expect(s.identifiant).toBeUndefined();
+      expect(rangeableAutomatiquement({ suggestion: s }, c).ok).toBe(false);
+    }
+    expect(rangeableParPiecesJointes({ suggestion: { nature: "aucune", candidats: [], raison: "" } }, ["S0305"], c)).toEqual({ ok: false, motif: "copro-inactive" });
   });
 });
 

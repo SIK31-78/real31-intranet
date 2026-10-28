@@ -226,7 +226,7 @@ describe("rangerAutomatiquement (cron, piste sûre)", () => {
       sure,
       brut({ subject: "S0297 et S0305 : deux immeubles" }), // plusieurs
       brut({ subject: "Bonjour", bodyText: "Voir S0305." }), // faible
-      brut({ subject: "S0410 - ancien immeuble" }), // inactive : plafonnee a faible
+      brut({ subject: "Ancien immeuble", bodyText: "Voir S0410." }), // inactive, code dans le corps : faible
       brut({ from: "postmaster@exemple.fr", subject: "Non remis : S0297" }), // corbeille
       brut({ from: "collegue@real31.fr", subject: "RE: S0297 - fuite" }), // interne
     ];
@@ -503,5 +503,15 @@ describe("rangerAutomatiquement : candidates d'un même dossier de binôme (28/1
     expect(bilan).toMatchObject({ ranges: 1, pj: { ranges: 1 } });
     const [e] = await repo.journalDepuis(SYNDIC4);
     expect(e).toMatchObject({ dossierNom: "GG", copros: ["S0297", "S0298"], signal: "pj", candidats: ["S0297", "S0298"] });
+  });
+});
+
+describe("rangerAutomatiquement : copro inactive citée par son code (28/10/2026)", () => {
+  it("code dans l'objet : rangée dans le dossier de son ancien binôme, journal « faible »", async () => {
+    const m = brut({ subject: "S0410 - coordonnées du nouveau syndic" });
+    const { passer, repo } = monter([m]);
+    expect(await passer()).toMatchObject({ ranges: 1 });
+    const [e] = await repo.journalDepuis(SYNDIC4);
+    expect(e).toMatchObject({ coproReference: "S0410", dossierNom: "GG", signal: "faible", par: "automatique" });
   });
 });
