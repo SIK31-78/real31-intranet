@@ -204,7 +204,9 @@ export function TriEmailsVue({
       toast.ok(
         r.donnees?.dejaPresent
           ? `Le mail était déjà dans ${cible} : il a été retiré d'ici.`
-          : `Mail envoyé dans la boîte ${cible} : son tri le rangera.`,
+          : r.donnees?.cibleTriee === false
+            ? `Mail envoyé dans la boîte de réception de ${cible} (boîte non triée par l'intranet).`
+            : `Mail envoyé dans la boîte ${cible} : son tri le rangera.`,
       );
       router.refresh();
     });
@@ -736,7 +738,11 @@ function DetailMail({
                 variant="secondary"
                 disabled={enCours}
                 onClick={() => basculer(b.boite)}
-                title={`Recopie le mail tel quel dans la boîte de réception de ${b.boite} (agences ${b.agences.join(", ")}), où son tri le rangera ; l'original part aux éléments supprimés d'ici.`}
+                title={
+                  b.triee
+                    ? `Recopie le mail tel quel dans la boîte de réception de ${b.boite} (agences ${b.agences.join(", ")}), où son tri le rangera ; l'original part aux éléments supprimés d'ici.`
+                    : `Recopie le mail tel quel dans la boîte de réception de ${b.boite} (agences ${b.agences.join(", ")}), qui n'est pas triée par l'intranet ; l'original part aux éléments supprimés d'ici.`
+                }
               >
                 Envoyer à {b.boite.split("@")[0]} ({b.agences.join(", ")})
               </Button>

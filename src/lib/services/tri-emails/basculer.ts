@@ -37,6 +37,15 @@
 // (le tri de cette boîte, ou le mail distribué à son binôme dans « E-mails ») peut le faire
 // basculer ; on ne demande pas d'accès à la boîte cible. Les appelants (actions) vérifient
 // l'accès ; le service ne lit pas auth.
+//
+// Cible « destination seulement » ("tri":false dans MAIL_TRI_BOITES, syndic1 pour ML le
+// 28/10/2026, encore relevée par Crypto) : mêmes gardes (écriture ouverte sur la boîte de
+// départ ET `ecriture` de la cible), même copie, même journal côté DÉPART. Mais rien n'est
+// écrit côté cible hors la copie elle-même : ni journal, ni index de réception, ni rangement
+// chez un binôme, ni catégorie. Une copro choisie (« Pas pour moi ») est seulement vérifiée dans
+// le référentiel des agences de la cible et notée sur la ligne de départ. La reprise
+// (reprendreBascule) ne lit que la boîte cible (situer, pièces) et peut y effacer une copie
+// partielle faite par l'intranet. Le retour depuis syndic1 n'existe pas (aucun écran).
 
 import {
   boiteDeBascule,
@@ -47,8 +56,15 @@ import {
   refusBascule,
   type EtatBascule,
 } from "@/lib/domain/bascule-boites";
-import { BOITE_ECHANTILLON, boiteTri, boitesTri, ecritureTriPour, type BoiteTriConfig } from "@/lib/domain/mail-gate";
-import { PAR_SYSTEME, type EntreeJournalTri } from "@/lib/domain/tri-emails";
+import {
+  BOITE_ECHANTILLON,
+  boiteDestinationBascule,
+  boitesDestinationBascule,
+  boiteTri,
+  ecritureTriPour,
+  type BoiteTriConfig,
+} from "@/lib/domain/mail-gate";
+import { PAR_SYSTEME, cleDeReference, type EntreeJournalTri } from "@/lib/domain/tri-emails";
 import type { CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
 import { MailHorsReception } from "@/lib/ports/rangement-tri-provider";
 import type { RecopieInterBoitesProvider } from "@/lib/ports/recopie-inter-boites";
@@ -65,22 +81,33 @@ export interface DepsBascule {
   source: DepsRangement;
   cible: DepsRangement;
   recopie: RecopieInterBoitesProvider | null;
+  /**
+   * La cible est-elle triée par l'intranet ? false = « destination seulement » ("tri":false) :
+   * ni journal, ni index, ni rangement côté cible (seulement la copie).
+   */
+  cibleTriee: boolean;
   /** Pour refusBascule : config et interrupteurs déjà résolus. */
   etat: EtatBascule;
 }
 
 /** Les dépendances d'une bascule de `source` vers la boîte `cible` (adresse, vérifiée contre la config). */
 export function depsBascule(source: BoiteTriConfig | null, cible: string): DepsBascule {
-  const configCible = boiteTri(cible);
+  // La boîte de départ est toujours une boîte TRIÉE (une boîte non triée n'a pas d'écran).
+  const configSource = source && boiteTri(source.boite) ? source : null;
+  const configCible = boiteDestinationBascule(cible);
+  const cibleTriee = configCible?.tri ?? false;
+  const cibleDeps = depsParDefaut(configCible);
   return {
-    source: depsParDefaut(source),
-    cible: depsParDefaut(configCible),
+    source: depsParDefaut(configSource),
+    // Cible non triée : pas d'index de réception à tenir (le service n'y touche pas non plus).
+    cible: cibleTriee ? cibleDeps : { ...cibleDeps, index: undefined },
     recopie: getRecopieInterBoites(),
+    cibleTriee,
     etat: {
-      source: source?.boite ?? null,
+      source: configSource?.boite ?? null,
       cible: configCible?.boite ?? (cible.trim().toLowerCase() || null),
       cibleConfiguree: Boolean(configCible),
-      ecritureSource: ecritureTriPour(source),
+      ecritureSource: ecritureTriPour(configSource),
       ecritureCible: ecritureTriPour(configCible),
       graph: process.env.MAIL_SOURCE === "graph",
     },
@@ -101,6 +128,8 @@ export interface ResultatBascule {
   dejaPresent: boolean;
   /** Basculé, mais le rangement dans la cible a été refusé (raison) : la copie attend dans la réception. */
   rangementRefuse: string | null;
+  /** La cible est triée par l'intranet ; false = boîte « destination seulement » (traitée hors intranet). */
+  cibleTriee: boolean;
 }
 
 const depuis = () => new Date(Date.now() - FENETRE_JOURS * 86_400_000).toISOString();
@@ -138,6 +167,17 @@ async function assurerCopie(
   }
   const { messageId: copieId } = await recopie.recopier(source, messageId, cible);
   return { copieId, dejaPresent: false, enReception: true };
+}
+
+/**
+ * La copro choisie pour une cible NON triée : seulement vérifiée dans le référentiel des agences
+ * de la cible (aucun dossier de binôme là-bas). Erreur lisible si elle n'y est pas.
+ */
+async function coproDeLaCible(code: string, deps: DepsRangement, cible: string): Promise<{ copro: string }> {
+  const cle = cleDeReference(code);
+  const copro = cle ? (await deps.referentiel.charger()).copros.find((c) => cleDeReference(c.reference) === cle) : undefined;
+  if (!copro) throw new Error(`La copropriété ${code} n'est pas dans le référentiel de la boîte ${cible}.`);
+  return { copro: copro.reference };
 }
 
 /** Recrée un rangement annulé à tort (bascule interrompue avant la copie). */
@@ -178,7 +218,11 @@ export async function basculerMail(d: DemandeBascule, par: string, deps: DepsBas
   const imid = d.internetMessageId;
 
   // (1) La destination d'abord : une copro inconnue de la cible ne doit rien déclencher.
-  const destination = d.copro ? await resoudreDossier({ type: "copro", reference: d.copro }, deps.cible) : null;
+  const destination = !d.copro
+    ? null
+    : deps.cibleTriee
+      ? await resoudreDossier({ type: "copro", reference: d.copro }, deps.cible)
+      : await coproDeLaCible(d.copro, deps.cible, cible);
 
   const ici = await recopie.situer(source, imid);
   if (!ici || ici.lieu === "corbeille") throw new Error(`Ce mail n'est plus dans la boîte ${source}.`);
@@ -244,6 +288,11 @@ export async function basculerMail(d: DemandeBascule, par: string, deps: DepsBas
     console.error("[bascule] confirmation :", e instanceof Error ? e.message : e);
   }
 
+  // Cible non triée : rien de plus côté cible (ni journal, ni index, ni rangement, ni catégorie).
+  if (!deps.cibleTriee) {
+    return { boiteCible: cible, dossierNom: null, dejaPresent: copie.dejaPresent, rangementRefuse: null, cibleTriee: false };
+  }
+
   // Dans la cible : un aller-retour laisse une ligne « basculé vers » active qui cacherait la copie.
   const ancienne = await actifReel(deps.cible, cible, imid, par).catch(() => null);
   if (ancienne && estBascule(ancienne)) {
@@ -251,9 +300,9 @@ export async function basculerMail(d: DemandeBascule, par: string, deps: DepsBas
     await marquerRemis(deps.cible.index, cible, imid, copie.copieId);
   }
 
-  if (!destination?.copro) return { boiteCible: cible, dossierNom: null, dejaPresent: copie.dejaPresent, rangementRefuse: null };
+  if (!destination?.copro) return { boiteCible: cible, dossierNom: null, dejaPresent: copie.dejaPresent, rangementRefuse: null, cibleTriee: true };
   if (!copie.enReception || (ancienne && !estBascule(ancienne))) {
-    return { boiteCible: cible, dossierNom: null, dejaPresent: copie.dejaPresent, rangementRefuse: `le mail est déjà rangé dans ${cible}` };
+    return { boiteCible: cible, dossierNom: null, dejaPresent: copie.dejaPresent, rangementRefuse: `le mail est déjà rangé dans ${cible}`, cibleTriee: true };
   }
   try {
     const r = await rangerMail(
@@ -261,9 +310,9 @@ export async function basculerMail(d: DemandeBascule, par: string, deps: DepsBas
       par,
       deps.cible,
     );
-    return { boiteCible: cible, dossierNom: r.dossierNom, dejaPresent: copie.dejaPresent, rangementRefuse: null };
+    return { boiteCible: cible, dossierNom: r.dossierNom, dejaPresent: copie.dejaPresent, rangementRefuse: null, cibleTriee: true };
   } catch (e) {
-    return { boiteCible: cible, dossierNom: null, dejaPresent: copie.dejaPresent, rangementRefuse: e instanceof Error ? e.message : String(e) };
+    return { boiteCible: cible, dossierNom: null, dejaPresent: copie.dejaPresent, rangementRefuse: e instanceof Error ? e.message : String(e), cibleTriee: true };
   }
 }
 
@@ -278,7 +327,8 @@ export async function reprendreBascule(
   e: EntreeJournalTri,
   deps: DepsRangement,
   recopie: RecopieInterBoitesProvider | null = deps.recopie ?? null,
-  ecritureCible: (boite: string) => boolean = (b) => ecritureTriPour(boiteTri(b)),
+  // La cible peut être une boîte « destination seulement » : sa config vient de la liste de bascule.
+  ecritureCible: (boite: string) => boolean = (b) => ecritureTriPour(boiteDestinationBascule(b)),
 ): Promise<IssueReprise> {
   const source = deps.boite;
   const cible = boiteDeBascule(e.dossierCle);
@@ -325,19 +375,22 @@ export async function reprendreBascule(
 export interface DestinationBascule {
   boite: string;
   agences: string[];
+  /** false = boîte « destination seulement » : pas triée par l'intranet (ML, relevée par Crypto). */
+  triee: boolean;
 }
 
 /**
- * Les autres boîtes triées vers lesquelles un mail de `source` peut basculer MAINTENANT
- * (écriture ouverte sur les deux, vrai Graph). Vide si la bascule est fermée : les écrans
- * n'affichent alors rien de nouveau.
+ * Les autres boîtes vers lesquelles un mail de `source` (boîte triée) peut basculer MAINTENANT
+ * (écriture ouverte sur les deux, vrai Graph) : boîtes triées et « destination seulement ».
+ * Vide si la bascule est fermée : les écrans n'affichent alors rien de nouveau.
  */
 export function destinationsDeBascule(source: string): DestinationBascule[] {
   const configSource = boiteTri(source);
-  return boitesTri()
-    .filter((b) => b.boite !== BOITE_ECHANTILLON && b.boite !== configSource?.boite)
+  if (!configSource) return [];
+  return boitesDestinationBascule()
+    .filter((b) => b.boite !== BOITE_ECHANTILLON && b.boite !== configSource.boite)
     .filter((b) => refusBascule(depsBascule(configSource, b.boite).etat) === null)
-    .map((b) => ({ boite: b.boite, agences: b.agences }));
+    .map((b) => ({ boite: b.boite, agences: b.agences, triee: b.tri }));
 }
 
 /** Une copro d'une AUTRE boîte : choisie dans « Pas pour moi », elle fait basculer le mail. */
@@ -347,7 +400,8 @@ export type CoproAutreBoite = CoproDestination & { boite: string; agences: strin
 export async function coprosDesAutresBoites(source: string): Promise<CoproAutreBoite[]> {
   const listes = await Promise.all(
     destinationsDeBascule(source).map(async (d) =>
-      (await coprosPourReaffecter(boiteTri(d.boite))).map((c) => ({ ...c, boite: d.boite, agences: d.agences })),
+      // Le référentiel des agences de la cible, triée ou non (ML : copros Crypto/ESTALE de l'agence).
+      (await coprosPourReaffecter(boiteDestinationBascule(d.boite))).map((c) => ({ ...c, boite: d.boite, agences: d.agences })),
     ),
   );
   return listes.flat();

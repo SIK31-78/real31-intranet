@@ -153,7 +153,8 @@ export async function affecterCoproAction(input: unknown): Promise<Res> {
  * Le mail n'est pas pour cette agence : il part dans la reception de l'autre boite (recopie a
  * l'identique, l'original aux elements supprimes), ou le tri de cette boite le rangera. Droit :
  * celui de trier la boite de DEPART (point a valider, ADR-050) ; la cible doit etre une boite
- * triee de la config, ecriture ouverte des deux cotes (refus lisible sinon, dans le service).
+ * de la config (triee, ou « destination seulement » comme syndic1 pour ML), ecriture ouverte
+ * des deux cotes (refus lisible sinon, dans le service).
  */
 export async function basculerMailAction(input: unknown): Promise<Res<ResultatBascule>> {
   return actionGestionnaire(

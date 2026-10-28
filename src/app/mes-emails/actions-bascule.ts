@@ -4,6 +4,8 @@
 // 28/10/2026). Dans « Pas pour moi », choisir une copro d'une autre agence recopie le mail dans
 // la boîte de cette agence et l'y range chez le bon binôme ; « Envoyer à syndicN » le dépose
 // dans sa réception, pour son tri. Fichier à part de actions.ts (un autre chantier y travaille).
+// La cible peut être une boîte « destination seulement » (syndic1 pour ML, "tri":false) : le
+// mail arrive dans sa réception, sans rangement (rien n'y est trié par l'intranet).
 //
 // Garde : la même que « Pas pour moi » (boitePartageeDe d'actions.ts) : la boîte est une boîte
 // partagée que la personne voit, et le mail est distribué à l'un de ses binômes (super-admin
@@ -59,7 +61,7 @@ export async function basculerMailAction(
   boite: string,
   cible: string,
   reference: string | null,
-): Promise<Res<{ boiteCible: string; dossierNom: string | null; rangementRefuse: string | null }>> {
+): Promise<Res<{ boiteCible: string; dossierNom: string | null; rangementRefuse: string | null; cibleTriee: boolean }>> {
   const v = z
     .object({ emailId: zId, boite: zBoite, cible: zBoite, reference: z.string().regex(/^(SE|S)\d{3,4}$/i).nullable() })
     .safeParse({ emailId, boite, cible, reference });
@@ -76,7 +78,7 @@ export async function basculerMailAction(
     );
     oublierCompteur(source);
     oublierCompteur(r.boiteCible);
-    return { ok: true, donnees: { boiteCible: r.boiteCible, dossierNom: r.dossierNom, rangementRefuse: r.rangementRefuse } };
+    return { ok: true, donnees: { boiteCible: r.boiteCible, dossierNom: r.dossierNom, rangementRefuse: r.rangementRefuse, cibleTriee: r.cibleTriee } };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
   }

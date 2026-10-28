@@ -41,7 +41,7 @@ describe("refusBascule : l'écriture doit être ouverte sur les deux boîtes", (
   });
 
   it("cible hors config, même boîte, mail hors boîte triée", () => {
-    expect(refusBascule({ ...ouvert, cibleConfiguree: false })).toMatch(/pas une boîte triée/);
+    expect(refusBascule({ ...ouvert, cibleConfiguree: false })).toMatch(/pas une destination de bascule/);
     expect(refusBascule({ ...ouvert, cible: "syndic4@real31.fr" })).toMatch(/déjà dans cette boîte/);
     expect(refusBascule({ ...ouvert, source: null })).toMatch(/pas dans une boîte triée/);
   });

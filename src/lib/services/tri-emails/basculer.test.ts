@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AUCUN_BINOME, type EntreeJournalTri } from "@/lib/domain/tri-emails";
 import type { EtatBascule, PieceComparee } from "@/lib/domain/bascule-boites";
 import { MailHorsReception } from "@/lib/ports/rangement-tri-provider";
@@ -6,10 +6,24 @@ import type { RecopieInterBoitesProvider, SituationMail } from "@/lib/ports/reco
 import { DejaRangeErreur, type NouvelleEntreeJournal } from "@/lib/ports/tri-repository";
 import type { DepsRangement } from "./ranger";
 import { annulerRangement } from "./ranger";
-import { basculerMail, reprendreBascule, type DepsBascule } from "./basculer";
+import { basculerMail, depsBascule, destinationsDeBascule, reprendreBascule, type DepsBascule } from "./basculer";
+import { boiteTri } from "@/lib/domain/mail-gate";
 
 const S4 = "syndic4@real31.fr";
 const S2 = "syndic2@real31.fr";
+/** Boîte « destination seulement » ("tri":false) : ML, relevée par Crypto (28/10/2026). */
+const S1 = "syndic1@real31.fr";
+/** La config de prod du 28/10/2026, plus syndic1 en destination seulement. */
+const AVEC_ML = JSON.stringify([
+  { boite: S4, agences: ["HLS"], depuis: "2026-10-14", ecriture: true, automatique: true, envoi: true },
+  { boite: S2, agences: ["LGC", "ASN"], depuis: "2026-10-27", ecriture: true, automatique: true, envoi: true },
+  { boite: S1, agences: ["ML"], tri: false, ecriture: true },
+]);
+
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 const IMID = "<m1@x>";
 
 /** Journal en mémoire d'UNE boîte, avec l'index unique des rangements réels actifs (REA-420). */
@@ -114,24 +128,63 @@ function monter(o: { journalS4?: EntreeJournalTri[]; journalS2?: EntreeJournalTr
   const repoS2 = journal(S2, o.journalS2);
   const rS4 = b.rangement(S4);
   const rS2 = b.rangement(S2);
-  const dep = (boite: string, repo: unknown, rangement: unknown) =>
+  const dep = (boite: string, repo: unknown, rangement: unknown, ref: unknown = referentiel, index?: unknown) =>
     ({
       boite,
       simulation: false,
       rangement,
       repo,
-      referentiel,
+      referentiel: ref,
       initialesParEmail: async () => ({ "emmanuel.lopes@real31.fr": "EL" }),
       gestionnaires: async () => [],
       recopie: b.recopie,
+      ...(index ? { index } : {}),
     }) as unknown as DepsRangement;
   const deps: DepsBascule = {
     source: dep(S4, repoS4, rS4),
     cible: dep(S2, repoS2, rS2),
     recopie: b.recopie,
+    cibleTriee: true,
     etat: { source: S4, cible: S2, cibleConfiguree: true, ecritureSource: true, ecritureCible: true, graph: true, ...o.etat },
   };
-  return { ...b, repoS4, repoS2, rS4, rS2, deps };
+  return { ...b, repoS4, repoS2, rS4, rS2, deps, dep };
+}
+
+/**
+ * Un faux dont TOUT appel échoue ET est noté (une erreur avalée par un .catch se verrait quand
+ * même) : le journal, l'index et le rangement d'une cible non triée.
+ */
+function piege(nom: string, appels: string[]): Record<string, never> {
+  return new Proxy({} as Record<string, never>, {
+    get: (_c, prop) => {
+      if (prop === "then") return undefined;
+      return () => {
+        appels.push(`${nom}.${String(prop)}`);
+        throw new Error(`${nom}.${String(prop)} appelé pour une boîte non triée`);
+      };
+    },
+  });
+}
+
+/** Le référentiel de l'agence ML (copros Crypto), celui de syndic1. */
+const referentielML = {
+  charger: async () => ({
+    copros: [{ reference: "S0208", nom: "LE CEDRE", adresse: "Maisons-Laffitte", gestionnaire: null, assistant: null }],
+    expediteurs: {},
+  }),
+};
+
+/** Une bascule de syndic4 vers syndic1, boîte « destination seulement » : la cible n'a ni journal, ni index, ni rangement. */
+function monterVersML(o: { journalS4?: EntreeJournalTri[] } = {}) {
+  const t = monter(o);
+  const appelsCible: string[] = [];
+  const deps: DepsBascule = {
+    ...t.deps,
+    cible: t.dep(S1, piege("journal", appelsCible), piege("rangement", appelsCible), referentielML, piege("index", appelsCible)),
+    cibleTriee: false,
+    etat: { ...t.deps.etat, cible: S1 },
+  };
+  return { ...t, deps, appelsCible };
 }
 
 const rangement = (o: Partial<EntreeJournalTri> = {}): EntreeJournalTri => ({
@@ -163,7 +216,7 @@ describe("bascule d'un mail vers une autre boîte triée", () => {
     t.mails.push({ boite: S4, id: "o1", imid: IMID, lieu: "reception", recopieDe: null, pieces: [PDF] });
     const r = await basculerMail({ internetMessageId: IMID }, "mylene.pin@real31.fr", t.deps);
 
-    expect(r).toEqual({ boiteCible: S2, dossierNom: null, dejaPresent: false, rangementRefuse: null });
+    expect(r).toEqual({ boiteCible: S2, dossierNom: null, dejaPresent: false, rangementRefuse: null, cibleTriee: true });
     expect(t.recopie.recopier).toHaveBeenCalledWith(S4, "o1", S2);
     expect(t.mails.find((m) => m.boite === S2)).toMatchObject({ lieu: "reception", recopieDe: S4 });
     expect(t.mails.find((m) => m.boite === S4)!.lieu).toBe("corbeille");
@@ -269,6 +322,139 @@ describe("bascule d'un mail vers une autre boîte triée", () => {
   it("une bascule ne s'annule pas depuis le journal (le mail serait en double)", async () => {
     const t = monter({ journalS4: [rangement({ dossierCle: "bascule:syndic2@real31.fr" })] });
     await expect(annulerRangement("j-binome", "mp", t.deps.source)).rejects.toThrow(/basculé vers une autre boîte/);
+  });
+});
+
+describe("bascule vers une boîte « destination seulement » (syndic1, ML, non triée)", () => {
+  it("copie dans la réception de syndic1, original à la corbeille, ligne au départ seulement ; rien côté cible", async () => {
+    const t = monterVersML({ journalS4: [rangement()] });
+    t.mails.push({ boite: S4, id: "o1", imid: IMID, lieu: "autre", recopieDe: null, pieces: [PDF] });
+    const r = await basculerMail({ internetMessageId: IMID, copro: "s208" }, "mp", t.deps);
+
+    expect(r).toEqual({ boiteCible: S1, dossierNom: null, dejaPresent: false, rangementRefuse: null, cibleTriee: false });
+    expect(t.recopie.recopier).toHaveBeenCalledWith(S4, "o1", S1);
+    expect(t.mails.find((m) => m.boite === S1)).toMatchObject({ lieu: "reception", recopieDe: S4 });
+    expect(t.mails.find((m) => m.boite === S4)!.lieu).toBe("corbeille");
+    // La copro ML choisie est notée sur la ligne de DÉPART (référence du référentiel ML).
+    expect(t.repoS4.lignes[1]).toMatchObject({ dossierCle: "bascule:syndic1@real31.fr", coproReference: "S0208", etat: "fait" });
+    // Aucun rangement chez un binôme de syndic4 non plus : seul l'ancien a été annulé.
+    expect(t.rS4.deplacer).not.toHaveBeenCalled();
+    expect(t.rS4.etiqueter).not.toHaveBeenCalled();
+    // Ni journal, ni index, ni rangement, ni catégorie côté syndic1.
+    expect(t.appelsCible).toEqual([]);
+  });
+
+  it("sans copro (bouton « Envoyer à syndic1 ») : même chose, la copie attend dans la réception", async () => {
+    const t = monterVersML();
+    t.mails.push({ boite: S4, id: "o1", imid: IMID, lieu: "reception", recopieDe: null, pieces: [] });
+    const r = await basculerMail({ internetMessageId: IMID }, "mp", t.deps);
+    expect(r).toMatchObject({ boiteCible: S1, dossierNom: null, cibleTriee: false });
+    expect(t.repoS4.lignes).toEqual([expect.objectContaining({ dossierNom: "Basculé vers syndic1@real31.fr", etat: "fait" })]);
+    expect(t.appelsCible).toEqual([]);
+  });
+
+  it("copro absente du référentiel ML : refusée avant tout geste", async () => {
+    const t = monterVersML({ journalS4: [rangement()] });
+    t.mails.push({ boite: S4, id: "o1", imid: IMID, lieu: "autre", recopieDe: null, pieces: [] });
+    await expect(basculerMail({ internetMessageId: IMID, copro: "S0077" }, "mp", t.deps)).rejects.toThrow(
+      "La copropriété S0077 n'est pas dans le référentiel de la boîte syndic1@real31.fr.",
+    );
+    expect(t.repoS4.marquerAnnule).not.toHaveBeenCalled();
+    expect(t.recopie.recopier).not.toHaveBeenCalled();
+  });
+
+  it("recliquer : la copie complète déjà dans syndic1 est reprise, jamais en double", async () => {
+    const t = monterVersML();
+    t.mails.push({ boite: S4, id: "o1", imid: IMID, lieu: "reception", recopieDe: null, pieces: [PDF] });
+    t.mails.push({ boite: S1, id: "c-avant", imid: IMID, lieu: "reception", recopieDe: S4, pieces: [PDF] });
+    const r = await basculerMail({ internetMessageId: IMID }, "mp", t.deps);
+    expect(r).toMatchObject({ dejaPresent: true, cibleTriee: false });
+    expect(t.recopie.recopier).not.toHaveBeenCalled();
+    expect(t.mails.filter((m) => m.boite === S1)).toHaveLength(1);
+    expect(t.appelsCible).toEqual([]);
+  });
+
+  it("le mail déjà relevé hors réception de syndic1 (Crypto l'a classé) : rien n'est recopié", async () => {
+    const t = monterVersML();
+    t.mails.push({ boite: S4, id: "o1", imid: IMID, lieu: "reception", recopieDe: null, pieces: [] });
+    t.mails.push({ boite: S1, id: "recu", imid: IMID, lieu: "autre", recopieDe: null, pieces: [] });
+    expect(await basculerMail({ internetMessageId: IMID }, "mp", t.deps)).toMatchObject({ dejaPresent: true });
+    expect(t.recopie.recopier).not.toHaveBeenCalled();
+    expect(t.recopie.effacerCopie).not.toHaveBeenCalled();
+  });
+
+  it("écriture coupée sur syndic1 : refus lisible, rien n'est écrit", async () => {
+    const t = monterVersML();
+    t.deps.etat.ecritureCible = false;
+    t.mails.push({ boite: S4, id: "o1", imid: IMID, lieu: "reception", recopieDe: null, pieces: [] });
+    await expect(basculerMail({ internetMessageId: IMID }, "mp", t.deps)).rejects.toThrow(/coupée sur syndic1/);
+    expect(t.repoS4.lignes).toHaveLength(0);
+  });
+
+  describe("reprise (tâche planifiée de syndic4), cible non triée", () => {
+    const enCoursML = () =>
+      rangement({ id: "j-b", dossierCle: "bascule:syndic1@real31.fr", dossierNom: "Basculé vers syndic1@real31.fr", etat: "en_cours" });
+
+    it("copie complète dans syndic1 : on termine, sans rien lire du journal de syndic1", async () => {
+      const t = monterVersML({ journalS4: [enCoursML()] });
+      t.mails.push({ boite: S4, id: "o1", imid: IMID, lieu: "autre", recopieDe: null, pieces: [PDF] });
+      t.mails.push({ boite: S1, id: "c1", imid: IMID, lieu: "reception", recopieDe: S4, pieces: [PDF] });
+      expect(await reprendreBascule(t.repoS4.lignes[0]!, t.deps.source)).toBe("confirmee");
+      expect(t.mails.find((m) => m.boite === S4)!.lieu).toBe("corbeille");
+    });
+
+    it("copie partielle : effacée dans syndic1 (écriture de syndic1 lue dans la liste de bascule), l'original revient", async () => {
+      vi.stubEnv("MAIL_TRI_ECRITURE", "on");
+      vi.stubEnv("MAIL_TRI_BOITES", AVEC_ML);
+      const t = monterVersML({ journalS4: [enCoursML()] });
+      t.mails.push({ boite: S4, id: "o1", imid: IMID, lieu: "autre", recopieDe: null, pieces: [PDF] });
+      t.mails.push({ boite: S1, id: "c1", imid: IMID, lieu: "reception", recopieDe: S4, pieces: [] });
+      // ecritureCible par défaut : la config de syndic1 vient de boiteDestinationBascule (boiteTri la rendrait nulle).
+      expect(await reprendreBascule(t.repoS4.lignes[0]!, t.deps.source)).toBe("annulee");
+      expect(t.recopie.effacerCopie).toHaveBeenCalledWith(S1, "c1");
+      expect(t.mails.find((m) => m.boite === S4)!.lieu).toBe("reception");
+    });
+  });
+});
+
+describe("destinations de bascule (config MAIL_TRI_BOITES)", () => {
+  const ouvrir = (config = AVEC_ML) => {
+    vi.stubEnv("MAIL_TRI_BOITES", config);
+    vi.stubEnv("MAIL_TRI_ECRITURE", "on");
+    vi.stubEnv("MAIL_SOURCE", "graph");
+  };
+
+  it("syndic1 (tri:false) est une destination depuis syndic4 et syndic2, marquée non triée", () => {
+    ouvrir();
+    expect(destinationsDeBascule(S4)).toEqual([
+      { boite: S2, agences: ["LGC", "ASN"], triee: true },
+      { boite: S1, agences: ["ML"], triee: false },
+    ]);
+    expect(destinationsDeBascule(S2).map((d) => d.boite)).toEqual([S4, S1]);
+  });
+
+  it("syndic1 n'est jamais une boîte de départ (pas d'écran) : aucune destination, refus", () => {
+    ouvrir();
+    expect(destinationsDeBascule(S1)).toEqual([]);
+    const faux = { boite: S1, agences: ["ML"], depuis: null, ecriture: true, automatique: false, envoi: false };
+    expect(depsBascule(faux, S4).etat.source).toBeNull();
+  });
+
+  it("depsBascule vers syndic1 : cible non triée, sans index de réception", () => {
+    ouvrir();
+    const d = depsBascule(boiteTri(S4), S1);
+    expect(d.cibleTriee).toBe(false);
+    expect(d.etat).toMatchObject({ source: S4, cible: S1, cibleConfiguree: true, ecritureSource: true, ecritureCible: true });
+    expect(d.cible.index).toBeUndefined();
+    expect(depsBascule(boiteTri(S4), S2).cibleTriee).toBe(true);
+  });
+
+  it("ecriture:false sur syndic1, ou interrupteur global coupé : syndic1 disparaît des destinations", () => {
+    ouvrir(AVEC_ML.replace('"tri":false,"ecriture":true', '"tri":false,"ecriture":false'));
+    expect(destinationsDeBascule(S4).map((d) => d.boite)).toEqual([S2]);
+    ouvrir();
+    vi.stubEnv("MAIL_TRI_ECRITURE", "");
+    expect(destinationsDeBascule(S4)).toEqual([]);
   });
 });
 

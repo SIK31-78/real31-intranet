@@ -5,6 +5,9 @@
 // éléments supprimés de la boîte de départ, et le geste est inscrit au journal du tri de la
 // boîte de départ. Ici, les règles pures : la clé de journal, qui peut basculer, et ce qu'est
 // une copie complète. Domaine pur : ni Graph, ni auth.
+// La cible peut aussi être une boîte « destination seulement » ("tri":false dans
+// MAIL_TRI_BOITES, syndic1 pour ML le 28/10/2026) : mêmes gardes (écriture ouverte des deux
+// côtés), mais rien n'est trié ni journalisé côté cible.
 
 /** Préfixe de la clé de dossier d'une ligne de bascule : « bascule:syndic2@real31.fr ». */
 export const PREFIXE_BASCULE = "bascule:";
@@ -35,7 +38,7 @@ export function nomBascule(cible: string): string {
 export interface EtatBascule {
   source: string | null;
   cible: string | null;
-  /** La cible est-elle une boîte triée de la config ? */
+  /** La cible est-elle une destination de bascule de la config (boîte triée, ou « destination seulement ») ? */
   cibleConfiguree: boolean;
   /** Le tri écrit-il pour de vrai dans chaque boîte (ecritureTriPour) ? */
   ecritureSource: boolean;
@@ -52,7 +55,7 @@ export interface EtatBascule {
  */
 export function refusBascule(e: EtatBascule): string | null {
   if (!e.source) return "Ce mail n'est pas dans une boîte triée.";
-  if (!e.cible || !e.cibleConfiguree) return "La boîte de destination n'est pas une boîte triée de l'intranet.";
+  if (!e.cible || !e.cibleConfiguree) return "La boîte de destination n'est pas une destination de bascule de l'intranet (MAIL_TRI_BOITES).";
   if (e.source === e.cible) return "Ce mail est déjà dans cette boîte.";
   if (!e.graph) return "La bascule entre boîtes n'est possible qu'avec les vraies boîtes (MAIL_SOURCE=graph) : rien n'a été fait.";
   const fermees = [e.ecritureSource ? null : e.source, e.ecritureCible ? null : e.cible].filter(Boolean);

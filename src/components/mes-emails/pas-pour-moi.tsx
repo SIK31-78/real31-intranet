@@ -11,6 +11,8 @@
 // de la copro) et retire l'original d'ici. « Envoyer à syndicN » le dépose dans la réception
 // de l'autre boîte, pour son tri, quand on ne connaît pas la copro. Rien de tout cela tant que
 // l'écriture n'est pas ouverte sur les deux boîtes (liste vide côté serveur).
+// Boîte « destination seulement » (syndic1 pour ML, 28/10/2026, relevée par Crypto) : ses copros
+// sont proposées de même, mais le mail arrive seulement dans sa réception, sans rangement.
 
 import { useMemo, useState, useTransition } from "react";
 import { UserX } from "lucide-react";
@@ -64,7 +66,9 @@ export function PasPourMoi({ emailId, boite, onParti }: { emailId: string; boite
       const r = await basculerMailAction(emailId, boite, cible, reference);
       if (!r.ok) return void toast.err(r.erreur);
       const d = r.donnees;
-      if (d?.dossierNom) toast.ok(`Mail envoyé dans la boîte ${court(cible)}, dossier ${d.dossierNom}, pour ${reference}.`);
+      if (d?.cibleTriee === false) {
+        toast.ok(`Mail envoyé dans la boîte de réception de ${court(cible)}${reference ? `, pour ${reference}` : ""} (boîte non triée par l'intranet).`);
+      } else if (d?.dossierNom) toast.ok(`Mail envoyé dans la boîte ${court(cible)}, dossier ${d.dossierNom}, pour ${reference}.`);
       else if (d?.rangementRefuse) toast.warn(`Mail envoyé dans la boîte ${court(cible)}, mais pas rangé (${d.rangementRefuse}) : son tri s'en chargera.`);
       else toast.ok(`Mail envoyé dans la boîte ${court(cible)} : son tri le rangera.`);
       setOuvert(false);
@@ -151,7 +155,11 @@ export function PasPourMoi({ emailId, boite, onParti }: { emailId: string; boite
                       variant="secondary"
                       disabled={enCours}
                       onClick={() => basculer(b.boite, null)}
-                      title={`Recopie le mail tel quel dans la boîte de réception de ${b.boite}, où son tri le rangera ; l'original part aux éléments supprimés d'ici.`}
+                      title={
+                        b.triee
+                          ? `Recopie le mail tel quel dans la boîte de réception de ${b.boite}, où son tri le rangera ; l'original part aux éléments supprimés d'ici.`
+                          : `Recopie le mail tel quel dans la boîte de réception de ${b.boite}, qui n'est pas triée par l'intranet ; l'original part aux éléments supprimés d'ici.`
+                      }
                     >
                       Envoyer à {court(b.boite)} ({b.agences.join(", ")})
                     </Button>
