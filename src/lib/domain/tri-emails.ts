@@ -535,6 +535,13 @@ export interface OptionsNomAdresse {
    * (« fermer de 12h30 » lu « rue de la Ferme », mail de S220 range a tort en S277).
    */
   approche?: boolean;
+  /**
+   * Adresse citee sans code postal ni ville (28/10/2026) : acceptee quand le numero est colle a
+   * la rue complete et que cette rue n'existe que dans une seule ville du referentiel. Non par
+   * defaut : seulement le texte du mail, en suggestion a confirmer (jamais rangee seule, jamais
+   * dans un PDF ni « Immeuble concerné »). Elle ne compte que si rien d'autre n'est trouve.
+   */
+  sansLieu?: boolean;
 }
 
 /**
@@ -559,8 +566,10 @@ export function indicesNomAdresse(
   texte: string,
   copros: CoproTri[],
   options: OptionsNomAdresse = {},
-): { reference: string; raison: string; approchee?: true }[] {
+): { reference: string; raison: string; approchee?: true; sansLieu?: true }[] {
   const approche = options.approche ?? true;
+  const sansLieu = options.sansLieu ?? false;
+  const sansLieuTrouves: { reference: string; raison: string; sansLieu: true }[] = [];
   const mots = new Set(normaliser(texte).split(/[^a-z0-9]+/).map(deplierVoie));
   const espace = ` ${normaliser(texte).replace(/[^a-z0-9]+/g, " ").trim()} `;
   const jetons = jetonsCompacts(texte);
@@ -568,6 +577,7 @@ export function indicesNomAdresse(
   const numerosCites = new Set(jetons.map((t) => /^(\d{1,4})(?:bis|ter|b|t)?$/.exec(t)?.[1]).filter((n): n is string => n !== undefined).map((n) => String(Number(n))));
   const villes = villesDu(copros);
   const rues = ruesPartagees(copros);
+  const autreLieuCite = sansLieu && ([...mots].some((m) => /^\d{5}$/.test(m)) || [...villes].some((v) => mots.has(v)));
   const noyauTexte = ` ${noyauDe(texte).join(" ")} `;
   const parNom: { reference: string; raison: string }[] = [];
   const parAdresse: { reference: string; raison: string }[] = [];
@@ -603,7 +613,20 @@ export function indicesNomAdresse(
       // Une rue compte si son type (rue, avenue…) ET tous ses mots porteurs sont cités, ET que
       // le lieu (code postal ou ville) l'est aussi : « 71 rue de Bezons » à Carrières ne matche
       // pas un mail de Bezons 95870.
-      if (!lieuPresent) continue;
+      if (!lieuPresent) {
+        // Sans lieu (28/10/2026, suggestion seulement) : le numero colle a la rue complete, et
+        // une rue qu'une seule ville du referentiel connait (« 12 rue des Lilas » sans « Chatou »).
+        // Jamais quand le texte cite un autre lieu (un code postal, une ville du referentiel) :
+        // « 71 rue de Bezons 95870 BEZONS » n'est pas le 71 rue de Bezons de Carrieres.
+        if (sansLieu && !autreLieuCite && !sansLieuTrouves.some((a) => a.reference === c.reference)) {
+          const numeros = numerosDe(adresse);
+          const v = numeros.size === 0 ? undefined : voiesDe(adresse).find((x) => mots.has(x.type) && x.mots.every((m) => mots.has(m)) && numeroDevantLaRue(jetonsVoie, numeros, x, false));
+          if (v && villesDeLaRue(copros, v).size === 1) {
+            sansLieuTrouves.push({ reference: c.reference, raison: `Adresse « ${v.type} ${v.mots.join(" ")} » citée sans ville ni code postal (une seule ville connue pour cette rue), à confirmer.`, sansLieu: true });
+          }
+        }
+        continue;
+      }
       // Le numero doit suivre (audit du 19/10/2026) : « 152 avenue Gabriel Péri » ne designe pas
       // la copro du 25 de la meme avenue. Une adresse sans numero en base ne se controle pas.
       const numeros = numerosDe(adresse);
@@ -635,7 +658,23 @@ export function indicesNomAdresse(
   // pres ne compte que si aucune adresse n'est citee exactement : « 12 rue Pasteur » ne doit
   // pas aussi trouver la copro du 12 rue Pastour.
   const exactes = new Set([...parNom, ...parAdresse].map((i) => i.reference));
-  return [...parNom, ...parAdresse, ...(parAdresse.length === 0 ? approchees.filter((a) => !exactes.has(a.reference)) : [])];
+  const tolerees = parAdresse.length === 0 ? approchees.filter((a) => !exactes.has(a.reference)) : [];
+  // Une adresse sans lieu ne compte que si rien d'autre n'est trouve : elle ne doit pas faire
+  // d'une piste rangeable une piste « plusieurs ».
+  const sansLieuSeules = exactes.size === 0 ? sansLieuTrouves.filter((a) => !tolerees.some((t) => t.reference === a.reference)) : [];
+  return [...parNom, ...parAdresse, ...tolerees, ...sansLieuSeules];
+}
+
+/** Les lieux (code postal, a defaut ville) des copros du referentiel qui ont cette rue. */
+function villesDeLaRue(copros: CoproTri[], voie: { mots: string[] }): Set<string> {
+  const cle = voie.mots.join(" ");
+  const lieux = new Set<string>();
+  for (const c of copros) {
+    for (const a of [c.adresse, ...(c.adressesSecondaires ?? [])]) {
+      if (voiesDe(a).some((v) => v.mots.join(" ") === cle)) lieux.add(codePostalDe(a) || villeDe(a));
+    }
+  }
+  return lieux;
 }
 
 // « Immeuble concerné : 86 rue E Vaillant - 89-91 rue M Berteaux-BEZONS » : pied des mails
@@ -955,18 +994,19 @@ function suggestionBrute(
   // « nom-adresse », decision du 26/10/2026 ; plusieurs copros : a choisir). On ne lit que
   // l'objet et le DEBUT du corps : l'adresse du cabinet, en signature de bas de mail, ne
   // doit pas rattacher tous les mails (constat du 13/10/2026).
-  const indices = indicesNomAdresse(`${mail.objet}\n${corps.slice(0, TETE_CORPS)}`, ref.copros);
+  const indices = indicesNomAdresse(`${mail.objet}\n${corps.slice(0, TETE_CORPS)}`, ref.copros, { sansLieu: true });
   if (indices.length === 1) {
     // Un code hors perimetre cite a cote (« S0142 », copro d'une autre agence) : la piste reste
     // a confirmer, elle ne porte pas l'origine qui la rend rangeable sans clic.
     const codeHorsPerimetre = new RegExp(MOTIF_REFERENCE.source, "i").test(`${mail.objet}\n${corps}`);
     // Une adresse a une lettre pres reste aussi a confirmer (decision Sekou du 27/10/2026) :
-    // elle n'etait pas dans la mesure des 15 faibles justes, on l'observe d'abord.
+    // elle n'etait pas dans la mesure des 15 faibles justes, on l'observe d'abord. Une adresse
+    // sans ville ni code postal aussi (28/10/2026, suggestion seulement).
     return {
       nature: "faible",
       candidats: [indices[0]!.reference],
       raison: indices[0]!.raison,
-      ...(codeHorsPerimetre || indices[0]!.approchee ? {} : { origine: "nom-adresse" as const }),
+      ...(codeHorsPerimetre || indices[0]!.approchee || indices[0]!.sansLieu ? {} : { origine: "nom-adresse" as const }),
     };
   }
   if (indices.length > 1) {

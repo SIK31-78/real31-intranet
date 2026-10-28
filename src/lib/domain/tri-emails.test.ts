@@ -420,7 +420,10 @@ describe("suggererCopro", () => {
         candidats: ["S0906"],
       });
       expect(suggererCopro(mail({ objet: "Sinistre au 85 boulevard Imaginaire, Rueil-Malmaison" }), ref).nature).toBe("aucune");
-      expect(suggererCopro(mail({ objet: "Sinistre au 81 boulevard Imaginaire" }), ref).nature).toBe("aucune");
+      // Sans le lieu : seulement une suggestion à confirmer (rue d'une seule ville, 28/10/2026).
+      const sansLieu = suggererCopro(mail({ objet: "Sinistre au 81 boulevard Imaginaire" }), ref);
+      expect(sansLieu).toMatchObject({ nature: "faible", candidats: ["S0906"] });
+      expect(sansLieu.origine).toBeUndefined();
     });
 
     it("la ville d'une adresse secondaire n'est distinctive pour aucun nom", () => {
@@ -1323,5 +1326,40 @@ describe("départage par le gestionnaire : en tête, jamais rangé pour autant (
     const s = departagerParGestionnaire(plusieurs("S0242", "S0209"), "RB/1234567", ref, ini);
     const ctx = { automatique: true, dejaPasse: false, copros: ref.copros, initialesParEmail: ini };
     expect(rangeableAutomatiquement({ suggestion: s }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
+  });
+});
+
+describe("adresse sans ville ni code postal : suggestion à confirmer (28/10/2026)", () => {
+  // Cas réels de syndic2 (« 19 RUE SARTORIS » dans un objet de devis), noms changés.
+  const c = (reference: string, adresse: string): CoproTri => ({ reference, nom: `Copro ${reference}`, adresse, gestionnaire: null, assistant: null });
+  const ref: ReferentielTri = {
+    copros: [
+      c("S0082", "19 rue Sartine 92250 LA GARENNE-COLOMBES"),
+      c("S0300", "4 rue de la Paix 92250 LA GARENNE-COLOMBES"),
+      c("S0301", "8 rue de la Paix 78800 HOUILLES"),
+    ],
+    expediteurs: {},
+  };
+  const trouve = (objet: string) => suggererCopro(mail({ objet }), ref);
+
+  it("numéro collé à une rue qu'une seule ville connaît : proposée, jamais rangée seule", () => {
+    const s = trouve("DEVIS DEV-2026-10-2721 - 19 RUE SARTINE");
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S0082"] });
+    expect(s.raison).toContain("sans ville");
+    expect(s.origine).toBeUndefined();
+    expect(pisteRangeable(s)).toBe(false);
+  });
+
+  it("une rue présente dans deux villes, un autre numéro, un numéro loin de la rue : rien", () => {
+    expect(trouve("Devis 4 rue de la Paix").candidats).toEqual([]);
+    expect(trouve("Devis 21 rue Sartine").candidats).toEqual([]);
+    expect(trouve("Rue Sartine, devis n° 19").candidats).toEqual([]);
+  });
+
+  it("jamais dans un PDF, ni quand le texte cite un autre lieu ; effacée par une adresse complète", () => {
+    expect(coprosDansPdf("Chantier : 19 rue Sartine", ref.copros)).toEqual([]);
+    expect(trouve("Devis 19 rue Sartine 75008 Paris").candidats).toEqual([]);
+    expect(trouve("Devis 19 rue Sartine, Houilles").candidats).toEqual([]);
+    expect(trouve("19 rue Sartine ; 8 rue de la Paix 78800 Houilles").candidats).toEqual(["S0301"]);
   });
 });
