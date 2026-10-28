@@ -9,7 +9,7 @@ import { corrigerCopro } from "@/lib/services/tri-emails/ranger";
 import { mailDistribue } from "./boites-visibles";
 
 export async function reporterCoproAuTri(
-  g: Pick<Gestionnaire, "email">,
+  g: Pick<Gestionnaire, "email" | "role">,
   boite: string,
   internetMessageId: string,
   code: string,

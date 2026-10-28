@@ -27,7 +27,8 @@ const DELAI_MAX_MS = 1_500;
 
 const cache = new Map<string, { valeur: number; expire: number }>();
 
-type Personne = Pick<Gestionnaire, "id" | "email" | "agencyId">;
+/** `role` : la pastille d'un comptable compte le dossier « Comptabilité » des boîtes triées (28/10/2026). */
+type Personne = Pick<Gestionnaire, "id" | "email" | "agencyId" | "role">;
 
 /** Le compte, sans cache ni délai : toutes les boîtes en parallèle. */
 async function compter(g: Personne, opts: { superAdmin: boolean; incarnation: boolean }): Promise<number> {

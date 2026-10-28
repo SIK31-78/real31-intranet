@@ -46,6 +46,8 @@
 // Variables, scope Production). Une variable absente = personne n'a le role (jamais une
 // ouverture par defaut) - sauf `gestionnaire`, qui n'a pas d'allowlist par construction.
 
+import { roleComptable } from "@/lib/domain/gestionnaire";
+
 /** Les roles connus de l'intranet. `gestionnaire` est le defaut (aucune allowlist). */
 export const ROLES = ["gestionnaire", "comptable", "comptable_entreprise", "manager", "directeur", "super_admin"] as const;
 export type Role = (typeof ROLES)[number];
@@ -118,7 +120,7 @@ export function aRole(email: string | null | undefined, role: Role): boolean {
  * VOLONTAIREMENT pas mappees ici - elles restent hors du perimetre table.
  */
 export function estComptableTable(roleTable: string | null | undefined): boolean {
-  return (roleTable ?? "").trim().toUpperCase() === "COMPTABLE";
+  return roleComptable(roleTable);
 }
 
 // --- ROLES BRUTS (a n'utiliser que pour composer une intention metier) --------

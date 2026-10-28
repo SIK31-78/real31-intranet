@@ -22,6 +22,14 @@ export interface BoiteMail {
    * (complément d'ADR-041, 27/10/2026). Absent : ma boîte, ou une boîte partagée.
    */
   pour?: string;
+  /**
+   * Onglet COMMUN a plusieurs boites partagees (28/10/2026) : le dossier « Comptabilité » de
+   * toutes les boites triees, lu par un comptable en une seule liste. `id` = celui de la
+   * premiere boite du groupe (l'onglet affiche se confond avec elle), `libelle` = celui de
+   * l'onglet. Absent : la boite a son propre onglet. Chaque mail garde SA boite : repondre,
+   * marquer traite, « Pas pour moi » partent de la boite d'origine.
+   */
+  onglet?: { id: string; libelle: string };
 }
 
 function normaliser(adresse: string): string {
@@ -78,4 +86,47 @@ export function boiteAutorisee(boites: BoiteMail[], adresse: string): boolean {
 export function boiteReponseParDefaut(boites: BoiteMail[], boiteDuMail: string | undefined): string {
   if (boiteDuMail && boiteAutorisee(boites, boiteDuMail)) return normaliser(boiteDuMail);
   return boites.find((b) => b.personnelle)?.id ?? boites[0]?.id ?? "";
+}
+
+/**
+ * Regroupe les boites partagees (les boites perso, deleguees comprises, gardent leur onglet)
+ * sous UN onglet `libelle` (28/10/2026, comptables : « Comptabilité » de syndic2 et syndic4).
+ * Rien a regrouper sans boite partagee. Pur : l'ordre des boites ne change pas.
+ */
+export function regrouperPartagees(boites: BoiteMail[], libelle: string): BoiteMail[] {
+  const tete = boites.find((b) => !b.personnelle);
+  if (!tete) return boites;
+  return boites.map((b) => (b.personnelle ? b : { ...b, onglet: { id: tete.id, libelle } }));
+}
+
+/** L'onglet qui affiche les mails de cette boite : celui de son groupe, sinon le sien. */
+export function ongletDe(boites: readonly BoiteMail[], boiteId: string): string {
+  return boites.find((b) => b.id === boiteId)?.onglet?.id ?? boiteId;
+}
+
+/**
+ * Les onglets de l'ecran, un par boite ou par groupe, dans l'ordre des boites. L'onglet d'un
+ * groupe porte l'id de sa premiere boite, le libelle du groupe, et en `adresse` celles de
+ * toutes ses boites (l'infobulle de l'onglet).
+ */
+export function ongletsDe(boites: readonly BoiteMail[]): BoiteMail[] {
+  const out: BoiteMail[] = [];
+  for (const b of boites) {
+    if (!b.onglet) out.push(b);
+    else if (b.id === b.onglet.id) {
+      const adresses = boites.filter((x) => x.onglet?.id === b.id).map((x) => x.adresse);
+      out.push({ ...b, libelle: b.onglet.libelle, adresse: adresses.join(", ") });
+    }
+  }
+  return out;
+}
+
+/**
+ * La boite d'origine a afficher discretement sur un mail : « syndic4 » quand son onglet
+ * regroupe plusieurs boites (sinon l'onglet suffit), null autrement.
+ */
+export function origineAffichee(boites: readonly BoiteMail[], boiteId: string | undefined): string | null {
+  const b = boiteId ? boites.find((x) => x.id === boiteId) : undefined;
+  const groupe = b?.onglet ? boites.filter((x) => x.onglet?.id === b.onglet!.id).length : 0;
+  return b && groupe > 1 ? libelleCourt(b.adresse) : null;
 }

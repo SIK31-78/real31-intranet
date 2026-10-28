@@ -16,8 +16,12 @@ import { incarnationEnCours } from "@/lib/auth/session";
 import { boiteAutorisee } from "@/lib/domain/boites-mail";
 import { boitesVisibles, mailDistribue } from "@/lib/services/mes-emails/boites-visibles";
 
-/** `id` : celui de la personne, pour ses délégations de portefeuille (complément d'ADR-041). */
-export type Personne = Pick<Gestionnaire, "id" | "email" | "agencyId">;
+/**
+ * `id` : celui de la personne, pour ses délégations de portefeuille (complément d'ADR-041).
+ * `role` : un COMPTABLE lit « Comptabilité » de toutes les boîtes triées, et rien d'autre dans
+ * une boîte partagée (28/10/2026, cf. boites-visibles).
+ */
+export type Personne = Pick<Gestionnaire, "id" | "email" | "agencyId" | "role">;
 
 /**
  * Les boites de la personne : la sienne, celle de son agence (toutes pour un super-admin). En

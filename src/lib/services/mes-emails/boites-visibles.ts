@@ -17,19 +17,25 @@
 //   (gestionnaire ou assistant·e), et sa boite partagee a mes boites s'il est d'une autre
 //   agence. Une delegation d'agence ou de copro n'ouvre aucun mail (domain/mail-delegation).
 //   En incarnation, ce sont les delegations de la personne incarnee qui comptent.
+// - Comptables (role COMPTABLE de public."User", decision Sekou du 28/10/2026) : quelle que soit
+//   leur agence, TOUTES les boites triees, et dans chacune le seul dossier « Comptabilité »
+//   (jamais les dossiers de binomes). Les boites partagees forment un seul onglet
+//   « Comptabilité » (regrouperPartagees) ; chaque mail garde sa boite pour les gestes, et le
+//   controle des actions (mailDistribue) suit la meme regle.
 
 import { cache } from "react";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
-import { construireBoites, type BoiteMail } from "@/lib/domain/boites-mail";
+import { construireBoites, regrouperPartagees, type BoiteMail } from "@/lib/domain/boites-mail";
+import { roleComptable } from "@/lib/domain/gestionnaire";
 import { boitesTri, type BoiteTriConfig } from "@/lib/domain/mail-gate";
 import { avecBoitesPersoDeleguees, nomCourtTitulaire } from "@/lib/domain/mail-delegation";
-import { clesDossiersDe, type EntreeJournalTri } from "@/lib/domain/tri-emails";
+import { clesDossiersDe, clesDossiersLus, DOSSIERS_HORS_BINOME, type EntreeJournalTri } from "@/lib/domain/tri-emails";
 import { getTriRepository } from "@/lib/adapters/router";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { titulairesDelegants } from "./delegations-mail";
 
-/** La personne : son id sert a lire ses delegations (sans id, aucune). */
-type Personne = Pick<Gestionnaire, "email" | "agencyId"> & { id?: string };
+/** La personne : son id sert a lire ses delegations (sans id, aucune), son role a reconnaitre un comptable. */
+type Personne = Pick<Gestionnaire, "email" | "agencyId" | "role"> & { id?: string };
 
 /** Fenetre du journal relue : les rangements des 45 derniers jours. */
 const FENETRE_JOURS = 45;
@@ -38,23 +44,26 @@ const FENETRE_JOURS = 45;
  * Ma boite perso, puis la boite triee de mon agence (aucune si mon agence n'a pas de boite),
  * puis les boites perso des titulaires qui m'ont confie leur portefeuille (delegation active,
  * complement d'ADR-041 du 27/10/2026 : « Boite de Fanny S. (delegation) »).
- * `superAdmin` (calcule par l'appelant, auth) : toutes les boites triees. La boite fictive
- * « echantillon » n'est jamais une boite a lire (construireBoites l'ecarte).
+ * `superAdmin` (calcule par l'appelant, auth) : toutes les boites triees. Comptable (role de la
+ * table, lu sur `g`) : toutes les boites triees, en un seul onglet « Comptabilité ». La boite
+ * fictive « echantillon » n'est jamais une boite a lire (construireBoites l'ecarte).
  */
 export async function boitesVisibles(
   g: Personne,
   opts: { superAdmin?: boolean; sansBoitePerso?: boolean } = {},
 ): Promise<BoiteMail[]> {
+  const comptable = roleComptable(g.role);
   const [partagees, titulaires] = await Promise.all([
-    opts.superAdmin ? boitesTri() : boitesPartageesDe(g),
+    opts.superAdmin || comptable ? boitesTri() : boitesPartageesDe(g),
     g.id ? titulairesDelegants(g.id) : [],
   ]);
   // Incarnation (« Changer de gestionnaire ») : jamais la boite perso de la personne incarnee
   // (decision du 27/10/2026), seulement les boites partagees ; ni celles de ses delegations.
   const boites = construireBoites(g.email, partagees.map((b) => b.boite).join(",")).filter((b) => !(opts.sansBoitePerso && b.personnelle)).map((b) =>
-    b.personnelle ? b : { ...b, libelle: `${b.libelle} · mes mails` },
+    b.personnelle ? b : { ...b, libelle: `${b.libelle} · ${comptable ? "comptabilité" : "mes mails"}` },
   );
-  return avecBoitesPersoDeleguees(boites, titulaires, opts.sansBoitePerso ?? false);
+  const avecDelegations = avecBoitesPersoDeleguees(boites, titulaires, opts.sansBoitePerso ?? false);
+  return comptable ? regrouperPartagees(avecDelegations, DOSSIERS_HORS_BINOME.comptabilite) : avecDelegations;
 }
 
 /**
@@ -95,7 +104,7 @@ export async function mailsParDelegation(g: Personne, boite: string): Promise<Ma
   return out;
 }
 
-const cleDe = (g: Personne) => [g.email?.trim().toLowerCase() ?? "", g.id ?? ""] as const;
+const cleDe = (g: Personne) => [g.email?.trim().toLowerCase() ?? "", g.id ?? "", roleComptable(g.role)] as const;
 
 function distributionDetaillee(g: Personne, boite: string): Promise<Map<string, MailDistribue>> {
   return distributionEnCache(...cleDe(g), boite.trim().toLowerCase());
@@ -106,9 +115,9 @@ function distributionDetaillee(g: Personne, boite: string): Promise<Map<string, 
  * demandent la distribution plusieurs fois (garde de chaque action, lecture de la boite), le
  * journal n'est relu qu'une fois.
  */
-const distributionEnCache = cache(async (email: string, userId: string, boite: string): Promise<Map<string, MailDistribue>> => {
+const distributionEnCache = cache(async (email: string, userId: string, comptable: boolean, boite: string): Promise<Map<string, MailDistribue>> => {
   const out = new Map<string, MailDistribue>();
-  const { lignes, pourDeCle } = await rangementsDeMesBinomes(email, userId, boite);
+  const { lignes, pourDeCle } = await rangementsDeMesBinomes(email, userId, comptable, boite);
   for (const e of lignes) {
     if (!out.has(e.internetMessageId)) out.set(e.internetMessageId, { copro: e.coproReference, pour: pourDeCle.get(e.dossierCle ?? "") ?? null });
   }
@@ -118,7 +127,8 @@ const distributionEnCache = cache(async (email: string, userId: string, boite: s
 /**
  * Ce mail de la boite partagee est-il distribue a l'un de mes binomes ? Le controle d'acces
  * des actions de « E-mails » (isolation par binome, 27/10/2026) : un identifiant de mail d'un
- * autre binome, meme dans la boite de mon agence, est refuse.
+ * autre binome, meme dans la boite de mon agence, est refuse. Pour un comptable : le mail est
+ * range dans « Comptabilité » de cette boite (28/10/2026).
  */
 export async function mailDistribue(g: Personne, boite: string, internetMessageId: string): Promise<boolean> {
   if (!g.email || !internetMessageId) return false;
@@ -138,17 +148,17 @@ export async function conversationsDistribuees(g: Personne, boite: string): Prom
 }
 
 /**
- * Les rangements recents de cette boite vers les dossiers de mes binomes, les plus recents
- * d'abord. Filtres en base par cle de dossier (27/10/2026) : relire tout le journal puis
+ * Les rangements recents de cette boite vers les dossiers de mes binomes (« Comptabilité »
+ * pour un comptable, 28/10/2026), les plus recents d'abord. Filtres en base par cle de dossier (27/10/2026) : relire tout le journal puis
  * filtrer ici dependait de son plafond de lignes, et les mails les plus anciens d'un binome
  * disparaissaient de « Mes e-mails » des que la boite etait active.
  */
 const rangementsDeMesBinomes = cache(
-  async (email: string, userId: string, boite: string): Promise<{ lignes: EntreeJournalTri[]; pourDeCle: Map<string, string> }> => {
+  async (email: string, userId: string, comptable: boolean, boite: string): Promise<{ lignes: EntreeJournalTri[]; pourDeCle: Map<string, string> }> => {
     if (!email) return { lignes: [], pourDeCle: new Map() };
     const repo = getTriRepository();
     const [binomes, titulaires] = await Promise.all([repo.binomes(), userId ? titulairesDelegants(userId) : []]);
-    const miennes = clesDossiersDe(email, binomes);
+    const miennes = clesDossiersLus({ email, comptable }, binomes);
     // Les dossiers des titulaires qui ne sont pas deja les miens : le badge « Pour Fanny S. ».
     const pourDeCle = new Map<string, string>();
     for (const t of titulaires) {

@@ -30,3 +30,12 @@ export interface Gestionnaire {
    */
   habilitations?: string[];
 }
+
+/**
+ * Le role brut de public."User".role designe-t-il un COMPTABLE ? (comparaison insensible a la
+ * casse et aux espaces : l'enum App A est en majuscules). Pur, pour que les services s'en
+ * servent sans importer auth ; `estComptableTable` (lib/auth/roles) le reprend.
+ */
+export function roleComptable(role: string | null | undefined): boolean {
+  return (role ?? "").trim().toUpperCase() === "COMPTABLE";
+}

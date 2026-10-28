@@ -1057,6 +1057,16 @@ export function clesDossiersDe(email: string, b: BinomesTri): Set<string> {
 }
 
 /**
+ * Les dossiers qu'une personne lit dans une boite partagee de « E-mails ». Un COMPTABLE (role
+ * COMPTABLE de public."User", decision Sekou du 28/10/2026) lit le seul dossier « Comptabilité »,
+ * jamais ceux des binomes ; les autres, les dossiers de leurs binomes (clesDossiersDe).
+ */
+export function clesDossiersLus(p: { email: string; comptable: boolean }, b: BinomesTri): Set<string> {
+  const comptabilite: DossierHorsBinome = "comptabilite";
+  return p.comptable ? new Set([comptabilite]) : clesDossiersDe(p.email, b);
+}
+
+/**
  * Destination d'un mail rattache a une copro. Les initiales viennent de l'intranet et
  * non d'ESTALE : le nom complet ESTALE ne donne souvent qu'un prenom (constat du 25/09).
  * L'assistant vient du binome tenu dans l'intranet ; a defaut seulement, de celui d'ESTALE.

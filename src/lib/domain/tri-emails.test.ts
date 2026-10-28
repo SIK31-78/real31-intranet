@@ -10,6 +10,7 @@ import {
   suggestionCorbeille,
   cleDeReference,
   clesDossiersDe,
+  clesDossiersLus,
   constaterRangement,
   coproDuDossier,
   coprosDansPdf,
@@ -1105,5 +1106,19 @@ describe("adresse à une lettre près (faute de frappe dans le nom de rue, 26/10
     const r: ReferentielTri = { copros: [c("S0400", "", "LE BELVEDERE"), c("S0401", "3 rue Lyon 78800 Houilles")], expediteurs: {} };
     expect(suggererCopro(mail({ objet: "Résidence LE BELVEDARE" }), r).candidats).toEqual([]);
     expect(suggererCopro(mail({ objet: "Au 3 rue Lion 78800" }), r).candidats).toEqual([]);
+  });
+});
+
+describe("clesDossiersLus : un comptable lit « Comptabilité », jamais les binômes (28/10/2026)", () => {
+  const b = {
+    binomes: [{ id: "x", gestionnaireEmail: "sandy@real31.fr", assistant: { nomComplet: "Elsa", email: "elsa@real31.fr" }, principal: true }],
+    parCopro: {},
+  };
+  it("un comptable : le seul dossier comptabilite, même s'il figure dans un binôme", () => {
+    expect([...clesDossiersLus({ email: "elsa@real31.fr", comptable: true }, b)]).toEqual(["comptabilite"]);
+  });
+  it("les autres : leurs dossiers de binôme, comme avant", () => {
+    expect(clesDossiersLus({ email: "elsa@real31.fr", comptable: false }, b)).toEqual(clesDossiersDe("elsa@real31.fr", b));
+    expect(clesDossiersLus({ email: "sophie@real31.fr", comptable: false }, AUCUN_BINOME).has("comptabilite")).toBe(false);
   });
 });

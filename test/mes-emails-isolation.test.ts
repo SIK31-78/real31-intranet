@@ -12,6 +12,7 @@ const etat = vi.hoisted(() => ({
   lus: [] as { boite: string; id: string }[],
   incarnation: false,
   delegations: [] as Record<string, unknown>[],
+  statuts: [] as { gestionnaireId: string; emailId: string; statut: string }[],
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
@@ -35,11 +36,20 @@ vi.mock("@/lib/adapters/router", async (original) => ({
     envoyes: async () => [
       { id: "env-sophie", conversationId: "conv-sophie" },
       { id: "env-marc", conversationId: "conv-marc" },
+      { id: "env-compta", conversationId: "conv-compta" },
     ],
     lireCorps: async (p: { boite: string; id: string }) => {
       etat.lus.push({ boite: p.boite, id: p.id });
       return "texte envoyé";
     },
+  }),
+  // L'état des mails (statut commun, lu) : en mémoire, les statuts écrits sont relevés.
+  getMesEmailsEtatRepository: () => ({
+    setStatut: async (s: { gestionnaireId: string; emailId: string; statut: string }) => {
+      etat.statuts.push({ gestionnaireId: s.gestionnaireId, emailId: s.emailId, statut: s.statut });
+    },
+    getStatutsDesMails: async () => [],
+    getEtats: async () => [],
   }),
   getAgenceRepository: () => ({
     listerAgences: async () => [
@@ -55,8 +65,9 @@ vi.mock("@/lib/services/mes-emails/historique-mail", () => ({
   },
 }));
 
-const { chargerHistoriqueAction, envoyerABonneCoproAction, lireEnvoyeAction } = await import("@/app/mes-emails/actions");
+const { chargerHistoriqueAction, envoyerABonneCoproAction, lireEnvoyeAction, marquerTraiteAction } = await import("@/app/mes-emails/actions");
 const { boitesVisibles, mailsParDelegation } = await import("@/lib/services/mes-emails/boites-visibles");
+const { compterMailsATraiter } = await import("@/lib/services/mes-emails/compteur-emails");
 
 const SYNDIC4 = "syndic4@real31.fr";
 const SYNDIC2 = "syndic2@real31.fr";
@@ -65,7 +76,10 @@ const nadia = { id: "u3", nomComplet: "Nadia L", initiales: "NL", email: "nadia@
 const sekou = { id: "u9", nomComplet: "Sekou KOMA", initiales: "SKO", email: "sekou@real31.fr", agencyId: "ag-hls", role: "ADMIN" };
 const emmanuel = { id: "u5", nomComplet: "Emmanuel LOPES", initiales: "EL", email: "emmanuel@real31.fr", agencyId: "ag-lgc", role: "GESTIONNAIRE" };
 const fanny = { id: "u6", nomComplet: "Fanny SORIVELLE", initiales: "FS", email: "fanny@real31.fr", agencyId: "ag-lgc", role: "GESTIONNAIRE" };
-const PERSONNES = [sophie, nadia, sekou, emmanuel, fanny];
+// Comptables (role COMPTABLE de la table) : une à LGC, une à HLS. Données inventées.
+const elsa = { id: "u7", nomComplet: "Elsa P", initiales: "EP", email: "elsa@real31.fr", agencyId: "ag-lgc", role: "COMPTABLE" };
+const ines = { id: "u8", nomComplet: "Inès H", initiales: "IH", email: "ines@real31.fr", agencyId: "ag-hls", role: "COMPTABLE" };
+const PERSONNES = [sophie, nadia, sekou, emmanuel, fanny, elsa, ines];
 
 /** Délégation de `de` vers `a` ; par défaut de portefeuille et active sur une période large. */
 const deleguer = (de: { id: string }, a: { id: string }, x: Record<string, unknown> = {}) =>
@@ -89,6 +103,25 @@ const ranger = (boite: string, imid: string, gestionnaire: string, conversationI
     par: "tri",
   });
 
+/** Un rangement du tri dans le dossier « Comptabilité » de la boîte. */
+const rangerCompta = (boite: string, imid: string, conversationId?: string) =>
+  etat.repo.journaliser({
+    boite,
+    internetMessageId: imid,
+    ...(conversationId ? { conversationId } : {}),
+    messageId: imid,
+    expediteur: "fournisseur@exemple.fr",
+    objet: "Facture",
+    coproReference: null,
+    copros: [],
+    dossierNom: "Comptabilité",
+    dossierCle: "comptabilite",
+    signal: null,
+    candidats: [],
+    simulation: true,
+    par: "tri",
+  });
+
 beforeEach(async () => {
   vi.stubEnv("SUPER_ADMINS", "sekou@real31.fr");
   vi.stubEnv(
@@ -102,6 +135,7 @@ beforeEach(async () => {
   etat.lus = [];
   etat.incarnation = false;
   etat.delegations = [];
+  etat.statuts = [];
   await ranger(SYNDIC2, "<d-fanny@x>", "fanny@real31.fr");
   await ranger(SYNDIC4, "<a-sophie@x>", "sophie@real31.fr", "conv-sophie");
   await ranger(SYNDIC4, "<b-marc@x>", "marc@real31.fr", "conv-marc");
@@ -243,5 +277,81 @@ describe("délégation de portefeuille : la boîte perso du titulaire (option a,
     etat.incarnation = true;
     expect((await boitesVisibles(emmanuel, { sansBoitePerso: true })).some((b) => b.personnelle)).toBe(false);
     expect(await chargerHistoriqueAction("<perso-fanny@x>", "fanny@real31.fr")).toBeNull();
+  });
+});
+
+describe("comptables : le dossier « Comptabilité » de toutes les boîtes triées (28/10/2026)", () => {
+  beforeEach(async () => {
+    await rangerCompta(SYNDIC4, "<f-compta4@x>", "conv-compta");
+    await rangerCompta(SYNDIC2, "<g-compta2@x>");
+  });
+
+  it("quelle que soit son agence, toutes les boîtes triées, en un seul onglet « Comptabilité »", async () => {
+    for (const c of [elsa, ines]) {
+      const boites = await boitesVisibles(c);
+      expect(boites.map((b) => [b.id, b.libelle, b.onglet?.id ?? null])).toEqual([
+        [c.email, "Ma boîte", null],
+        [SYNDIC4, "syndic4 · comptabilité", SYNDIC4],
+        [SYNDIC2, "syndic2 · comptabilité", SYNDIC4],
+      ]);
+    }
+  });
+
+  it("lit un mail rangé dans « Comptabilité » de chaque boîte, depuis sa boîte d'origine", async () => {
+    etat.session = elsa;
+    expect(await chargerHistoriqueAction("<f-compta4@x>", SYNDIC4)).toBe("> historique");
+    expect(await chargerHistoriqueAction("<g-compta2@x>", SYNDIC2)).toBe("> historique");
+    expect(etat.lus).toEqual([
+      { boite: SYNDIC4, id: "<f-compta4@x>" },
+      { boite: SYNDIC2, id: "<g-compta2@x>" },
+    ]);
+  });
+
+  it("refuse les mails des binômes, même ceux de sa propre agence, et un mail compta annoncé dans la mauvaise boîte", async () => {
+    etat.session = elsa;
+    expect(await chargerHistoriqueAction("<c-nadia@x>", SYNDIC2)).toBeNull();
+    expect(await chargerHistoriqueAction("<a-sophie@x>", SYNDIC4)).toBeNull();
+    expect(await chargerHistoriqueAction("<f-compta4@x>", SYNDIC2)).toBeNull();
+    expect(etat.lus).toEqual([]);
+  });
+
+  it("un gestionnaire ne voit pas « Comptabilité » (isolement inchangé)", async () => {
+    etat.session = sophie;
+    expect(await chargerHistoriqueAction("<f-compta4@x>", SYNDIC4)).toBeNull();
+    expect((await boitesVisibles(sophie)).some((b) => b.onglet)).toBe(false);
+  });
+
+  it("« Marquer traité » : statut commun pour un mail compta, rien d'écrit pour un mail de binôme", async () => {
+    etat.session = elsa;
+    await marquerTraiteAction("<f-compta4@x>", "", SYNDIC4);
+    expect(etat.statuts.map((s) => s.emailId)).toEqual(["<f-compta4@x>", "<f-compta4@x>"]);
+    etat.statuts = [];
+    await marquerTraiteAction("<a-sophie@x>", "", SYNDIC4);
+    expect(etat.statuts).toEqual([]);
+  });
+
+  it("« Pas pour moi » refuse un mail de binôme", async () => {
+    etat.session = elsa;
+    expect((await envoyerABonneCoproAction("<c-nadia@x>", "S0297", SYNDIC2)).ok).toBe(false);
+  });
+
+  it("« Envoyés » : les réponses des conversations « Comptabilité », pas celles des binômes", async () => {
+    etat.session = ines;
+    expect(await lireEnvoyeAction({ boite: SYNDIC4, id: "env-compta" })).toEqual({ ok: true, donnees: "texte envoyé" });
+    expect((await lireEnvoyeAction({ boite: SYNDIC4, id: "env-sophie" })).ok).toBe(false);
+  });
+
+  it("en incarnation : ni boîte perso ni sa lecture, « Comptabilité » reste lisible", async () => {
+    etat.session = elsa;
+    etat.incarnation = true;
+    expect((await boitesVisibles(elsa, { sansBoitePerso: true })).some((b) => b.personnelle)).toBe(false);
+    expect(await chargerHistoriqueAction("<perso@x>", "elsa@real31.fr")).toBeNull();
+    expect(await chargerHistoriqueAction("<perso@x>", undefined)).toBeNull();
+    expect(await chargerHistoriqueAction("<g-compta2@x>", SYNDIC2)).toBe("> historique");
+  });
+
+  it("la pastille compte les mails « Comptabilité » des deux boîtes", async () => {
+    expect(await compterMailsATraiter(elsa, { superAdmin: false, incarnation: true })).toBe(2);
+    expect(await compterMailsATraiter(sophie, { superAdmin: false, incarnation: true })).toBe(1);
   });
 });

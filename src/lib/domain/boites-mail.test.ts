@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boiteAutorisee, boiteReponseParDefaut, construireBoites } from "./boites-mail";
+import { boiteAutorisee, boiteReponseParDefaut, construireBoites, ongletDe, ongletsDe, origineAffichee, regrouperPartagees } from "./boites-mail";
 
 describe("construireBoites", () => {
   it("met la boite personnelle en premier, puis les partagees dans l'ordre configure", () => {
@@ -64,5 +64,43 @@ describe("boiteReponseParDefaut", () => {
 
   it("sans boite du tout, rend une chaine vide plutot que de planter", () => {
     expect(boiteReponseParDefaut([], "x@real31.fr")).toBe("");
+  });
+});
+
+describe("regrouperPartagees : « Comptabilité » d'un comptable en un seul onglet (28/10/2026)", () => {
+  const boites = regrouperPartagees(construireBoites("elsa@real31.fr", "syndic2@real31.fr,syndic4@real31.fr"), "Comptabilité");
+
+  it("les boîtes partagées partagent l'onglet de la première, la boîte perso garde le sien", () => {
+    expect(boites.map((b) => b.onglet?.id ?? null)).toEqual([null, "syndic2@real31.fr", "syndic2@real31.fr"]);
+    expect(ongletDe(boites, "syndic4@real31.fr")).toBe("syndic2@real31.fr");
+    expect(ongletDe(boites, "elsa@real31.fr")).toBe("elsa@real31.fr");
+    expect(ongletDe(boites, "inconnue@real31.fr")).toBe("inconnue@real31.fr");
+  });
+
+  it("deux onglets à l'écran : Ma boîte et Comptabilité (infobulle : les deux adresses)", () => {
+    expect(ongletsDe(boites).map((b) => [b.id, b.libelle, b.adresse])).toEqual([
+      ["elsa@real31.fr", "Ma boîte", "elsa@real31.fr"],
+      ["syndic2@real31.fr", "Comptabilité", "syndic2@real31.fr, syndic4@real31.fr"],
+    ]);
+  });
+
+  it("chaque mail garde sa boîte : le « De : » par défaut reste la boîte d'origine", () => {
+    expect(boiteReponseParDefaut(boites, "syndic4@real31.fr")).toBe("syndic4@real31.fr");
+    expect(boiteAutorisee(boites, "syndic4@real31.fr")).toBe(true);
+  });
+
+  it("la boîte d'origine s'affiche seulement dans un onglet qui en regroupe plusieurs", () => {
+    expect(origineAffichee(boites, "syndic4@real31.fr")).toBe("syndic4");
+    expect(origineAffichee(boites, "elsa@real31.fr")).toBeNull();
+    expect(origineAffichee(boites, undefined)).toBeNull();
+    const seule = regrouperPartagees(construireBoites("elsa@real31.fr", "syndic2@real31.fr"), "Comptabilité");
+    expect(origineAffichee(seule, "syndic2@real31.fr")).toBeNull();
+  });
+
+  it("sans boîte partagée, rien ne change ; sans regroupement, un onglet par boîte", () => {
+    const perso = construireBoites("elsa@real31.fr", "");
+    expect(regrouperPartagees(perso, "Comptabilité")).toEqual(perso);
+    const normales = construireBoites("sophie@real31.fr", "syndic2@real31.fr,syndic4@real31.fr");
+    expect(ongletsDe(normales)).toEqual(normales);
   });
 });
