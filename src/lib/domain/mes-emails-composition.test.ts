@@ -14,6 +14,7 @@ import {
   prefixeObjetCopro,
   remplacerPrefixeCopro,
   resumeDestinataires,
+  sujetDeLObjet,
 } from "./mes-emails-composition";
 
 const copro = { reference: "S0247", nom: "Résidence Le Cyrano", adresse: "12 rue des Lilas 78400 Chatou" };
@@ -55,6 +56,37 @@ describe("objet auto-taggé copro", () => {
     expect(remplacerPrefixeCopro("S0247 · Résidence Le Cyrano - Fuite", copro, null)).toBe("Fuite");
     // Un objet libre (pas du préfixe) est gardé tel quel.
     expect(remplacerPrefixeCopro("Question", copro, autre)).toBe("S0101 · Les Tilleuls - Question");
+  });
+});
+
+describe("sujetDeLObjet (incident du 28/10/2026)", () => {
+  const augustin = { reference: "S159", nom: "AUGUSTIN10", adresse: "10 rue Augustin 78800 Houilles" };
+
+  it("le préfixe copro seul n'est pas un sujet, avec ou sans « - », avec ou sans adresse", () => {
+    expect(sujetDeLObjet("S159 · AUGUSTIN10", augustin)).toBe("");
+    expect(sujetDeLObjet("S159 · AUGUSTIN10 - ", augustin)).toBe("");
+    expect(sujetDeLObjet("  S159 ·  AUGUSTIN10   -  ", augustin)).toBe("");
+    expect(sujetDeLObjet("S159 · AUGUSTIN10 · 10 rue Augustin 78800 Houilles", augustin)).toBe("");
+    expect(sujetDeLObjet("S159 · AUGUSTIN10 · 10 rue Augustin 78800 Houilles -", augustin)).toBe("");
+    expect(sujetDeLObjet("s159 · augustin10", augustin)).toBe("");
+    // Le code seul, ou le code et un séparateur.
+    expect(sujetDeLObjet("S159 -", augustin)).toBe("");
+    expect(sujetDeLObjet(remplacerPrefixeCopro("", null, augustin), augustin)).toBe("");
+  });
+
+  it("rend le sujet saisi après le préfixe, même tapé avant le choix de la copro", () => {
+    expect(sujetDeLObjet("S159 · AUGUSTIN10 - Convocation AG", augustin)).toBe("Convocation AG");
+    expect(sujetDeLObjet("S159 · AUGUSTIN10 convoc", augustin)).toBe("convoc");
+    expect(sujetDeLObjet(remplacerPrefixeCopro("Fuite", null, augustin), augustin)).toBe("Fuite");
+    expect(sujetDeLObjet("S159 · AUGUSTIN10 · 10 rue Augustin 78800 Houilles - Fuite", augustin)).toBe("Fuite");
+  });
+
+  it("sans copro, ou avec un autre code, l'objet entier est le sujet", () => {
+    expect(sujetDeLObjet("6,8,10 rue Cuny - convoc", null)).toBe("6,8,10 rue Cuny - convoc");
+    expect(sujetDeLObjet("S159 · AUGUSTIN10", null)).toBe("S159 · AUGUSTIN10");
+    expect(sujetDeLObjet("S1590 · AUTRE", augustin)).toBe("S1590 · AUTRE");
+    expect(sujetDeLObjet("", null)).toBe("");
+    expect(sujetDeLObjet(" - ", null)).toBe("");
   });
 });
 

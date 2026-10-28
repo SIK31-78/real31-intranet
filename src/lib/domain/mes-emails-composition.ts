@@ -120,6 +120,28 @@ export function remplacerPrefixeCopro(objet: string, ancienne: CoproComposition 
   return nouvelle ? (reste ? objetCompose(nouvelle, reste) : `${prefixeObjetCopro(nouvelle, false)} - `) : reste;
 }
 
+// Séparateurs qui entourent le préfixe copro sans rien dire du sujet.
+const SEPARATEURS_DEBUT = /^[\s\-–—·:|,;.]+/;
+const SEPARATEURS_FIN = /[\s\-–—·:|,;]+$/;
+
+/**
+ * Le vrai sujet d'un objet, une fois retiré le préfixe de la copro choisie (avec ou sans
+ * adresse, ou son code seul) et les séparateurs autour. "" = l'objet ne dit rien du mail.
+ * Incident du 28/10/2026 : « S159 · AUGUSTIN10 » est parti sans sujet, le préfixe seul
+ * passant pour un objet.
+ */
+export function sujetDeLObjet(objet: string, copro: CoproComposition | null): string {
+  const norme = (s: string) => s.replace(/\s+/g, " ").trim();
+  let reste = norme(objet);
+  if (copro) {
+    const prefixes = [prefixeObjetCopro(copro, true), prefixeObjetCopro(copro, false), copro.reference].map(norme).filter(Boolean);
+    // Le préfixe doit s'arrêter sur une fin de mot : le code S159 n'est pas le début de S1590.
+    const p = prefixes.find((x) => reste.toLowerCase().startsWith(x.toLowerCase()) && !/^[\p{L}\p{N}]/u.test(reste.slice(x.length)));
+    if (p) reste = reste.slice(p.length);
+  }
+  return reste.replace(SEPARATEURS_DEBUT, "").replace(SEPARATEURS_FIN, "");
+}
+
 /** Variables de fusion offertes aux modèles. Toutes facultatives : une variable absente devient "". */
 export interface VariablesModele {
   copro_code?: string;
