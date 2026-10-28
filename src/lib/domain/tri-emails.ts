@@ -365,6 +365,32 @@ function numerosDe(adresse: string): Set<string> {
   return numeros;
 }
 
+// Mots de rue partages : un mot de rue porte par au moins RUE_PARTAGEE_MIN copros du
+// referentiel (« Gallieni », « Republique ») ne suffit plus a reconnaitre une copro par son NOM
+// (28/10/2026) : « avenue Gallieni » dans un mail designait la residence « Gallieni » d'une
+// autre adresse. Il reste reconnu dans l'adresse (type, numero, lieu). Memoise par referentiel.
+const RUE_PARTAGEE_MIN = 2;
+const cacheRuesPartagees = new WeakMap<CoproTri[], Set<string>>();
+
+function ruesPartagees(copros: CoproTri[]): Set<string> {
+  const deja = cacheRuesPartagees.get(copros);
+  if (deja) return deja;
+  const compte = new Map<string, number>();
+  for (const c of copros) {
+    const siens = new Set([c.adresse, ...(c.adressesSecondaires ?? [])].flatMap((a) => voiesDe(a).flatMap((v) => v.mots)));
+    for (const m of siens) compte.set(m, (compte.get(m) ?? 0) + 1);
+  }
+  const rues = new Set([...compte].filter(([, n]) => n >= RUE_PARTAGEE_MIN).map(([m]) => m));
+  cacheRuesPartagees.set(copros, rues);
+  return rues;
+}
+
+// Le registre national suffixe parfois le nom d'usage de son numero de syndic (« LES TILLEULS -
+// MS123456 ») : ce n'est pas un nom, on le retire avant de chercher le nom dans le mail.
+function sansSuffixeRegistre(nom: string): string {
+  return nom.replace(/\s*-?\s*\bMS\d{5,}\b/gi, "").trim();
+}
+
 /** Les deux mots ne different-ils que d'une lettre (remplacee, ajoutee ou retiree) ? */
 function uneLettreDEcart(a: string, b: string): boolean {
   if (a === b) return true;
@@ -513,7 +539,8 @@ export interface OptionsNomAdresse {
  * Copros dont le NOM d'immeuble ou l'ADRESSE est cite dans le texte (objet + apercu). Indice
  * faible, a confirmer : les prestataires ecrivent « LE CYRANO » ou « 71 rue de Bezons »
  * plutot que le code. Deux garde-fous contre les faux positifs :
- *   - du nom, on retire les mots de ville (de tout le referentiel) ; il faut >= 2 mots
+ *   - du nom, on retire les mots de ville (de tout le referentiel) et les mots de rue portes
+ *     par au moins deux copros (28/10/2026) ; il faut >= 2 mots
  *     distinctifs presents, ou un seul d'au moins 5 lettres ; un nom qui est une adresse
  *     (« 12 RUE … ») ne compte pas comme nom ;
  *   - une adresse ne compte que si le type de voie et ses mots porteurs sont cites, ET que
@@ -538,6 +565,7 @@ export function indicesNomAdresse(
   const jetonsVoie = normaliser(texte).split(/[^a-z0-9]+/).filter(Boolean).map(deplierVoie);
   const numerosCites = new Set(jetons.map((t) => /^(\d{1,4})(?:bis|ter|b|t)?$/.exec(t)?.[1]).filter((n): n is string => n !== undefined).map((n) => String(Number(n))));
   const villes = villesDu(copros);
+  const rues = ruesPartagees(copros);
   const noyauTexte = ` ${noyauDe(texte).join(" ")} `;
   const parNom: { reference: string; raison: string }[] = [];
   const parAdresse: { reference: string; raison: string }[] = [];
@@ -547,7 +575,7 @@ export function indicesNomAdresse(
     const cle = cleDeReference(c.reference);
     if (!cle || vues.has(cle)) continue;
     const motsVille = new Set(motsSignificatifs(villeDe(c.adresse)));
-    const exclus = (m: string) => motsVille.has(m) || villes.has(m);
+    const exclus = (m: string) => motsVille.has(m) || villes.has(m) || rues.has(m);
     // Un nom ESTALE qui est une adresse (« 152 AVENUE GABRIEL PERI BEZONS ») n'est pas un nom
     // de residence : il passe par le controle d'adresse (lieu, numero), pas par le nom. Et un
     // nom de ville n'est distinctif pour aucune copro (audit du journal du tri, 19/10/2026).
@@ -557,7 +585,7 @@ export function indicesNomAdresse(
       : distinctifs.length === 1 && distinctifs[0]!.length >= 5 && mots.has(distinctifs[0]!))
       || nomCompacteCite(c.nom, jetons);
     // Sinon, un nom d'usage du registre national (« Le Clos Martin » pour LECLOS_BCD).
-    const nomCite = nomTrouve ? c.nom : (c.nomsUsage ?? []).find((n) => nomUsageCite(n, exclus, mots, noyauTexte));
+    const nomCite = nomTrouve ? c.nom : (c.nomsUsage ?? []).map(sansSuffixeRegistre).find((n) => n && nomUsageCite(n, exclus, mots, noyauTexte));
     if (nomCite) {
       const registre = nomCite !== c.nom ? " (nom au registre national)" : "";
       parNom.push({ reference: c.reference, raison: `Immeuble « ${nomCite} »${registre} cité dans le mail, à confirmer.` });

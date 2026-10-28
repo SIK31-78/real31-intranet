@@ -1172,3 +1172,36 @@ describe("le numéro de la copro doit précéder le type de voie (28/10/2026)", 
     expect(trouve("Rue Jean VALMONS 92250 La Garenne-Colombes, le 8 novembre").candidats).toEqual([]);
   });
 });
+
+describe("mot de rue partagé et suffixe du registre dans les noms (28/10/2026)", () => {
+  // Cas réels de syndic2 (contrats d'eau) et syndic4 (S291), noms de rue changés.
+  const c = (reference: string, nom: string, adresse: string, nomsUsage?: string[]): CoproTri => ({
+    reference, nom, adresse, gestionnaire: null, assistant: null, ...(nomsUsage ? { nomsUsage } : {}),
+  });
+  const ref: ReferentielTri = {
+    copros: [
+      c("S0094", "JLAMART64", "64 rue Jean Lamartine 92250 La Garenne-Colombes", ["SDC 64 JEAN LAMARTINE"]),
+      c("S0217", "JLAMART8", "6 - 8 - 10 rue Jean Lamartine 92250 La Garenne-Colombes"),
+      c("S0280", "VERDIER43", "43 rue Verdier 92250 La Garenne-Colombes", ["LES ACACIAS - MS179799"]),
+    ],
+    expediteurs: {},
+  };
+
+  it("un mot de rue porté par deux copros ne reconnaît plus une copro par son nom", () => {
+    const s = suggererCopro(mail({ objet: "Votre contrat d'eau", apercu: "Adresse desservie :\n8 RUE JEAN LAMARTINE\n92250 LA GARENNE COLOMBES" }), ref);
+    // Avant : S0094 aussi, par son nom au registre « SDC 64 JEAN LAMARTINE ».
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S0217"], origine: "nom-adresse" });
+  });
+
+  it("le suffixe « - MS123456 » du registre est retiré du nom d'usage", () => {
+    expect(suggererCopro(mail({ objet: "Résidence Les Acacias : fuite au 2e" }), ref).candidats).toEqual(["S0280"]);
+  });
+
+  it("un mot de rue d'une seule copro reste un nom (« Résidence Gallieni », S291 de syndic4)", () => {
+    const r: ReferentielTri = {
+      copros: [c("S0291", "GALLIENI6", "6 rue Maréchal Gallieni 78800 HOUILLES", ["RESIDENCE GALLIENI"]), c("S0300", "LESROSES", "3 rue des Roses 78800 HOUILLES")],
+      expediteurs: {},
+    };
+    expect(suggererCopro(mail({ objet: "Résidence Gallieni - porte de garage" }), r).candidats).toEqual(["S0291"]);
+  });
+});
