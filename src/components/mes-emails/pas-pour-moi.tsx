@@ -30,7 +30,8 @@ type Choix = CoproDestination & { boite?: string; agences?: string[] };
 
 const court = (boite: string) => boite.split("@")[0];
 
-export function PasPourMoi({ emailId, boite, onParti }: { emailId: string; boite: string; onParti: () => void }) {
+/** `compact` : en petit, en texte, dans la barre d'actions du volet (29/10/2026). */
+export function PasPourMoi({ emailId, boite, onParti, compact = false }: { emailId: string; boite: string; onParti: () => void; compact?: boolean }) {
   const toast = useToast();
   const [ouvert, setOuvert] = useState(false);
   const [copros, setCopros] = useState<CoproDestination[] | null>(null);
@@ -93,7 +94,7 @@ export function PasPourMoi({ emailId, boite, onParti }: { emailId: string; boite
 
   return (
     <>
-      <Button size="lg" onClick={ouvrir} title="Ce mail a été rangé chez vous par erreur : l'envoyer au binôme de la bonne copropriété">
+      <Button size={compact ? "sm" : "lg"} variant={compact ? "ghost" : "secondary"} onClick={ouvrir} title="Ce mail a été rangé chez vous par erreur : l'envoyer au binôme de la bonne copropriété">
         <UserX strokeWidth={1.5} />
         Pas pour moi
       </Button>

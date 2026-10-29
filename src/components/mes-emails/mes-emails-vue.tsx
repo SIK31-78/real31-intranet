@@ -1771,6 +1771,8 @@ function AnalysePane({
   onSupprimer,
   suppressionEnCours = false,
   pilote = false,
+  actionsAttribution = null,
+  actionsAttente = null,
   brouillonHtml,
   onEditBrouillonHtml,
   reformulation,
@@ -1861,6 +1863,10 @@ function AnalysePane({
   /** Mettre le mail à la corbeille : boîte perso seulement (absent sinon). */
   onSupprimer?: () => void;
   suppressionEnCours?: boolean;
+  /** Emplacement réservé dans la barre d'actions : « Je prends / Attribuer à… » (décision 5). */
+  actionsAttribution?: React.ReactNode;
+  /** Emplacement réservé dans la barre d'actions : « En attente » / « De côté » (décision 9). */
+  actionsAttente?: React.ReactNode;
 }) {
   // Fichiers glissés sur l'éditeur de réponse : joints comme avec « Ajouter une pièce jointe ».
   const depotPj = useDepotFichiers((l) => onAjouterFichiers(l));
@@ -1882,43 +1888,139 @@ function AnalysePane({
     if (reponseRef.current && corpsReponseRef.current) ecrireDansLaReponse(reponseRef.current, corpsReponseRef.current);
   }, [compose]);
 
+  // « Traité » est LE bouton vert plein du volet ; pendant une réponse, c'est l'envoi qui l'est.
+  const ecrit = Boolean(brouillon || compose);
+
   return (
-    <Card className="overflow-hidden">
-      {/* En-tête : objet, qui, quand -- puis UNE barre d'actions. */}
-      <div className="px-5 pt-4 pb-3 border-b border-line">
+    // overflow-clip et pas overflow-hidden : hidden ferait de la carte un conteneur de défilement
+    // et la barre d'actions ne resterait plus collée en haut de l'écran.
+    <Card className="overflow-clip">
+      {/* Barre d'actions TOUJOURS visible, collée en haut du volet (décision 3, 29/10/2026) :
+          jusque-là « Marquer traité » était en bas de la fiche, à une hauteur différente pour
+          chaque mail, souvent sous la ligne de flottaison. Les gestes du mail à gauche, les
+          gestes de fin à droite, « Traité » toujours au même endroit. */}
+      <div className="sticky top-0 z-10 bg-surface border-b border-line px-5 py-2 flex flex-wrap items-center gap-2">
+        <Button variant="doux" onClick={() => repondreEtEcrire(false)} disabled={ecrit} title={ecrit ? "La réponse est ouverte plus bas" : undefined}>
+          <Reply strokeWidth={1.75} />
+          Répondre
+        </Button>
+        <Button onClick={() => repondreEtEcrire(true)} disabled={ecrit}>
+          <ReplyAll strokeWidth={1.75} />
+          Répondre à tous
+        </Button>
+        {pilote ? (
+          <TransfererMail
+            key={m.id}
+            emailId={m.id}
+            boite={boiteDuMail}
+            boitePerso={boites.find((b) => b.id === boiteDuMail)?.personnelle ?? false}
+            objet={m.objet}
+            piecesJointes={m.attachments.length === 0 ? [] : piecesJointes}
+            onTransfere={onTransfere}
+            reformulation={reformulation !== null}
+          />
+        ) : null}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          {/* Emplacement de « Je prends / Attribuer à… » (décision 5) : rien tant que
+              l'attribution n'est pas livrée, aucun bouton factice. */}
+          {actionsAttribution}
+          {/* Emplacement de « En attente » / « De côté » (décision 9). */}
+          {actionsAttente}
+          {classementOutlook ? (
+            // Boîte perso : archiver = déplacer dans un dossier Outlook, qu'il faut choisir ; le
+            // mail quitte la réception, donc la liste.
+            <>
+              <Select
+                largeur="auto"
+                value={dossierIdChoisi}
+                onChange={(e) => onChoisirDossier(e.target.value)}
+                aria-label="Dossier Outlook où archiver le mail traité"
+                className="max-w-[200px]"
+              >
+                <option value="">{dossiers === null ? "Chargement des dossiers…" : "Archiver dans…"}</option>
+                {dossiers &&
+                  (() => {
+                    const { reception, autres } = grouperDossiersBoite(dossiers);
+                    return (
+                      <>
+                        {reception.length > 0 && (
+                          <optgroup label="Sous-dossiers de la réception">
+                            {reception.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.nom}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {autres.length > 0 && (
+                          <optgroup label="Autres dossiers">
+                            {autres.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.nom}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </>
+                    );
+                  })()}
+              </Select>
+              {dossierACreer ? (
+                <Button size="sm" variant="ghost" onClick={onCreerDossierOutlook} title="Crée le sous-dossier dans votre boîte de réception">
+                  <FolderPlus strokeWidth={1.5} />
+                  Créer «&nbsp;{dossierACreer}&nbsp;»
+                </Button>
+              ) : null}
+              <Button
+                variant={ecrit ? "secondary" : "primary"}
+                onClick={onValider}
+                disabled={!dossierIdChoisi}
+                title={!dossierIdChoisi ? "Choisis d'abord le dossier Outlook" : undefined}
+              >
+                <Archive strokeWidth={1.75} />
+                Archiver
+              </Button>
+            </>
+          ) : (
+            <>
+              {/* « Pas pour moi » et « Comptabilité » : visibles sans menu, mais en petit et en
+                  texte, à distance de « Traité » (deux gestes sans retour). */}
+              {onParti ? <PasPourMoi key={m.id} emailId={m.id} boite={boiteDuMail} onParti={onParti} compact /> : null}
+              {/* « Comptabilité » (28/10/2026) : pour le binôme. Une boîte regroupée sous un onglet
+                  commun est le dossier Comptabilité vu par un comptable : le mail y est déjà. */}
+              {onParti && !boites.find((b) => b.id === boiteDuMail)?.onglet ? (
+                <EnvoyerEnComptabilite key={`compta-${m.id}`} emailId={m.id} boite={boiteDuMail} onParti={onParti} compact />
+              ) : null}
+              <Button
+                variant={ecrit ? "secondary" : "primary"}
+                onClick={onConclure}
+                title="Le mail sort de « À traiter » pour tout le binôme ; il reste dans son dossier Outlook"
+              >
+                <CircleCheck strokeWidth={1.75} />
+                Traité
+              </Button>
+            </>
+          )}
+          {onSupprimer ? (
+            <Button
+              variant="ghost"
+              iconOnly
+              onClick={onSupprimer}
+              loading={suppressionEnCours}
+              aria-label="Supprimer"
+              title="Supprimer : le mail part dans « Éléments supprimés » d'Outlook"
+            >
+              <Trash2 strokeWidth={1.5} />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      {/* En-tête : l'objet sur toute la largeur, puis qui et quand. */}
+      <div className="px-5 pt-3 pb-3 border-b border-line">
         <div className="flex items-start gap-3">
           <h2 className="flex-1 text-title font-semibold text-ink leading-snug">{m.objet}</h2>
           {statut !== "nouveau" ? <StatutBadge statut={statut} /> : null}
-          {!(brouillon || compose) && (
-            <div className="flex items-center gap-2 shrink-0">
-              <Button variant="doux" onClick={() => repondreEtEcrire(false)}>
-                <Reply strokeWidth={1.75} />
-                Répondre
-              </Button>
-              <Button onClick={() => repondreEtEcrire(true)}>
-                <ReplyAll strokeWidth={1.75} />
-                Répondre à tous
-              </Button>
-              {pilote ? (
-                <TransfererMail
-                  key={m.id}
-                  emailId={m.id}
-                  boite={boiteDuMail}
-                  boitePerso={boites.find((b) => b.id === boiteDuMail)?.personnelle ?? false}
-                  objet={m.objet}
-                  piecesJointes={m.attachments.length === 0 ? [] : piecesJointes}
-                  onTransfere={onTransfere}
-                  reformulation={reformulation !== null}
-                />
-              ) : null}
-              {onSupprimer ? (
-                <Button onClick={onSupprimer} loading={suppressionEnCours} title="Mettre ce mail dans « Éléments supprimés » d'Outlook">
-                  <Trash2 strokeWidth={1.5} />
-                  Supprimer
-                </Button>
-              ) : null}
-            </div>
-          )}
         </div>
         <EnTeteMail m={m} />
 
@@ -2183,7 +2285,7 @@ function AnalysePane({
               <>
                 {" "}
                 Pour simplement <strong>ranger</strong> ce mail dans Outlook, le sélecteur «&nbsp;Archiver dans…&nbsp;» est
-                en bas - aucune copropriété requise.
+                dans la barre du haut - aucune copropriété requise.
               </>
             ) : null}
           </div>
@@ -2215,82 +2317,6 @@ function AnalysePane({
             <ContexteCoproContenu ctx={contexte} />
           </SectionRepliable>
         ) : null}
-      </div>
-      {/* Fin d'action, en bas à droite comme dans Crypto. */}
-      <div className="px-5 py-3 border-t border-line flex flex-wrap items-center justify-end gap-3">
-        {classementOutlook ? (
-          // Boîte perso : archiver = déplacer dans un dossier Outlook, qu'il faut choisir ; le
-          // mail quitte la réception, donc la liste.
-          <>
-                  <Select
-                    largeur="auto"
-                    value={dossierIdChoisi}
-                    onChange={(e) => onChoisirDossier(e.target.value)}
-                    aria-label="Dossier Outlook où archiver le mail traité"
-                    className="max-w-[200px]"
-                  >
-                    <option value="">
-                      {dossiers === null ? "Chargement des dossiers…" : "Archiver dans…"}
-                    </option>
-                    {dossiers &&
-                      (() => {
-                        const { reception, autres } = grouperDossiersBoite(dossiers);
-                        return (
-                          <>
-                            {reception.length > 0 && (
-                              <optgroup label="Sous-dossiers de la réception">
-                                {reception.map((d) => (
-                                  <option key={d.id} value={d.id}>
-                                    {d.nom}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                            {autres.length > 0 && (
-                              <optgroup label="Autres dossiers">
-                                {autres.map((d) => (
-                                  <option key={d.id} value={d.id}>
-                                    {d.nom}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                          </>
-                        );
-                      })()}
-                  </Select>
-            {dossierACreer ? (
-              <Button onClick={onCreerDossierOutlook} title="Crée le sous-dossier dans votre boîte de réception">
-                <FolderPlus strokeWidth={1.5} />
-                Créer «&nbsp;{dossierACreer}&nbsp;»
-              </Button>
-            ) : null}
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={onValider}
-              disabled={!dossierIdChoisi}
-              title={!dossierIdChoisi ? "Choisis d'abord le dossier Outlook" : undefined}
-            >
-              <Archive strokeWidth={1.75} />
-              Archiver
-            </Button>
-          </>
-        ) : (
-          <>
-            {/* Boîte partagée : « ce n'est pas pour moi » (REA-327), ou « Marquer traité ». */}
-            {onParti ? <PasPourMoi key={m.id} emailId={m.id} boite={boiteDuMail} onParti={onParti} /> : null}
-            {/* « Comptabilité » (28/10/2026) : pour le binôme. Une boîte regroupée sous un onglet
-                commun est le dossier Comptabilité vu par un comptable : le mail y est déjà. */}
-            {onParti && !boites.find((b) => b.id === boiteDuMail)?.onglet ? (
-              <EnvoyerEnComptabilite key={`compta-${m.id}`} emailId={m.id} boite={boiteDuMail} onParti={onParti} />
-            ) : null}
-            <Button variant="primary" size="lg" onClick={onConclure}>
-              <CircleCheck strokeWidth={1.75} />
-              Marquer traité
-            </Button>
-          </>
-        )}
       </div>
     </Card>
   );

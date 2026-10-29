@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { envoyerEnComptabiliteAction } from "@/app/mes-emails/actions-comptabilite";
 
-export function EnvoyerEnComptabilite({ emailId, boite, onParti }: { emailId: string; boite: string; onParti: () => void }) {
+/** `compact` : en petit, en texte, dans la barre d'actions du volet (29/10/2026). */
+export function EnvoyerEnComptabilite({ emailId, boite, onParti, compact = false }: { emailId: string; boite: string; onParti: () => void; compact?: boolean }) {
   const toast = useToast();
   const [enCours, demarrer] = useTransition();
 
@@ -26,7 +27,7 @@ export function EnvoyerEnComptabilite({ emailId, boite, onParti }: { emailId: st
   }
 
   return (
-    <Button size="lg" onClick={envoyer} disabled={enCours} title="Envoyer ce mail dans le dossier Comptabilité de la boîte partagée">
+    <Button size={compact ? "sm" : "lg"} variant={compact ? "ghost" : "secondary"} onClick={envoyer} disabled={enCours} title="Envoyer ce mail dans le dossier Comptabilité de la boîte partagée">
       <Calculator strokeWidth={1.5} />
       Comptabilité
     </Button>
