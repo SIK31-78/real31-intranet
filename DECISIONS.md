@@ -2314,3 +2314,27 @@ Les collaborateurs écrivent leurs mails vite : fautes, phrases mal construites,
 ### Conséquences
 - Mail CS des contrats : l'auteur n'est plus en copie de son propre mail (il l'a dans ses éléments envoyés) ; l'avertissement « personne du cabinet en copie » disparaît (une copro sans assistante n'a légitimement personne).
 - Recap d'AG au comptable : inchangé (ce n'est pas un envoi au CS ; gestionnaire et assistante y restent en copie, REA-348).
+
+---
+
+## ADR-053 - Boîte d'équipe : attribution, notes internes, en attente
+
+**Date** : 2026-10-29 · **Statut** : accepté pour la couche données et serveur (décisions Sekou du 29/10/2026, chantier « Boîte d'équipe », décisions 1, 5, 6 et 9) ; l'interface suit · Complète ADR-046 (tri, binômes, journal), ADR-047 (E-mails), ADR-050 (bascule).
+
+### Contexte
+Retours des collègues après La Garenne (27/10) : on ne sait pas qui s'occupe d'un mail de la boîte commune, on se le dit à l'oral ou par Teams, et un mail qui attend une réponse reste dans « À traiter » (ou disparaît dans Outlook). Front et Missive règlent ça par l'attribution, les commentaires internes et le « snooze ». Crypto avait la relance des devis.
+
+### Décision
+1. **Clés.** Une **note** suit le mail partout : clé = `internetMessageId` seul (il ne change pas quand le mail change de dossier, part en Comptabilité ou bascule de boîte, ADR-050). Une **attribution** et une **attente** sont un état de la file où se trouve le mail : clé = (`internetMessageId`, boîte), plus le dossier du tri au moment du geste (`dossier_cle`, lu dans le rangement actif du journal). Mail parti en Comptabilité, réaffecté à un autre binôme ou basculé : elles ne valent plus (`etatDeFileEnVigueur`), la nouvelle équipe le reçoit libre et sans attente. Dossier inconnu d'un côté (mail plus vieux que les 45 jours du journal) : on garde.
+2. **Attribution** (`domain/boite-equipe.ts`). « Je prends » : toute personne qui voit le mail (garde de « Pas pour moi ») le prend, même s'il était à un autre. « Attribuer à… » : un membre de l'équipe du mail, c'est-à-dire le binôme du dossier (`membresDuDossier` : gestionnaire et assistant(e) du binôme principal pour `binome:<email>`, du binôme secondaire pour `binome:<id>`) ou les comptables (rôle COMPTABLE) pour un mail en Comptabilité. Retirer : toute personne qui voit le mail. **Répondre attribue** à celui qui répond si le mail n'est à personne (`attribuerAuRepondant`, best-effort, boîtes triées seulement). Historique minimal (geste, attributaire, qui, quand) dans une table à part.
+3. **Chiffre personnel** (révision de Sekou du 29/10) : `placeDansMesChiffres` → « moi » (chiffre principal), « a-repartir » (non attribué, second chiffre discret), null (attribué à un collègue).
+4. **Notes internes.** Plusieurs par mail, auteur + date ; ajout par quiconque voit le mail (boîte partagée), modification et suppression par l'auteur seul (`peutModifierNote`, id technique). Texte nettoyé, 1 à 2 000 caractères. **Strictement internes** : jamais envoyées, jamais écrites dans Outlook, jamais dans un journal ni dans Sentry (les erreurs ne reprennent que le message PostgREST ; le comptage ne lit que l'identifiant). Pas d'écriture en incarnation (elle porterait le nom de la personne incarnée).
+5. **En attente.** Mail reçu : « De côté » (sans date, hors du chiffre jusqu'à « Reprendre » ; une réponse dans le fil ne le ramène pas, la réponse est elle-même à traiter), ou jusqu'à demain, 3 jours, une semaine, un jour choisi (08:00 heure de Paris, au plus un an) ; revient à la date ou dès qu'un autre message arrive dans le fil après la pose. Mail envoyé : « Relancer si pas de réponse dans… » (toujours datée) ; due à la date sans réponse, close dès qu'une réponse arrive. Calcul pur : `etatAttente`, `reponseDansFil`.
+6. **Réponse arrivée dans le fil** : lue dans le journal du tri des boîtes partagées (`conversation_id` et heure du rangement, qui suit l'arrivée de quelques minutes avec le tri automatique). Pour la boîte perso, l'appelant peut passer les messages reçus (`recus` : internetMessageId, conversationId, date) ; la liste ne les expose pas encore (`MailEntrant` n'a pas de `conversationId`, `RawMail` l'a).
+7. **Hexagonal.** Port `ports/boite-equipe-repository.ts`, adapters `adapters/supabase/supabase-boite-equipe-repository.ts` et `adapters/mock/memoire-boite-equipe-repository.ts`, `getBoiteEquipeRepository()` du routeur ; service `services/mes-emails/boite-equipe.ts` (`etatEquipeDesMails` pour la liste et le compteur, `relancesDesBoites` pour les envois à relancer) ; actions `app/mes-emails/actions-equipe.ts` (gardes de `gardes-boites.ts`, acteur de la session).
+8. **Base** : `supabase/sql/intranet_mail_equipe.sql`, quatre tables `intranet_mail_attribution`, `intranet_mail_attribution_historique`, `intranet_mail_note`, `intranet_mail_attente`, RLS activée sans policy. **Sans le SQL l'app tourne** : rien à afficher, gestes refusés avec un message clair, signalé une fois par instance.
+
+### Ce qui n'est pas fait
+- L'interface (pastille, filtres « À moi / Non attribués / De côté », bandeau jaune, barre d'actions) et le compteur : l'autre moitié du chantier.
+- L'appel d'`attribuerAuRepondant` dans `finaliserEnvoiAction` (flux de réponse, fichier de l'interface).
+- Un mail présent dans deux boîtes à la fois (envoyé à syndic2 et syndic4) partage ses notes entre les deux équipes : accepté, c'est rare et c'est le même cabinet.
