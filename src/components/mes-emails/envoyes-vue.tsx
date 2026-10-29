@@ -4,10 +4,17 @@
 // mails partis de la boîte affichée, en lecture seule. Objet, destinataires, date, aperçu
 // dans la liste ; le texte complet à l'ouverture. On ne répond ni ne transfère d'ici : le
 // suivi d'un envoyé se fait depuis le mail reçu, ou dans Outlook.
+// « Relancer si pas de réponse » (ADR-053, décision 9, 29/10/2026) : le même menu que « En
+// attente » (sans « De côté ») ; à la date, s'il n'y a pas eu de réponse dans le fil, l'envoi
+// réapparaît en tête de « À traiter » (« Relance : pas de réponse depuis le … »).
 
 import { useEffect, useState } from "react";
 import { ExternalLink, Paperclip, Send } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { useToast } from "@/components/ui/toast";
+import { libelleRetour, type ChoixAttente } from "@/lib/domain/boite-equipe";
+import { relancerSiPasDeReponseAction } from "@/app/mes-emails/actions-equipe";
+import { MenuAttente } from "./equipe-mail";
 import { Callout } from "@/components/ui/callout";
 import type { EchangeTrouve } from "@/lib/domain/echanges";
 import { chargerEnvoyesAction, lireEnvoyeAction } from "@/app/mes-emails/actions";
@@ -25,7 +32,17 @@ const dateHeure = (iso: string) =>
 
 type Etat = { enCours: true } | { enCours: false; envoyes: EchangeTrouve[] } | { enCours: false; erreur: string };
 
-export function EnvoyesVue({ boite, partagee = false }: { boite: string; /** Boîte partagée : filtrée au binôme (REA-408). */ partagee?: boolean }) {
+export function EnvoyesVue({
+  boite,
+  partagee = false,
+  relance = false,
+}: {
+  boite: string;
+  /** Boîte partagée : filtrée au binôme (REA-408). */
+  partagee?: boolean;
+  /** « Relancer si pas de réponse » proposé (boîte d'équipe active). */
+  relance?: boolean;
+}) {
   const [etat, setEtat] = useState<Etat>({ enCours: true });
   const [choisiId, setChoisiId] = useState<string | null>(null);
 
@@ -83,14 +100,27 @@ export function EnvoyesVue({ boite, partagee = false }: { boite: string; /** Bo�
         </Card>
       </aside>
       <section className="flex-1 min-w-0">
-        <DetailEnvoye key={choisi.id} e={choisi} />
+        <DetailEnvoye key={choisi.id} e={choisi} relance={relance} />
       </section>
     </div>
   );
 }
 
-function DetailEnvoye({ e }: { e: EchangeTrouve }) {
+function DetailEnvoye({ e, relance }: { e: EchangeTrouve; relance: boolean }) {
+  const toast = useToast();
   const [corps, setCorps] = useState<string | null>(null);
+  const [relanceLe, setRelanceLe] = useState<string | null>(null);
+  async function relancer(choix: ChoixAttente): Promise<boolean> {
+    if (choix === "de-cote" || !e.conversationId) return false;
+    const r = await relancerSiPasDeReponseAction({ emailId: e.internetMessageId, boite: e.boite, conversationId: e.conversationId, envoyeLe: e.date, choix });
+    if (!r.ok) {
+      toast.err(r.erreur);
+      return false;
+    }
+    setRelanceLe(r.donnees!.jusquAu);
+    toast.ok(`S'il n'y a pas de réponse, il reviendra dans « À traiter » le ${libelleRetour(r.donnees!.jusquAu)}.`);
+    return true;
+  }
   const [erreur, setErreur] = useState<string | null>(null);
 
   useEffect(() => {
@@ -106,10 +136,24 @@ function DetailEnvoye({ e }: { e: EchangeTrouve }) {
   }, [e.boite, e.id]);
 
   return (
-    <Card className="overflow-hidden">
+    // Pas d'overflow-hidden : le menu « Relancer si pas de réponse » déborde sous l'en-tête.
+    <Card>
       <div className="px-5 pt-4 pb-3 border-b border-line">
         <div className="flex items-start gap-3">
           <h2 className="flex-1 text-title font-semibold text-ink leading-snug">{e.objet}</h2>
+          {relance && e.conversationId && e.internetMessageId ? (
+            relanceLe ? (
+              <span className="shrink-0 text-meta text-ink-3">Relance le {libelleRetour(relanceLe)}</span>
+            ) : (
+              <MenuAttente
+                taille="sm"
+                libelle="Relancer si pas de réponse"
+                titre="Le mail reviendra dans « À traiter » à la date choisie si personne n'a répondu"
+                deCote={false}
+                onChoisir={relancer}
+              />
+            )
+          ) : null}
           {e.lienOutlook ? (
             <a
               href={e.lienOutlook}
