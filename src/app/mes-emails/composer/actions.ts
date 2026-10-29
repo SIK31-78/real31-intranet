@@ -19,6 +19,7 @@ import {
   preparerComposition,
   listerContactsComposition,
   listerCoprosComposition,
+  listerCollegues,
   listerDossiersComposition,
   rechercherDestinataires,
   type CoproChoisissable,
@@ -27,6 +28,7 @@ import {
   type ResultatBrouillon,
 } from "@/lib/services/mes-emails/composer-mail";
 import { ADRESSE_MAIL, adresseMailValide, type ContactsComposition, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
+import type { Collegue } from "@/lib/domain/destinataires-collegues";
 import { corpsMisEnForme } from "@/lib/services/mes-emails/corps-mis-en-forme";
 import { NB_MAX_FICHIERS, TAILLE_MAX_FICHIER, TAILLE_MAX_TOTALE } from "@/lib/domain/piece-jointe-flux";
 import { boiteCible } from "../gardes-boites";
@@ -61,6 +63,20 @@ export async function rechercherDestinatairesAction(input: unknown): Promise<Res
   if (!d.success) return { ok: true, donnees: [] };
   try {
     return { ok: true, donnees: await rechercherDestinataires(d.data.texte, await boiteDe(g)) };
+  } catch (e) {
+    return echecDepuis(e, CTX);
+  }
+}
+
+/**
+ * Les collègues (adresses REAL31 de la table User) : l'écran reconnaît à l'envoi l'adresse
+ * personnelle d'un collègue et le fait confirmer (décision 14, incident Elsa du 29/10/2026).
+ */
+export async function listerColleguesAction(): Promise<Res<Collegue[]>> {
+  const g = await gestionnaire();
+  if (!g) return echec(INDISPONIBLE);
+  try {
+    return { ok: true, donnees: await listerCollegues() };
   } catch (e) {
     return echecDepuis(e, CTX);
   }

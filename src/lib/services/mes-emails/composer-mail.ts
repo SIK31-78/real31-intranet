@@ -13,6 +13,7 @@ import {
   getContactsCoproProvider,
   getCoproRepository,
   getCoproprietairesEstaleProvider,
+  getGestionnaireRepository,
   getMailOutboundProvider,
   getReferentielTriProvider,
 } from "@/lib/adapters/router";
@@ -21,6 +22,7 @@ import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { destinatairesConseilSyndical } from "@/lib/services/coproprietes/destinataires-conseil";
 import { binomeEnCopie } from "@/lib/services/coproprietes/assistante-de-copro";
+import { classerDestinataires, estAdresseReal31, type Collegue } from "@/lib/domain/destinataires-collegues";
 import { conseilPourComposition, enLots, fusionnerContactsCopro, type ContactsComposition, type CoproChoisissable, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
 import { cleDeReference } from "@/lib/domain/tri-emails";
 import { normaliserRef } from "@/lib/domain/copro-fusion";
@@ -65,9 +67,10 @@ export async function listerCoprosComposition(config: BoiteTriConfig | null): Pr
  * ses copros, pour choisir à laquelle rattacher le mail (ou aucune : c'est parfois perso).
  */
 export async function rechercherDestinataires(texte: string, config: BoiteTriConfig | null): Promise<DestinataireTrouve[]> {
-  const [identites, copros] = await Promise.all([
+  const [identites, copros, collegues] = await Promise.all([
     getContactsCoproProvider().rechercherIdentites(texte),
     listerCoprosComposition(config).catch(() => [] as CoproChoisissable[]),
+    listerCollegues(),
   ]);
   // Les copros des agences de la boîte seulement : un copropriétaire d'une autre agence ne
   // sort pas. Une fiche sans copro (artisan, notaire) reste proposée.
@@ -96,7 +99,32 @@ export async function rechercherDestinataires(texte: string, config: BoiteTriCon
             : "");
     out.push({ cle: i.cle, nom: i.nom, casquette, emails: i.emails, copros: siennes });
   }
-  return out.slice(0, 15);
+  // Les collègues d'abord, les fiches clientes à leur nom marquées (décision 14, incident Elsa).
+  return classerDestinataires(out, collegues, texte, 15);
+}
+
+// Les collègues changent rarement : relus au plus toutes les 10 minutes, pas à chaque frappe.
+const DUREE_CACHE_COLLEGUES_MS = 10 * 60 * 1000;
+let cacheCollegues: { jusqua: number; liste: Collegue[] } | null = null;
+
+/**
+ * Les salariés présents du cabinet (public."User", partis exclus) qui ont une adresse REAL31 :
+ * proposés en tête de l'autocomplétion et reconnus à l'envoi (décision 14, 29/10/2026).
+ * Lecture ratée : liste vide, l'autocomplétion reste celle de l'annuaire.
+ */
+export async function listerCollegues(): Promise<Collegue[]> {
+  if (cacheCollegues && cacheCollegues.jusqua > Date.now()) return cacheCollegues.liste;
+  try {
+    const tous = await getGestionnaireRepository().listTous();
+    const liste = tous
+      .filter((u) => u.email && estAdresseReal31(u.email) && u.nomComplet.trim())
+      .map((u) => ({ nom: u.nomComplet.trim(), email: u.email!.trim().toLowerCase() }));
+    cacheCollegues = { jusqua: Date.now() + DUREE_CACHE_COLLEGUES_MS, liste };
+    return liste;
+  } catch (e) {
+    console.warn("[composer] collègues indisponibles :", e instanceof Error ? e.message : e);
+    return [];
+  }
 }
 
 /**

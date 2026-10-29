@@ -70,6 +70,12 @@ export interface DestinataireTrouve {
   casquette: string;
   emails: string[];
   copros: (CoproChoisissable & { qualite: string })[];
+  /**
+   * « collegue » : un salarié du cabinet (adresse REAL31, table User) ; « client » : une fiche
+   * de l'annuaire qui porte le nom d'un collègue (sa fiche de copropriétaire, adresse perso).
+   * Absent : un contact ordinaire. Incident Elsa du 29/10/2026 (domain/destinataires-collegues).
+   */
+  genre?: "collegue" | "client";
 }
 
 /** Une ligne d'annuaire rendue par la recherche, avant enrichissement des copros. */

@@ -12,7 +12,17 @@ const etat = vi.hoisted(() => ({
   panneCS: false,
   referenceCS: "",
   appelsBinome: [] as unknown[][],
+  brouillons: [] as Record<string, unknown>[],
+  identites: [] as { cle: string; nom: string; emails: string[]; copros: { reference: string; qualite: string }[] }[],
 }));
+
+vi.mock("@/lib/domain/mail-gate", async (orig) => ({
+  ...(await orig<typeof import("@/lib/domain/mail-gate")>()),
+  mailModuleActif: () => true,
+  envoiMailPour: () => false,
+}));
+vi.mock("./get-signature", () => ({ async getSignatureGestionnaire() { return null; } }));
+vi.mock("./jeton-envoi", () => ({ DUREE_JETON_MS: 1000, scellerJeton: (j: unknown) => JSON.stringify(j) }));
 
 vi.mock("@/lib/services/coproprietes/assistante-de-copro", () => ({
   async binomeEnCopie(...args: unknown[]) {
@@ -35,6 +45,26 @@ vi.mock("@/lib/services/estale/donnees-copro-estale", () => ({
   },
 }));
 vi.mock("@/lib/adapters/router", () => ({
+  getMailOutboundProvider: () => ({
+    async creerBrouillonNeuf(b: Record<string, unknown>) {
+      etat.brouillons.push(b);
+      return { id: `d${etat.brouillons.length}` };
+    },
+    async supprimerBrouillon() {},
+  }),
+  getGestionnaireRepository: () => ({
+    async listTous() {
+      return [
+        { id: "u1", nomComplet: "Elsa PEIXOTO", initiales: "EP", email: "Elsa.Peixoto@real31.fr" },
+        { id: "u2", nomComplet: "Sans Adresse", initiales: "SA" },
+      ];
+    },
+  }),
+  getReferentielTriProvider: () => ({
+    async charger() {
+      return { copros: [{ reference: "S247", nom: "Les Tilleuls", adresse: "", gestionnaire: null }] };
+    },
+  }),
   getCoproRepository: () => ({
     async findByCode(code: string) {
       if (etat.lotsPrincipaux === null) throw new Error("base indisponible");
@@ -42,6 +72,9 @@ vi.mock("@/lib/adapters/router", () => ({
     },
   }),
   getContactsCoproProvider: () => ({
+    async rechercherIdentites() {
+      return etat.identites;
+    },
     async listerParCopro() {
       return [
         { email: "ancien@x.fr", nom: "ANCIEN", qualite: "coproprietaire", personne: "crypto:1" },
@@ -58,7 +91,7 @@ vi.mock("@/lib/adapters/router", () => ({
   }),
 }));
 
-const { listerContactsComposition } = await import("./composer-mail");
+const { listerContactsComposition, rechercherDestinataires } = await import("./composer-mail");
 
 describe("listerContactsComposition", () => {
   beforeEach(() => {
@@ -136,5 +169,16 @@ describe("listerContactsComposition", () => {
     expect(conseil).toEqual({ source: "aucune", membres: [] });
     expect(contacts.length).toBeGreaterThan(0);
     warn.mockRestore();
+  });
+});
+
+describe("rechercherDestinataires : collègues d'abord (décision 14)", () => {
+  it("propose le collègue en tête et marque la fiche cliente du même nom", async () => {
+    etat.identites = [{ cle: "crypto:9", nom: "PEIXOTO Elsa", emails: ["elsa.p@gmail.com"], copros: [{ reference: "S247", qualite: "coproprietaire" }] }];
+    const l = await rechercherDestinataires("elsa", null);
+    expect(l.map((d) => [d.nom, d.genre, d.emails[0]])).toEqual([
+      ["Elsa PEIXOTO", "collegue", "elsa.peixoto@real31.fr"],
+      ["PEIXOTO Elsa", "client", "elsa.p@gmail.com"],
+    ]);
   });
 });
