@@ -52,6 +52,7 @@ import type { BoiteMail } from "@/lib/domain/boites-mail";
 import { boiteReponseParDefaut, ongletsDe, origineAffichee } from "@/lib/domain/boites-mail";
 import { TYPE_DOSSIER_LABEL, TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { SegmentedControl } from "@/components/ui/segmented";
 import { Button, classesBouton } from "@/components/ui/button";
@@ -131,6 +132,9 @@ function defautDestinataires(m: MailEntrant): Destinataires {
   return { to, cc: [...new Set(autres)], cci: [] };
 }
 
+/** Rythme de l'actualisation automatique de la liste (décision 8) : relit Graph, donc pas trop souvent. */
+const ACTUALISATION_MS = 3 * 60_000;
+
 function jourMois(iso: string): string {
   return formatDateLongue(iso).replace(/ \d{4}$/, "");
 }
@@ -200,11 +204,11 @@ export function MesEmailsVue({
   );
   const mailsTries = useMemo(() => trierMails(mailsBoite), [mailsBoite]);
   const [selId, setSelId] = useState<string>(mailsTries[0]?.id ?? "");
-  // `m.lu` = lu dans Outlook OU dans l'intranet (REA-422) : la pastille et le compteur bleu
-  // des onglets de boîte disent la même chose qu'Outlook.
-  const [lus, setLus] = useState<Set<string>>(
-    () => new Set(data.mails.filter((m) => m.lu).map((m) => m.id)),
-  );
+  // `m.lu` = lu dans Outlook OU dans l'intranet (REA-422), relu à chaque actualisation ; `lus` =
+  // ouverts ici pendant cette session.
+  const [lus, setLus] = useState<Set<string>>(() => new Set());
+  const lusLecture = useMemo(() => new Set(data.mails.filter((m) => m.lu).map((m) => m.id)), [data.mails]);
+  const estLu = (id: string) => lus.has(id) || lusLecture.has(id);
   const [repondus, setRepondus] = useState<Set<string>>(
     () =>
       new Set(
@@ -228,13 +232,15 @@ export function MesEmailsVue({
   // Copro choisie gérée par un autre binôme : l'envoi lui est proposé (REA-327).
   const [envoisProposes, setEnvoisProposes] = useState<Map<string, { reference: string; dossier: string }>>(new Map());
   const [partis, setPartis] = useState<Set<string>>(new Set());
+  // Marqués traités ici depuis le chargement : s'ajoutent aux « traités aujourd'hui » du serveur.
+  const [traitesIci, setTraitesIci] = useState(0);
   // Sortis de « À traiter » : archivés (boîte perso) ou marqués traités (boîte partagée) dans
   // cette session, et au chargement les traités de la boîte partagée. Plus d'onglet « Conclus »
   // (REA-422, 27/10/2026) : un mail archivé a quitté la réception, on le retrouve dans Outlook.
   const [classes, setClasses] = useState<Set<string>>(() => traitesAuChargement(data.mails, data.boites));
   // L'heure du calcul du retard (« plus de 2 jours ouvrés ») : posée au chargement, avancée à
   // chaque actualisation automatique (pas de Date.now() pendant le rendu).
-  const [maintenant] = useState(() => new Date());
+  const [maintenant, setMaintenant] = useState(() => new Date());
   // Le chiffre unique « À traiter » (décision 1, 29/10/2026) : la boîte de travail, sans ce qui
   // est sorti (traité, archivé, parti ailleurs), plus les mails non chargés. Publié pour la
   // pastille de la barre latérale, le titre de l'écran et celui de l'onglet du navigateur.
@@ -579,6 +585,8 @@ export function MesEmailsVue({
   );
 
   const selection = visibles.find((m) => m.id === selId) ?? visibles[0];
+  const ongletDeTravail = !(data.boites.find((b) => b.id === boiteActive)?.personnelle ?? true);
+  const traitesAujourdhui = (data.traitesAujourdhui ?? 0) + traitesIci;
 
   // Les pièces jointes du mail affiché se chargent, qu'il ait été cliqué ou affiché d'office
   // (le premier de la liste à l'arrivée, après un changement de boîte, de vue ou de recherche) :
@@ -724,7 +732,7 @@ export function MesEmailsVue({
   // Marqué lu (dans l'intranet et dans Outlook, REA-422) seulement quand on l'ouvre vraiment :
   // clic sur sa ligne, ou Répondre / Transférer. Jamais quand il est affiché d'office.
   function marquerLu(m: MailEntrant, ouverture: OuvertureMail) {
-    if (!marqueLu(ouverture, lus.has(m.id))) return;
+    if (!marqueLu(ouverture, estLu(m.id))) return;
     setLus((p) => new Set(p).add(m.id));
     void marquerLuAction(m.id, m.coproCode, m.boite ?? boiteActive);
   }
@@ -845,6 +853,36 @@ export function MesEmailsVue({
     }
     fermerReponse(m);
   }
+  // Actualisation automatique (décision 8, 29/10/2026) : la liste se relit toute seule toutes
+  // les 3 minutes quand l'onglet est visible (et au retour sur l'onglet s'il y a plus de 3
+  // minutes), pour voir arriver les nouveaux mails et le chiffre monter ou baisser. Jamais
+  // pendant une réponse, un envoi ou une recherche dans tous les échanges : le travail en
+  // cours ne bouge pas. « Actualiser » reste pour le faire tout de suite.
+  const router = useRouter();
+  const occupe = composeParMail.size > 0 || envoiEnCours || fouille !== null || [...edits.values()].some((t) => t.trim() !== "");
+  const occupeRef = useRef(occupe);
+  useEffect(() => {
+    occupeRef.current = occupe;
+  }, [occupe]);
+  useEffect(() => {
+    let derniere = Date.now();
+    const relire = () => {
+      if (document.visibilityState !== "visible" || occupeRef.current) return;
+      derniere = Date.now();
+      setMaintenant(new Date());
+      router.refresh();
+    };
+    const minuterie = setInterval(relire, ACTUALISATION_MS);
+    const auRetour = () => {
+      if (Date.now() - derniere >= ACTUALISATION_MS) relire();
+    };
+    document.addEventListener("visibilitychange", auRetour);
+    return () => {
+      clearInterval(minuterie);
+      document.removeEventListener("visibilitychange", auRetour);
+    };
+  }, [router]);
+
   // Fermer ou recharger l'onglet avec une réponse ouverte et écrite : le navigateur demande.
   useAlerteSortie(data.mails.some((m) => (composeParMail.has(m.id) || (edits.get(m.id) ?? "").trim() !== "") && reponseEnCours(m)));
 
@@ -930,6 +968,7 @@ export function MesEmailsVue({
   // (statut commun), sans bouger dans Outlook : il reste dans le dossier du binôme.
   function marquerTraite(m: MailEntrant) {
     setMsgClasser(null);
+    if (!classes.has(m.id)) setTraitesIci((n) => n + 1);
     setClasses((p) => add(p, m.id));
     void marquerTraiteAction(m.id, coproDe(m).code, boiteDuMail(m));
     passerAuSuivant(m);
@@ -1074,14 +1113,28 @@ export function MesEmailsVue({
                   m={m}
                   origine={origineAffichee(data.boites, m.boite)}
                   actif={m.id === selection?.id}
-                  lu={lus.has(m.id)}
+                  lu={estLu(m.id)}
                   reponse={reponseDe(m)}
                   onClick={() => ouvrir(m.id, "clic")}
                 />
               ))}
-              {visibles.length === 0 && (
-                <li className="px-4 py-6 text-center text-body text-ink-3">Aucun mail.</li>
-              )}
+              {visibles.length === 0 &&
+                (q ? (
+                  // Recherche sans résultat dans l'onglet : pas d'impasse (D3 de l'audit UX).
+                  <li className="px-4 py-6 text-center text-body text-ink-3">
+                    Rien pour « {recherche.trim()} » dans {ongletsDe(data.boites).find((b) => b.id === boiteActive)?.libelle ?? "cette boîte"}.
+                    {recherche.trim().length >= 2 ? (
+                      <div className="mt-2">
+                        <Button size="sm" onClick={lancerFouille}>
+                          <Search strokeWidth={1.5} />
+                          Chercher dans tous les échanges
+                        </Button>
+                      </div>
+                    ) : null}
+                  </li>
+                ) : (
+                  <li className="px-4 py-6 text-center text-body text-ink-3">Aucun mail.</li>
+                ))}
             </ul>
             {/* Plafond de la page : 200 (plafondPerso), au-delà le lien ne ferait que recharger. */}
             {data.plusDeMails && maxPerso < 200 && data.boites.find((b) => b.id === boiteActive)?.personnelle ? (
@@ -1256,11 +1309,30 @@ export function MesEmailsVue({
               onToggleSection={toggleSection}
             />
           ) : (
-            <Card className="px-6 py-16 text-center">
-              <Mail strokeWidth={1.25} className="w-8 h-8 text-ink-3 mx-auto" />
-              <p className="text-body font-medium text-ink mt-3">Rien à traiter</p>
-              <p className="text-body text-ink-3 mt-1">Les mails archivés se retrouvent dans leur dossier Outlook.</p>
-            </Card>
+            q ? (
+              // Une recherche sans résultat n'est pas une boîte vide : on ne dit pas « Rien à traiter ».
+              <Card className="px-6 py-16 text-center">
+                <Search strokeWidth={1.25} className="w-8 h-8 text-ink-3 mx-auto" />
+                <p className="text-body text-ink-3 mt-3">Aucun mail ne correspond à la recherche.</p>
+              </Card>
+            ) : ongletDeTravail ? (
+              // Le moment « 0 » (décision 1) : tout est traité, et combien l'ont été aujourd'hui.
+              <Card className="px-6 py-16 text-center">
+                <CircleCheck strokeWidth={1.25} className="w-8 h-8 text-green-700 mx-auto" />
+                <p className="text-body font-medium text-ink mt-3">Tout est traité.</p>
+                {traitesAujourdhui > 0 ? (
+                  <p className="text-meta text-ink-3 mt-1">
+                    {traitesAujourdhui} mail{traitesAujourdhui > 1 ? "s" : ""} traité{traitesAujourdhui > 1 ? "s" : ""} aujourd&apos;hui
+                  </p>
+                ) : null}
+              </Card>
+            ) : (
+              <Card className="px-6 py-16 text-center">
+                <Mail strokeWidth={1.25} className="w-8 h-8 text-ink-3 mx-auto" />
+                <p className="text-body font-medium text-ink mt-3">Rien dans la boîte de réception</p>
+                <p className="text-body text-ink-3 mt-1">Les mails archivés se retrouvent dans leur dossier Outlook.</p>
+              </Card>
+            )
           )}
         </section>
       </div>
