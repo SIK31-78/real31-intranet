@@ -455,3 +455,57 @@ export function resumeDestinataires(noms: readonly string[]): string {
   const reste = l.length - 2;
   return `${l.slice(0, 2).join(", ")} et ${reste} autre${reste > 1 ? "s" : ""}`;
 }
+
+// --- Envoi séparé à chaque destinataire (décision 10, 29/10/2026) -----------------------------
+// Pour les demandes de devis à plusieurs entreprises : un mail par destinataire, chacun ne voit
+// que lui. Une PERSONNE garde toutes ses adresses dans le même mail (certains en ont deux).
+// Les Cc sont refusés : copiés sur chaque envoi, ils seraient vus de tous les destinataires,
+// ce que le mode promet justement d'éviter. Toute la copropriété (Cci) ne s'y combine pas.
+
+/**
+ * Au plus 20 mails séparés : un brouillon (et un jeton) par mail, sous la limite de l'action
+ * d'envoi (20 jetons) ; au-delà, c'est un mailing, pas une demande de devis.
+ */
+export const ENVOIS_SEPARES_MAX = 20;
+
+export type EnvoisSepares = { ok: true; envois: string[][] } | { ok: false; motif: string };
+
+/**
+ * Découpe les destinataires « À » en envois séparés : un envoi par personne (ses adresses
+ * ensemble), adresses en minuscules, une adresse déjà servie n'est pas répétée, une personne
+ * sans adresse disparaît. Refuse (motif dit) : moins de deux envois, des Cc, une Cci, trop d'envois.
+ */
+export function envoisSepares(
+  personnes: readonly (readonly string[])[],
+  cc: readonly string[] = [],
+  cci: readonly string[] = [],
+): EnvoisSepares {
+  const vues = new Set<string>();
+  const envois: string[][] = [];
+  for (const emails of personnes) {
+    const siennes: string[] = [];
+    for (const brute of emails) {
+      const e = brute.trim().toLowerCase();
+      if (!e || vues.has(e)) continue;
+      vues.add(e);
+      siennes.push(e);
+    }
+    if (siennes.length) envois.push(siennes);
+  }
+  if (cc.some((e) => e.trim())) {
+    return { ok: false, motif: "En envoi séparé, une adresse en Cc serait vue de chaque destinataire : retirez-la ou passez-la en « À »." };
+  }
+  if (cci.length) return { ok: false, motif: "L'envoi séparé ne se combine pas avec « Toute la copropriété »." };
+  if (envois.length < 2) return { ok: false, motif: "Il faut au moins deux destinataires en « À » pour envoyer séparément." };
+  if (envois.length > ENVOIS_SEPARES_MAX) {
+    return { ok: false, motif: `Au plus ${ENVOIS_SEPARES_MAX} mails séparés à la fois (${envois.length} demandés).` };
+  }
+  return { ok: true, envois };
+}
+
+/** « 3 mails séparés partiront » / « 3 brouillons séparés seront créés », pour la confirmation. */
+export function phraseEnvoisSepares(n: number, envoiDirect: boolean): string {
+  return envoiDirect
+    ? `${n} mails séparés partiront : chaque destinataire ne verra que son adresse, et chacun reçoit les pièces jointes.`
+    : `${n} brouillons séparés seront créés dans Outlook, un par destinataire, chacun avec les pièces jointes : à relire puis envoyer un par un.`;
+}

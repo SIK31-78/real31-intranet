@@ -91,7 +91,7 @@ vi.mock("@/lib/adapters/router", () => ({
   }),
 }));
 
-const { listerContactsComposition, rechercherDestinataires } = await import("./composer-mail");
+const { listerContactsComposition, preparerComposition, rechercherDestinataires } = await import("./composer-mail");
 
 describe("listerContactsComposition", () => {
   beforeEach(() => {
@@ -180,5 +180,30 @@ describe("rechercherDestinataires : collègues d'abord (décision 14)", () => {
       ["Elsa PEIXOTO", "collegue", "elsa.peixoto@real31.fr"],
       ["PEIXOTO Elsa", "client", "elsa.p@gmail.com"],
     ]);
+  });
+});
+
+describe("preparerComposition : envoi séparé (décision 10)", () => {
+  const g = { id: "g1", nomComplet: "Moi", initiales: "MO", email: "moi@real31.fr" };
+  const config = { boite: "syndic2@real31.fr", agences: ["LGC"] } as never;
+  beforeEach(() => {
+    etat.brouillons = [];
+  });
+  it("un brouillon par destinataire, chacun ne porte que ses adresses, un jeton chacun", async () => {
+    const r = await preparerComposition(
+      { objet: "S247 · Les Tilleuls - Devis", corps: "Bonjour", a: ["a@x.fr", "a2@x.fr", "b@y.fr"], cc: [], envois: [["a@x.fr", "a2@x.fr"], ["b@y.fr"]] },
+      g,
+      config,
+    );
+    expect(etat.brouillons.map((b) => [b.a, b.cc, b.cci])).toEqual([
+      [["a@x.fr", "a2@x.fr"], undefined, undefined],
+      [["b@y.fr"], undefined, undefined],
+    ]);
+    expect(r.mails).toBe(2);
+    expect(r.jetons).toHaveLength(2);
+  });
+  it("sans envoi séparé : un seul brouillon à tous", async () => {
+    await preparerComposition({ objet: "x", corps: "y", a: ["a@x.fr", "b@y.fr"], cc: [] }, g, config);
+    expect(etat.brouillons.map((b) => b.a)).toEqual([["a@x.fr", "b@y.fr"]]);
   });
 });

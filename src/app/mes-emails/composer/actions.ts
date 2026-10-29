@@ -27,7 +27,14 @@ import {
   type PreparationComposition,
   type ResultatBrouillon,
 } from "@/lib/services/mes-emails/composer-mail";
-import { ADRESSE_MAIL, adresseMailValide, type ContactsComposition, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
+import {
+  ADRESSE_MAIL,
+  ENVOIS_SEPARES_MAX,
+  adresseMailValide,
+  envoisSepares,
+  type ContactsComposition,
+  type DestinataireTrouve,
+} from "@/lib/domain/mes-emails-composition";
 import type { Collegue } from "@/lib/domain/destinataires-collegues";
 import { corpsMisEnForme } from "@/lib/services/mes-emails/corps-mis-en-forme";
 import { NB_MAX_FICHIERS, TAILLE_MAX_FICHIER, TAILLE_MAX_TOTALE } from "@/lib/domain/piece-jointe-flux";
@@ -151,12 +158,22 @@ export async function preparerCompositionAction(input: unknown): Promise<Res<Pre
         .default([]),
       // Corps mis en forme (REA-345, pilote) : renettoyé côté serveur.
       corpsHtml: z.string().optional(),
+      // Envoi séparé (décision 10) : un mail par personne, ses adresses ensemble.
+      envois: z.array(z.array(z.string().max(320).regex(ADRESSE_MAIL)).min(1).max(10)).max(ENVOIS_SEPARES_MAX + 1).optional(),
     })
     .refine((v) => v.a.length > 0 || v.cci.length > 0)
     .safeParse(input);
   if (!d.success) return echec(motifRefus(input));
   if (d.data.fichiers.reduce((t, f) => t + f.taille, 0) > TAILLE_MAX_TOTALE) {
     return echec("Pièces jointes trop lourdes : 25 Mo au total. Dépose les plus grosses sur SharePoint et envoie le lien.");
+  }
+  // Envoi séparé : la règle du domaine, rejouée ici (pas de Cc ni de Cci, 2 à 20 envois) ;
+  // « À » devient l'union des envois, jamais une adresse que le navigateur n'a pas découpée.
+  let envois: string[][] | undefined;
+  if (d.data.envois) {
+    const sep = envoisSepares(d.data.envois, d.data.cc, d.data.cci);
+    if (!sep.ok) return echec(sep.motif);
+    envois = sep.envois;
   }
   const riche = corpsMisEnForme(true, d.data.corpsHtml);
   if (riche === "refuse") return echec("La mise en forme est en essai : elle n'est pas encore ouverte.");
@@ -165,12 +182,22 @@ export async function preparerCompositionAction(input: unknown): Promise<Res<Pre
     // La boîte d'envoi doit être une boîte visible de la personne (son agence, toutes pour un
     // super-admin), comme le « De : » d'une réponse. Aperçu sans boîte : rien à garder.
     if (config && brouillonPossible(config) && !(await boiteCible(g, config.boite))) return echec("Boîte non autorisée.");
-    const { objet, a, cc, cci, dossierId } = d.data;
+    const { objet, cc, cci, dossierId } = d.data;
+    const a = envois ? envois.flat() : d.data.a;
     const corps = riche ? riche.corps : d.data.corps;
     return {
       ok: true,
       donnees: await preparerComposition(
-        { objet, corps, ...(riche ? { corpsHtml: riche.corpsHtml } : {}), a, cc, ...(cci.length ? { cci } : {}), ...(dossierId ? { dossierId } : {}) },
+        {
+          objet,
+          corps,
+          ...(riche ? { corpsHtml: riche.corpsHtml } : {}),
+          a,
+          cc,
+          ...(cci.length ? { cci } : {}),
+          ...(dossierId ? { dossierId } : {}),
+          ...(envois ? { envois } : {}),
+        },
         g,
         config,
       ),

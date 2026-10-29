@@ -194,6 +194,11 @@ export interface DemandeBrouillon {
   dossierId?: string;
   /** Corps mis en forme, nettoyé et habillé (REA-345, pilote) ; `corps` reste le texte équivalent. */
   corpsHtml?: string;
+  /**
+   * Envoi séparé (décision 10, 29/10/2026) : un mail par élément, adressé à ces seules adresses
+   * (déjà contrôlé par domain envoisSepares : pas de Cc ni de Cci). `a` reste l'union, pour le journal.
+   */
+  envois?: string[][];
 }
 
 export interface ResultatBrouillon {
@@ -205,7 +210,7 @@ export interface ResultatBrouillon {
   webLink?: string;
   /** Le mail a bien été inscrit au journal du dossier demandé. */
   rattache?: boolean;
-  /** Nombre de mails créés : plus d'un quand la copie cachée a été découpée en lots. */
+  /** Nombre de mails créés : plus d'un quand la copie cachée a été découpée en lots, ou en envoi séparé. */
   mails?: number;
 }
 
@@ -234,7 +239,7 @@ export interface PreparationComposition {
   boite: string | null;
   /** Le mail partira à la finalisation (sinon il reste en brouillon dans Outlook). */
   envoi?: boolean;
-  /** Un jeton par brouillon (un par lot de copie cachée), dans l'ordre des lots. */
+  /** Un jeton par brouillon (un par lot de copie cachée, ou par destinataire en envoi séparé), dans l'ordre. */
   jetons?: string[];
   webLink?: string;
   mails?: number;
@@ -261,11 +266,14 @@ export async function preparerComposition(
   // Toute la copropriété (REA-305) : la copie cachée part en lots sous la limite d'Exchange,
   // un mail par lot. Sans « À », le mail est adressé à la boîte elle-même.
   const a = d.a.length ? d.a : d.cci?.length ? [boite] : [];
-  const lots = d.cci?.length ? enLots(d.cci) : [[]];
+  // Un mail par lot : par lot de copie cachée, ou par destinataire en envoi séparé.
+  const lots: { a: string[]; cci: string[] }[] = d.envois?.length
+    ? d.envois.map((x) => ({ a: x, cci: [] }))
+    : (d.cci?.length ? enLots(d.cci) : [[]]).map((cci) => ({ a, cci }));
   const mode = envoiMailPour(boite) ? "envoyer" : "brouillon";
   const crees: { id: string; webLink?: string; internetMessageId?: string }[] = [];
   try {
-    for (const cci of lots) {
+    for (const { a, cci } of lots) {
       const cree = await outbound.creerBrouillonNeuf({
         boite,
         sujet: d.objet,
@@ -284,7 +292,11 @@ export async function preparerComposition(
     await supprimerBrouillons(boite, crees.map((c) => c.id));
     throw e;
   }
-  const pour = d.cci?.length ? `toute la copropriété (${d.cci.length} adresses)` : d.a.slice(0, 2).join(", ") || "?";
+  const pour = d.cci?.length
+    ? `toute la copropriété (${d.cci.length} adresses)`
+    : d.envois?.length
+      ? `${d.envois.length} destinataires, chacun séparément (${d.a.slice(0, 2).join(", ")}${d.a.length > 2 ? "…" : ""})`
+      : d.a.slice(0, 2).join(", ") || "?";
   const exp = Date.now() + DUREE_JETON_MS;
   const jetons = crees.map((c, lot) =>
     scellerJeton({

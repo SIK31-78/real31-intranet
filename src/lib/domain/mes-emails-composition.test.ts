@@ -3,6 +3,9 @@ import {
   adresseMailValide,
   adressesTouteLaCopro,
   conseilPourComposition,
+  ENVOIS_SEPARES_MAX,
+  envoisSepares,
+  phraseEnvoisSepares,
   controleTouteLaCopro,
   enLots,
   sansPolitesseEnDouble,
@@ -293,5 +296,28 @@ describe("conseilPourComposition (20/10/2026)", () => {
   it("aucune adresse exploitable : source « aucune », saisie à la main", () => {
     expect(conseilPourComposition({ source: "crypto", emails: ["pas-une-adresse"] }, contacts)).toEqual({ source: "aucune", membres: [] });
     expect(conseilPourComposition({ source: "aucune", emails: [] }, contacts)).toEqual({ source: "aucune", membres: [] });
+  });
+});
+
+describe("envoisSepares (décision 10)", () => {
+  it("un envoi par personne, ses adresses ensemble, sans doublon", () => {
+    expect(envoisSepares([["A@x.fr", "a2@x.fr"], ["b@y.fr"], ["a@x.fr"], []])).toEqual({ ok: true, envois: [["a@x.fr", "a2@x.fr"], ["b@y.fr"]] });
+  });
+  it("refuse moins de deux destinataires", () => {
+    expect(envoisSepares([["a@x.fr"], ["A@x.fr"]]).ok).toBe(false);
+  });
+  it("refuse les Cc (vus de chaque destinataire) et la Cci", () => {
+    const cc = envoisSepares([["a@x.fr"], ["b@y.fr"]], ["c@z.fr"]);
+    expect(cc.ok ? "" : cc.motif).toMatch(/Cc/);
+    expect(envoisSepares([["a@x.fr"], ["b@y.fr"]], [], ["d@z.fr"]).ok).toBe(false);
+  });
+  it("plafonne le nombre d'envois", () => {
+    const l = Array.from({ length: ENVOIS_SEPARES_MAX + 1 }, (_, i) => [`p${i}@x.fr`]);
+    expect(envoisSepares(l).ok).toBe(false);
+    expect(envoisSepares(l.slice(0, ENVOIS_SEPARES_MAX)).ok).toBe(true);
+  });
+  it("dit combien de mails partiront", () => {
+    expect(phraseEnvoisSepares(3, true)).toMatch(/^3 mails séparés partiront/);
+    expect(phraseEnvoisSepares(3, false)).toMatch(/^3 brouillons séparés/);
   });
 });
