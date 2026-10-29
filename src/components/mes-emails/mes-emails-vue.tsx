@@ -742,9 +742,11 @@ export function MesEmailsVue({
     return n;
   };
 
-  // ENVOYER la reponse, INDEPENDAMMENT du classement (on peut repondre maintenant et
-  // classer/agir plus tard). Pas besoin de choisir un dossier. Irreversible -> confirmation.
-  async function envoyerSeul(m: MailEntrant) {
+  // ENVOYER la reponse. `puisTraiter` (« Envoyer et marquer traité », bouton par défaut depuis
+  // le 29/10/2026, décision 4) : une fois partie, le mail est marqué traité (boîte partagée) ou
+  // archivé dans le dossier choisi (Ma boîte), et l'écran passe au suivant. « Envoyer » seul
+  // garde le mail dans « À traiter ».
+  async function envoyerSeul(m: MailEntrant, puisTraiter = false) {
     if (envoiEnCours) return; // un envoi est deja en cours -> on ignore le double clic
     const corps = brouillonDe(m).trim();
     if (!corps) {
@@ -789,6 +791,11 @@ export function MesEmailsVue({
             : `Envoyé depuis ${expediteur} ✓ (mail neuf, sans l'historique)`
           : `Réponse envoyée depuis ${expediteur} ✓`,
       );
+      if (puisTraiter) {
+        const perso = data.boites.find((b) => b.id === boiteDuMail(m))?.personnelle ?? true;
+        if (!perso) marquerTraite(m);
+        else if (dossierIdDe(m)) valider(m);
+      }
     } finally {
       setEnvoiEnCours(false);
     }
@@ -1152,7 +1159,7 @@ export function MesEmailsVue({
               onMajExpediteur={(v) => majExpediteur(selection, v)}
               sujet={sujetDe(selection)}
               onMajSujet={(v) => majSujet(selection, v)}
-              onEnvoyer={() => void envoyerSeul(selection)}
+              onEnvoyer={(puisTraiter) => void envoyerSeul(selection, puisTraiter)}
               envoiEnCours={envoiEnCours}
               msgBrouillon={msgBrouillon}
               lienBrouillon={lienBrouillon?.msg === msgBrouillon ? lienBrouillon.url : null}
@@ -1842,7 +1849,8 @@ function AnalysePane({
   onMajExpediteur: (v: string) => void;
   sujet: string;
   onMajSujet: (v: string) => void;
-  onEnvoyer: () => void;
+  /** Envoie la réponse ; `puisTraiter` : la marque aussi traitée (ou l'archive, Ma boîte). */
+  onEnvoyer: (puisTraiter: boolean) => void;
   envoiEnCours: boolean;
   msgBrouillon: string | null;
   /** Lien Outlook du brouillon de réponse annoncé par msgBrouillon. */
@@ -1890,6 +1898,12 @@ function AnalysePane({
 
   // « Traité » est LE bouton vert plein du volet ; pendant une réponse, c'est l'envoi qui l'est.
   const ecrit = Boolean(brouillon || compose);
+  const dossierArchive = classementOutlook ? (dossiers ?? []).find((d) => d.id === dossierIdChoisi)?.nom : undefined;
+  const envoiEtFin = !classementOutlook
+    ? { libelle: "Envoyer et marquer traité", titre: "Envoie la réponse, puis le mail sort de « À traiter » pour tout le binôme" }
+    : dossierIdChoisi
+      ? { libelle: "Envoyer et archiver", titre: `Envoie la réponse, puis archive le mail dans « ${dossierArchive ?? "le dossier choisi"} »` }
+      : null;
 
   return (
     // overflow-clip et pas overflow-hidden : hidden ferait de la carte un conteneur de défilement
@@ -2205,10 +2219,25 @@ function AnalysePane({
                 />
               </div>
             ) : null}
-            <div className="mt-2.5 flex items-center gap-3">
-              <Button variant="primary" size="lg" onClick={onEnvoyer} loading={envoiEnCours}>
-                <Send strokeWidth={2} />
-                {envoiEnCours ? "Envoi…" : "Envoyer la réponse"}
+            <div className="mt-2.5 flex flex-wrap items-center gap-3">
+              {/* « Envoyer et marquer traité » par défaut (décision 4, 29/10/2026) : la plupart
+                  des réponses terminent le mail. Ma boîte : « Envoyer et archiver », quand le
+                  dossier Outlook est choisi (ou trouvé tout seul) dans la barre du haut. */}
+              {envoiEtFin ? (
+                <Button variant="primary" size="lg" onClick={() => onEnvoyer(true)} loading={envoiEnCours} title={envoiEtFin.titre}>
+                  <Send strokeWidth={2} />
+                  {envoiEnCours ? "Envoi…" : envoiEtFin.libelle}
+                </Button>
+              ) : null}
+              <Button
+                variant={envoiEtFin ? "secondary" : "primary"}
+                size="lg"
+                onClick={() => onEnvoyer(false)}
+                disabled={envoiEnCours}
+                title="Envoyer sans sortir le mail de « À traiter »"
+              >
+                {envoiEtFin ? null : <Send strokeWidth={2} />}
+                {envoiEnCours && !envoiEtFin ? "Envoi…" : "Envoyer"}
               </Button>
               <Button variant="ghost" size="lg" onClick={onAnnuler} disabled={envoiEnCours}>
                 Annuler
