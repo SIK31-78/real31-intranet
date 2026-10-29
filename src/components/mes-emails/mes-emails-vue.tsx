@@ -27,6 +27,8 @@ import {
   Trash2,
   ExternalLink,
   FolderPlus,
+  StickyNote,
+  Undo2,
 } from "lucide-react";
 import type {
   ContexteCopro,
@@ -49,7 +51,17 @@ import {
   typeDossierSuggere,
 } from "@/lib/domain/mes-emails";
 import type { BoiteMail } from "@/lib/domain/boites-mail";
-import { boiteReponseParDefaut, ongletsDe, origineAffichee } from "@/lib/domain/boites-mail";
+import { boiteReponseParDefaut, ongletDe, ongletsDe, origineAffichee } from "@/lib/domain/boites-mail";
+import {
+  EQUIPE_INACTIVE,
+  libelleRetour,
+  passeLeFiltre,
+  type ChoixAttente,
+  type EquipeEcran,
+  type EtatEquipeMail as EtatEquipeComplet,
+  type FiltreAttribution,
+  type MembreEquipe,
+} from "@/lib/domain/boite-equipe";
 import { TYPE_DOSSIER_LABEL, TYPE_DOSSIER_ORDRE, type TypeDossier } from "@/lib/domain/dossier";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -81,7 +93,9 @@ import { rechercherDestinatairesAction } from "@/app/mes-emails/composer/actions
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
 import { estMailInterne } from "@/lib/domain/tri-emails";
-import { traitesAuChargement, chiffreATraiter, marqueLu, type OuvertureMail } from "@/lib/domain/mes-emails-liste";
+import { traitesAuChargement, chiffreATraiter, etatPourChiffre, marqueLu, modeChiffre, type OuvertureMail } from "@/lib/domain/mes-emails-liste";
+import { BoutonsAttribution, libelleAttente, MenuAttente, NotesInternes, PastilleAttributaire, RelancesDues } from "./equipe-mail";
+import { mettreEnAttenteAction, reprendreMailAction } from "@/app/mes-emails/actions-equipe";
 import { publierChiffre } from "./chiffre-a-traiter";
 import { VisionneusePj, type ApercuPj } from "./visionneuse-pj";
 import { deposerFichier } from "./deposer-fichier";
@@ -132,6 +146,29 @@ function defautDestinataires(m: MailEntrant): Destinataires {
   return { to, cc: [...new Set(autres)], cci: [] };
 }
 
+/** Un mail sans état d'équipe connu : non attribué, sans note, sans attente. */
+function etatVide(id: string): EtatEquipeComplet {
+  return { internetMessageId: id, attributaire: null, notes: 0, attente: null, horsATraiter: false, relanceDue: false };
+}
+
+/** Le dernier onglet et le dernier filtre choisis, gardés dans le navigateur (confort, best-effort). */
+const CLE_ONGLET = "real31_emails_onglet";
+const CLE_FILTRE = "real31_emails_filtre";
+function lireLocal(cle: string): string | null {
+  try {
+    return window.localStorage.getItem(cle);
+  } catch {
+    return null;
+  }
+}
+function ecrireLocal(cle: string, valeur: string): void {
+  try {
+    window.localStorage.setItem(cle, valeur);
+  } catch {
+    // Navigation privée, stockage bloqué : on n'en a pas besoin pour travailler.
+  }
+}
+
 /** Rythme de l'actualisation automatique de la liste (décision 8) : relit Graph, donc pas trop souvent. */
 const ACTUALISATION_MS = 3 * 60_000;
 
@@ -170,9 +207,15 @@ export function MesEmailsVue({
   modeles,
   pilote = false,
   reformulation = false,
+  equipe = EQUIPE_INACTIVE,
+  incarnation = false,
 }: {
   /** « Reformuler » proposé dans la réponse et le transfert (ADR-051). */
   reformulation?: boolean;
+  /** Boîte d'équipe (ADR-053) : attribution, notes, attente ; inactive sans les tables. */
+  equipe?: EquipeEcran;
+  /** « Changer de gestionnaire » en cours : les notes se lisent mais ne s'écrivent pas. */
+  incarnation?: boolean;
   data: MesEmails;
   /** Super-admin : voit les nouveautés de l'écran avant tout le monde (cf. page.tsx). */
   pilote?: boolean;
@@ -187,9 +230,11 @@ export function MesEmailsVue({
   adresseFactures?: string | null;
 }) {
   // Boite affichee. Les deux boites ne sont JAMAIS fusionnees (decision Sekou 5) :
-  // on en regarde une a la fois, la perso par defaut.
+  // on en regarde une a la fois. Par defaut la BOITE DE TRAVAIL (le binome, P6 de l'audit UX,
+  // 29/10/2026 : un clic de moins a chaque arrivee), sinon la perso ; le dernier onglet choisi
+  // l'emporte (garde dans le navigateur).
   const boiteParDefaut =
-    data.boites.find((b) => b.personnelle)?.id ?? data.boites[0]?.id ?? "";
+    ongletsDe(data.boites).find((b) => !b.personnelle)?.id ?? data.boites.find((b) => b.personnelle)?.id ?? data.boites[0]?.id ?? "";
   const [boiteActive, setBoiteActive] = useState<string>(boiteParDefaut);
   const toast = useToast();
   const confirmer = useConfirm();
@@ -246,10 +291,46 @@ export function MesEmailsVue({
   // pastille de la barre latérale, le titre de l'écran et celui de l'onglet du navigateur.
   const sortis = useMemo(() => new Set([...classes, ...partis]), [classes, partis]);
   const horsListe = data.aTraiterHorsListe;
-  const chiffre = useMemo(
-    () => chiffreATraiter(data.mails, data.boites, sortis, { maintenant, ...(horsListe ? { horsListe } : {}) }),
-    [data.mails, data.boites, sortis, maintenant, horsListe],
+
+  // --- Boîte d'équipe (ADR-053) : l'état lu par le serveur, et les gestes faits ici depuis
+  // (ils l'emportent jusqu'à la prochaine lecture, actualisation automatique ou « Actualiser »).
+  const moi = equipe.moi;
+  const moiMembre: MembreEquipe = { email: moi, nomComplet: data.gestionnaire.nomComplet, initiales: data.gestionnaire.initiales };
+  const etatsServeur = useMemo(() => new Map(equipe.etats.map((e) => [e.internetMessageId, e])), [equipe.etats]);
+  const [gestesEquipe, setGestesEquipe] = useState(() => ({ base: equipe, etats: new Map<string, EtatEquipeComplet>(), relancesLevees: new Set<string>() }));
+  const gestes = useMemo(
+    () => (gestesEquipe.base === equipe ? gestesEquipe : { base: equipe, etats: new Map<string, EtatEquipeComplet>(), relancesLevees: new Set<string>() }),
+    [gestesEquipe, equipe],
   );
+  const etatEquipeDe = (id: string): EtatEquipeComplet | undefined => gestes.etats.get(id) ?? etatsServeur.get(id);
+  const majEquipe = (id: string, f: (e: EtatEquipeComplet) => EtatEquipeComplet) =>
+    setGestesEquipe((p) => {
+      const g = p.base === equipe ? p : { base: equipe, etats: new Map<string, EtatEquipeComplet>(), relancesLevees: new Set<string>() };
+      return { ...g, etats: new Map(g.etats).set(id, f(g.etats.get(id) ?? etatsServeur.get(id) ?? etatVide(id))) };
+    });
+  const cleRelance = (r: { boite: string; internetMessageId: string }) => `${r.boite}|${r.internetMessageId}`;
+  const relancesActives = useMemo(() => equipe.relances.filter((r) => !gestes.relancesLevees.has(cleRelance(r))), [equipe.relances, gestes]);
+  const leverRelance = (r: { boite: string; internetMessageId: string }) =>
+    setGestesEquipe((p) => {
+      const g = p.base === equipe ? p : { base: equipe, etats: new Map<string, EtatEquipeComplet>(), relancesLevees: new Set<string>() };
+      return { ...g, relancesLevees: new Set(g.relancesLevees).add(cleRelance(r)) };
+    });
+  // Le chiffre PERSONNEL dès que l'état d'équipe est lisible (à moi ; les non attribués « à
+  // répartir ») ; sinon celui du binôme. Les mails en attente / de côté n'y sont pas.
+  const optsChiffre = useMemo(
+    () => ({
+      maintenant,
+      ...(horsListe ? { horsListe } : {}),
+      mode: modeChiffre(equipe.actif, equipe.moi),
+      etatDe: (m: MailEntrant) => {
+        const e = gestes.etats.get(m.id) ?? etatsServeur.get(m.id);
+        return e ? etatPourChiffre(e) : undefined;
+      },
+      relances: relancesActives,
+    }),
+    [maintenant, horsListe, equipe.actif, equipe.moi, gestes, etatsServeur, relancesActives],
+  );
+  const chiffre = useMemo(() => chiffreATraiter(data.mails, data.boites, sortis, optsChiffre), [data.mails, data.boites, sortis, optsChiffre]);
   useEffect(() => {
     publierChiffre(chiffre);
     document.title = chiffre.principal > 0 ? `(${chiffre.principal}) E-mails - REAL31 Intranet` : "E-mails - REAL31 Intranet";
@@ -333,7 +414,12 @@ export function MesEmailsVue({
   const [pjParMail, setPjParMail] = useState<Map<string, PieceJointeRef[] | null>>(new Map());
   // Destinataires editables de la reponse (A / Cc / Cci), par mail.
   // « Envoyés » (REA-341) : vue en pilote, lecture seule du dossier Éléments envoyés.
-  const [vue, setVue] = useState<"a_traiter" | "envoyes">("a_traiter");
+  // « En attente » (ADR-053) : les mails mis de côté ou en attente datée, pour les reprendre.
+  const [vue, setVue] = useState<"a_traiter" | "attente" | "envoyes">("a_traiter");
+  // Filtre de la boîte de travail (décision 5) : « À moi / Non attribués / Tous ».
+  const [filtre, setFiltre] = useState<FiltreAttribution>("tous");
+  // « Note interne » cliqué dans l'en-tête : le champ s'ouvre dans le bandeau jaune.
+  const [ajoutNote, setAjoutNote] = useState(false);
   const [destParMail, setDestParMail] = useState<Map<string, Destinataires>>(new Map());
   // Fichiers ajoutés depuis l'ordinateur à la réponse (en plus des PJ du mail d'origine).
   const [fichiersParMail, setFichiersParMail] = useState<Map<string, FichierJoint[]>>(new Map());
@@ -574,6 +660,18 @@ export function MesEmailsVue({
 
 
   const q = recherche.trim().toLowerCase();
+  const ongletDeTravail = !(data.boites.find((b) => b.id === boiteActive)?.personnelle ?? true);
+  // Les filtres d'équipe ne valent que sur la boîte de travail (et l'onglet Comptabilité).
+  const filtreActif = equipe.actif && ongletDeTravail;
+  const partageeDuMail = (m: MailEntrant) => !(data.boites.find((b) => b.id === boiteDuMail(m))?.personnelle ?? true);
+  /** Le mail est-il dans la vue courante ? « À traiter » : pas en attente, et le filtre
+   *  d'attribution (le mail sélectionné reste affiché : « Je prends » ne le fait pas sauter). */
+  const dansLaVue = (m: MailEntrant): boolean => {
+    const e = etatEquipeDe(m.id);
+    if (vue === "attente") return e?.horsATraiter ?? false;
+    if (e?.horsATraiter) return false;
+    return !filtreActif || m.id === selId || passeLeFiltre(filtre, e?.attributaire?.email, moi);
+  };
   // « À traiter » = ce qui n'est ni archivé ni marqué traité (seule vue de la liste, REA-422).
   // Ordre chronologique, collègues mêlés aux autres (le choix « en haut / en bas » est retiré
   // le 29/10/2026 ; un ancien cookie real31_emails_internes n'est plus lu et expirera seul).
@@ -581,11 +679,20 @@ export function MesEmailsVue({
     (m) =>
       !partis.has(m.id) &&
       !classes.has(m.id) &&
+      dansLaVue(m) &&
       (q === "" || `${m.objet} ${m.de} ${m.coproCode} ${m.coproNom}`.toLowerCase().includes(q)),
   );
+  // Combien attendent dans l'onglet (le libellé de la vue « En attente »).
+  const nbEnAttente = equipe.actif ? mailsTries.filter((m) => !partis.has(m.id) && !classes.has(m.id) && etatEquipeDe(m.id)?.horsATraiter).length : 0;
+  // Les relances dues de l'onglet, filtrées comme les mails (À moi : les miennes).
+  const relancesOnglet = relancesActives.filter(
+    (r) => ongletDe(data.boites, r.boite) === boiteActive && (!filtreActif || passeLeFiltre(filtre, r.parEmail, moi)),
+  );
+  // Les mails à traiter au-delà du garde-fou de lecture (200 par boîte) : on le dit au lieu de
+  // les cacher en silence (décision de Sekou du 29/10/2026).
+  const nonAffiches = Object.entries(horsListe ?? {}).reduce((n, [b, k]) => n + (ongletDe(data.boites, b) === boiteActive ? k : 0), 0);
 
   const selection = visibles.find((m) => m.id === selId) ?? visibles[0];
-  const ongletDeTravail = !(data.boites.find((b) => b.id === boiteActive)?.personnelle ?? true);
   const traitesAujourdhui = (data.traitesAujourdhui ?? 0) + traitesIci;
 
   // Les pièces jointes du mail affiché se chargent, qu'il ait été cliqué ou affiché d'office
@@ -642,6 +749,7 @@ export function MesEmailsVue({
   // sens ici -> on repart d'un ecran propre.
   function choisirBoite(id: string) {
     if (id === boiteActive) return;
+    ecrireLocal(CLE_ONGLET, id);
     setBoiteActive(id);
     setRecherche("");
     setSelId("");
@@ -650,6 +758,27 @@ export function MesEmailsVue({
     setMsgBrouillon(null);
     setMsgClasser(null);
     setCoches(new Set());
+  }
+
+  // Le dernier onglet et le dernier filtre choisis (navigateur), relus une fois après le premier
+  // rendu : le serveur ne les connaît pas, l'écran s'ouvre d'abord sur la boîte de travail.
+  const preferencesLues = useRef(false);
+  useEffect(() => {
+    if (preferencesLues.current) return;
+    preferencesLues.current = true;
+    const onglet = lireLocal(CLE_ONGLET);
+    const f = lireLocal(CLE_FILTRE);
+    queueMicrotask(() => {
+      if (onglet && onglet !== boiteActive && ongletsDe(data.boites).some((b) => b.id === onglet)) {
+        setBoiteActive(onglet);
+        setSelId("");
+      }
+      if (f === "a-moi" || f === "non-attribues" || f === "tous") setFiltre(f);
+    });
+  }, [boiteActive, data.boites]);
+  function choisirFiltre(f: FiltreAttribution) {
+    ecrireLocal(CLE_FILTRE, f);
+    setFiltre(f);
   }
 
   // Corbeille (REA-340) : seulement les mails cochés ENCORE visibles (un filtre a pu en
@@ -745,6 +874,7 @@ export function MesEmailsVue({
     setChanger(false);
     setOuverts(new Set());
     setMsgBrouillon(null);
+    setAjoutNote(false);
   }
   const add = (set: Set<string>, id: string) => new Set(set).add(id);
   const del = (set: Set<string>, id: string) => {
@@ -791,6 +921,9 @@ export function MesEmailsVue({
         return;
       }
       noterReponse(m.id, "repondu");
+      // Répondre attribue le mail à qui répond s'il n'était à personne (le serveur l'a fait,
+      // finaliserEnvoiAction) : la pastille suit sans attendre la prochaine lecture.
+      if (equipe.actif && partageeDuMail(m) && !etatEquipeDe(m.id)?.attributaire) majEquipe(m.id, (e) => ({ ...e, attributaire: moiMembre }));
       // La réponse est partie : l'éditeur se referme, comme dans Outlook. Le petit texte gris
       // du haut ne suffisait pas (REA-349, 16/10/2026) : un toast dit à qui et depuis où.
       fermerReponse(m);
@@ -973,9 +1106,34 @@ export function MesEmailsVue({
     void marquerTraiteAction(m.id, coproDe(m).code, boiteDuMail(m));
     passerAuSuivant(m);
   }
+  // « En attente » / « De côté » (décision 9) : le mail sort du chiffre et de « À traiter » ;
+  // il revient seul à la date (ou dès qu'une réponse arrive dans le fil), ou par « Reprendre ».
+  async function mettreEnAttenteMail(m: MailEntrant, choix: ChoixAttente): Promise<boolean> {
+    const r = await mettreEnAttenteAction(m.id, boiteDuMail(m), choix, m.conversationId);
+    if (!r.ok) {
+      toast.err(r.erreur);
+      return false;
+    }
+    const jusquAu = r.donnees?.jusquAu ?? null;
+    passerAuSuivant(m);
+    majEquipe(m.id, (e) => ({
+      ...e,
+      horsATraiter: true,
+      attente: { nature: "attente", jusquAu, parInitiales: data.gestionnaire.initiales, poseLe: new Date().toISOString(), deCote: jusquAu === null, statut: "en-attente", motif: null },
+    }));
+    toast.ok(jusquAu ? `En attente jusqu'au ${libelleRetour(jusquAu)} : il reviendra seul.` : "Mis de côté : il est dans « En attente » jusqu'à ce que vous le repreniez.");
+    return true;
+  }
+  async function reprendreMail(m: MailEntrant) {
+    const r = await reprendreMailAction(m.id, boiteDuMail(m));
+    if (!r.ok) return void toast.err(r.erreur);
+    majEquipe(m.id, (e) => ({ ...e, horsATraiter: false, attente: null }));
+    toast.ok("Repris : le mail est de nouveau à traiter.");
+  }
+
   function passerAuSuivant(m: MailEntrant) {
     // Enchaînement : on passe au mail suivant, le courant sort de la liste.
-    if (vue !== "a_traiter") return;
+    if (vue === "envoyes") return;
     const idx = visibles.findIndex((x) => x.id === m.id);
     const suivant =
       visibles.slice(idx + 1).find((x) => x.id !== m.id) ??
@@ -997,7 +1155,7 @@ export function MesEmailsVue({
               {ongletsDe(data.boites).map((b) => {
                 // Le chiffre unique, sur l'onglet de la boîte de travail seulement (la boîte perso ne
                 // compte pas, décision 1 du 29/10/2026). Rien d'affiché à 0. Couleur neutre.
-                const n = b.personnelle ? 0 : chiffreATraiter(data.mails, data.boites, sortis, { maintenant, onglet: b.id, ...(horsListe ? { horsListe } : {}) }).principal;
+                const n = b.personnelle ? 0 : chiffreATraiter(data.mails, data.boites, sortis, { ...optsChiffre, onglet: b.id }).principal;
                 const actif = b.id === boiteActive;
                 return (
                   <button
@@ -1050,9 +1208,28 @@ export function MesEmailsVue({
               // Plus de « · N » ici (29/10/2026) : c'était le nombre de mails CHARGÉS (40, 80), pas
               // le travail qui reste. Le chiffre unique est à côté du titre et sur l'onglet.
               { value: "a_traiter", label: "À traiter" },
+              // Les mails de côté ou en attente datée (ADR-053), pour les retrouver et les reprendre.
+              ...(equipe.actif
+                ? [{ value: "attente" as const, label: nbEnAttente ? `En attente · ${nbEnAttente}` : "En attente", title: "Mails mis de côté ou en attente d'une date" }]
+                : []),
               ...(pilote ? [{ value: "envoyes" as const, label: "Envoyés", title: "Les 30 derniers mails partis de cette boîte" }] : []),
             ]}
           />
+          {/* Qui s'occupe de quoi (décision 5) : sur la boîte de travail, à la place de l'ancien
+              choix « collègues en haut / en bas ». « Tous » par défaut : rien n'est caché. */}
+          {filtreActif && vue === "a_traiter" ? (
+            <SegmentedControl
+              label="Mails affichés selon l'attribution"
+              size="sm"
+              value={filtre}
+              onChange={(v) => v && choisirFiltre(v)}
+              options={[
+                { value: "a-moi", label: "À moi" },
+                { value: "non-attribues", label: "Non attribués" },
+                { value: "tous", label: "Tous" },
+              ]}
+            />
+          ) : null}
         </div>
         )}
       </div>
@@ -1068,11 +1245,17 @@ export function MesEmailsVue({
       {fouille ? (
         <ResultatsFouille fouille={fouille} onFermer={() => setFouille(null)} />
       ) : pilote && vue === "envoyes" ? (
-        <EnvoyesVue key={boiteActive} boite={boiteActive} partagee={!(data.boites.find((b) => b.id === boiteActive)?.personnelle ?? true)} />
+        <EnvoyesVue key={boiteActive} boite={boiteActive} partagee={!(data.boites.find((b) => b.id === boiteActive)?.personnelle ?? true)} relance={equipe.actif} />
       ) : (
       <div className="flex flex-col lg:flex-row gap-4 items-start">
         {/* La liste, en premier : c'est ce qu'on vient chercher. */}
         <aside className="w-full lg:w-[340px] shrink-0">
+          {/* Les envois restés sans réponse à la date choisie (« Relancer si pas de réponse »). */}
+          {vue === "a_traiter" && relancesOnglet.length > 0 ? (
+            <Card className="mb-3">
+              <RelancesDues relances={relancesOnglet} moi={moi} onLevee={leverRelance} />
+            </Card>
+          ) : null}
           <Card className="overflow-hidden">
             {corbeillePossible && visibles.length > 0 ? (
               <div className="flex items-center gap-2 px-3.5 py-2 border-b border-line">
@@ -1116,6 +1299,7 @@ export function MesEmailsVue({
                   lu={estLu(m.id)}
                   reponse={reponseDe(m)}
                   onClick={() => ouvrir(m.id, "clic")}
+                  {...(equipe.actif ? { equipe: etatEquipeDe(m.id) ?? null, moi } : {})}
                 />
               ))}
               {visibles.length === 0 &&
@@ -1133,9 +1317,17 @@ export function MesEmailsVue({
                     ) : null}
                   </li>
                 ) : (
-                  <li className="px-4 py-6 text-center text-body text-ink-3">Aucun mail.</li>
+                  <li className="px-4 py-6 text-center text-body text-ink-3">
+                    {vue === "attente" ? "Aucun mail en attente ni de côté." : filtreActif && filtre !== "tous" ? "Aucun mail pour ce filtre." : "Aucun mail."}
+                  </li>
                 ))}
             </ul>
+            {vue === "a_traiter" && nonAffiches > 0 ? (
+              <p className="px-4 py-2.5 border-t border-line text-meta text-ink-3">
+                {nonAffiches} autre{nonAffiches > 1 ? "s" : ""} mail{nonAffiches > 1 ? "s" : ""} à traiter, plus ancien{nonAffiches > 1 ? "s" : ""}, non affiché
+                {nonAffiches > 1 ? "s" : ""} : affinez la recherche (Entrée : tous les échanges).
+              </p>
+            ) : null}
             {/* Plafond de la page : 200 (plafondPerso), au-delà le lien ne ferait que recharger. */}
             {data.plusDeMails && maxPerso < 200 && data.boites.find((b) => b.id === boiteActive)?.personnelle ? (
               <div className="px-4 py-3 border-t border-line text-center">
@@ -1307,6 +1499,59 @@ export function MesEmailsVue({
                 ? { onSupprimer: () => void supprimerMail(selection), suppressionEnCours }
                 : {})}
               onToggleSection={toggleSection}
+              {...(equipe.actif && partageeDuMail(selection)
+                ? {
+                    actionsAttribution: (
+                      <BoutonsAttribution
+                        key={`attribution-${selection.id}`}
+                        emailId={selection.id}
+                        boite={boiteDuMail(selection)}
+                        attributaire={etatEquipeDe(selection.id)?.attributaire ?? null}
+                        moi={moiMembre}
+                        notesPossibles={!incarnation}
+                        onAttribue={(a) => majEquipe(selection.id, (e) => ({ ...e, attributaire: a }))}
+                        onNoteAjoutee={() => majEquipe(selection.id, (e) => ({ ...e, notes: e.notes + 1 }))}
+                      />
+                    ),
+                    notes: (
+                      <NotesInternes
+                        key={`notes-${selection.id}-${etatEquipeDe(selection.id)?.notes ?? 0}`}
+                        emailId={selection.id}
+                        boite={boiteDuMail(selection)}
+                        nombre={etatEquipeDe(selection.id)?.notes ?? 0}
+                        moi={moi}
+                        peutEcrire={!incarnation}
+                        ajout={ajoutNote}
+                        onFermerAjout={() => setAjoutNote(false)}
+                        onNombre={(n) => majEquipe(selection.id, (e) => ({ ...e, notes: n }))}
+                      />
+                    ),
+                    ...(incarnation ? {} : { onNoteInterne: () => setAjoutNote(true), notesComptabilite: () => majEquipe(selection.id, (e) => ({ ...e, notes: e.notes + 1 })) }),
+                  }
+                : {})}
+              {...(equipe.actif
+                ? {
+                    actionsAttente: etatEquipeDe(selection.id)?.horsATraiter ? (
+                      <Button onClick={() => void reprendreMail(selection)} title="Le mail revient dans « À traiter »">
+                        <Undo2 strokeWidth={1.5} />
+                        Reprendre
+                      </Button>
+                    ) : (
+                      <MenuAttente
+                        key={`attente-${selection.id}`}
+                        libelle="En attente"
+                        titre="Sortir le mail du chiffre : de côté (sans date) ou jusqu'à une date"
+                        deCote
+                        onChoisir={(c) => mettreEnAttenteMail(selection, c)}
+                      />
+                    ),
+                    mentionAttente: (() => {
+                      const a = etatEquipeDe(selection.id)?.attente;
+                      if (!a || a.nature !== "attente") return null;
+                      return a.statut === "en-attente" ? libelleAttente(a) : "Revenu d'attente";
+                    })(),
+                  }
+                : {})}
             />
           ) : (
             q ? (
@@ -1314,6 +1559,20 @@ export function MesEmailsVue({
               <Card className="px-6 py-16 text-center">
                 <Search strokeWidth={1.25} className="w-8 h-8 text-ink-3 mx-auto" />
                 <p className="text-body text-ink-3 mt-3">Aucun mail ne correspond à la recherche.</p>
+              </Card>
+            ) : vue === "attente" ? (
+              <Card className="px-6 py-16 text-center">
+                <CircleCheck strokeWidth={1.25} className="w-8 h-8 text-ink-3 mx-auto" />
+                <p className="text-body font-medium text-ink mt-3">Rien en attente</p>
+                <p className="text-body text-ink-3 mt-1">« En attente » dans la barre d&apos;un mail le met de côté, ou jusqu&apos;à une date.</p>
+              </Card>
+            ) : filtreActif && filtre !== "tous" ? (
+              <Card className="px-6 py-16 text-center">
+                <Search strokeWidth={1.25} className="w-8 h-8 text-ink-3 mx-auto" />
+                <p className="text-body text-ink-3 mt-3">
+                  {filtre === "a-moi" ? "Aucun mail ne vous est attribué." : "Aucun mail non attribué."}
+                  {chiffre.aRepartir > 0 && filtre === "a-moi" ? ` ${chiffre.aRepartir} à répartir dans « Non attribués ».` : ""}
+                </p>
               </Card>
             ) : ongletDeTravail ? (
               // Le moment « 0 » (décision 1) : tout est traité, et combien l'ont été aujourd'hui.
@@ -1358,7 +1617,12 @@ function LigneMail({
   onClick,
   coche,
   onCocher,
+  equipe = null,
+  moi = "",
 }: {
+  /** L'état d'équipe du mail (ADR-053) : pastille d'initiales, note, attente ; null = rien. */
+  equipe?: EtatEquipeComplet | null;
+  moi?: string;
   m: MailEntrant;
   /** La boîte d'origine (« syndic4 ») quand l'onglet en regroupe plusieurs (28/10/2026). */
   origine?: string | null;
@@ -1399,12 +1663,27 @@ function LigneMail({
           {m.attachments.length > 0 ? (
             <Paperclip strokeWidth={1.75} className="w-3.5 h-3.5 shrink-0 text-ink-3" aria-label="Pièce jointe" />
           ) : null}
+          {/* Une note interne sur ce mail (ADR-053) : on la lit en l'ouvrant. */}
+          {equipe?.notes ? (
+            <StickyNote
+              strokeWidth={1.75}
+              className="w-3.5 h-3.5 shrink-0 text-warn-700"
+              aria-label={equipe.notes > 1 ? `${equipe.notes} notes internes` : "Une note interne"}
+            />
+          ) : null}
+          {equipe?.attributaire ? <PastilleAttributaire membre={equipe.attributaire} moi={moi} /> : null}
           <span className="shrink-0 text-meta text-ink-3">{jourMois(m.date)}</span>
         </div>
         <div className="flex items-center gap-1.5 mt-1 pl-4 text-meta text-ink-3">
           <span className={"shrink-0 font-mono " + (m.coproCode ? "text-ink-2" : "text-ink-3")}>{m.coproCode || "-"}</span>
           <span className="truncate">· {qui}</span>
           {origine ? <span className="shrink-0">· {origine}</span> : null}
+          {/* En attente / de côté (vue « En attente »), ou revenu tout seul dans « À traiter ». */}
+          {equipe?.attente?.nature === "attente" ? (
+            <span className="shrink-0">
+              <Badge ton="warn">{equipe.attente.statut === "en-attente" ? libelleAttente(equipe.attente) : "Revenu"}</Badge>
+            </span>
+          ) : null}
           {/* Arrivé par une délégation de portefeuille : pour qui l'on répond (27/10/2026). */}
           {m.pour ? (
             <span className="shrink-0">
@@ -1856,6 +2135,10 @@ function AnalysePane({
   pilote = false,
   actionsAttribution = null,
   actionsAttente = null,
+  notes = null,
+  onNoteInterne,
+  notesComptabilite,
+  mentionAttente = null,
   brouillonHtml,
   onEditBrouillonHtml,
   reformulation,
@@ -1951,6 +2234,14 @@ function AnalysePane({
   actionsAttribution?: React.ReactNode;
   /** Emplacement réservé dans la barre d'actions : « En attente » / « De côté » (décision 9). */
   actionsAttente?: React.ReactNode;
+  /** Le bandeau jaune des notes internes, entre l'en-tête et le texte (décision 6). */
+  notes?: React.ReactNode;
+  /** « Note interne » dans l'en-tête : ouvre le champ du bandeau (absent : pas d'écriture). */
+  onNoteInterne?: () => void;
+  /** « Comptabilité » avec une note (petite flèche) : appelé quand la note est écrite. */
+  notesComptabilite?: () => void;
+  /** « De côté », « Jusqu'au jeudi 30 oct. », « Revenu d'attente » : à côté de l'objet. */
+  mentionAttente?: string | null;
 }) {
   // Fichiers glissés sur l'éditeur de réponse : joints comme avec « Ajouter une pièce jointe ».
   const depotPj = useDepotFichiers((l) => onAjouterFichiers(l));
@@ -2079,7 +2370,15 @@ function AnalysePane({
               {/* « Comptabilité » (28/10/2026) : pour le binôme. Une boîte regroupée sous un onglet
                   commun est le dossier Comptabilité vu par un comptable : le mail y est déjà. */}
               {onParti && !boites.find((b) => b.id === boiteDuMail)?.onglet ? (
-                <EnvoyerEnComptabilite key={`compta-${m.id}`} emailId={m.id} boite={boiteDuMail} onParti={onParti} compact />
+                <EnvoyerEnComptabilite
+                  key={`compta-${m.id}`}
+                  emailId={m.id}
+                  boite={boiteDuMail}
+                  onParti={onParti}
+                  compact
+                  notePossible={notesComptabilite !== undefined}
+                  {...(notesComptabilite ? { onNoteAjoutee: notesComptabilite } : {})}
+                />
               ) : null}
               <Button
                 variant={ecrit ? "secondary" : "primary"}
@@ -2110,6 +2409,7 @@ function AnalysePane({
       <div className="px-5 pt-3 pb-3 border-b border-line">
         <div className="flex items-start gap-3">
           <h2 className="flex-1 text-title font-semibold text-ink leading-snug">{m.objet}</h2>
+          {mentionAttente ? <Badge ton="warn">{mentionAttente}</Badge> : null}
           {statut !== "nouveau" ? <StatutBadge statut={statut} /> : null}
         </div>
         <EnTeteMail m={m} />
@@ -2149,6 +2449,13 @@ function AnalysePane({
             {changer ? <X strokeWidth={1.5} /> : <FolderPlus strokeWidth={1.5} />}
             {changer ? "Fermer" : ratt.intranet ? "Changer de dossier" : "Rattacher à un dossier"}
           </Button>
+          {/* Une note pour l'équipe (ADR-053), discrète : aucun clic de plus si on l'ignore. */}
+          {onNoteInterne ? (
+            <Button variant="ghost" size="sm" onClick={onNoteInterne} title="Une note pour l'équipe, jamais envoyée, jamais dans Outlook">
+              <StickyNote strokeWidth={1.5} />
+              Note interne
+            </Button>
+          ) : null}
         </div>
         {msgClasser ? (
           <p className="mt-1.5 text-meta text-ink-3">
@@ -2173,6 +2480,9 @@ function AnalysePane({
           </p>
         ) : null}
       </div>
+
+      {/* Notes internes : entre l'en-tête et le texte, seulement s'il y en a (décision 6). */}
+      {notes}
 
       {/* Réponse : EN HAUT, au-dessus du mail d'origine, comme dans Outlook (retour des
           collègues du 29/10/2026 : ouverte en bas, sous un long mail, on ne la voyait pas).

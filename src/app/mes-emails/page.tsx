@@ -15,6 +15,7 @@ import { EnvoyerEmail } from "@/components/mes-emails/envoyer-email";
 import { ChiffreTitre } from "@/components/mes-emails/chiffre-a-traiter";
 import { boiteDeComposition, boiteEnvoi, brouillonPossible, envoiDirectComposition } from "@/lib/services/mes-emails/composer-mail";
 import { reformulationDisponible } from "@/lib/services/ia/reformuler-mail";
+import { equipeDeLEcran } from "@/lib/services/mes-emails/equipe-ecran";
 
 export const metadata: Metadata = { title: "E-mails - REAL31 Intranet" };
 
@@ -49,11 +50,15 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
   const superAdmin = estSuperAdmin(g.email);
   const [boite, agencePersonne] = await Promise.all([boiteDeComposition(g, superAdmin), agenceDesModeles(g.agencyId)]);
   const agence = agencePersonne ?? boite?.agences[0] ?? "";
+  const incarnation = await incarnationEnCours();
   const [data, signatureHtml, modeles] = await Promise.all([
-    getMesEmails(g, maxPerso, { superAdmin, sansBoitePerso: await incarnationEnCours() }),
+    getMesEmails(g, maxPerso, { superAdmin, sansBoitePerso: incarnation }),
     getSignatureGestionnaire(g),
     modelesMailPour(agencePersonne),
   ]);
+  // Boîte d'équipe (ADR-053) : attribution, notes, attente des mails affichés, relances dues.
+  // Sans les tables : inactive, l'écran se comporte comme avant.
+  const equipe = await equipeDeLEcran({ ...(g.email ? { email: g.email } : {}), ...(g.role ? { role: g.role } : {}) }, data.mails, data.boites);
   // « Reformuler » (ADR-051) : absent tant que IA_REFORMULATION=on et la clé ne sont pas posés.
   const reformulation = reformulationDisponible();
 
@@ -93,6 +98,8 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
           modeles={modeles}
           pilote={pilote}
           reformulation={reformulation}
+          equipe={equipe}
+          incarnation={incarnation}
         />
       </Page>
     </AppShell>
