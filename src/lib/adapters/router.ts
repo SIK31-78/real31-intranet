@@ -207,6 +207,9 @@ import { AnthropicReformulationProvider } from "@/lib/adapters/ia/anthropic-refo
 import { MockReformulationProvider } from "@/lib/adapters/mock/mock-reformulation";
 import { SupabaseIaUsageRepository } from "@/lib/adapters/supabase/supabase-ia-usage-repository";
 import { MemoireIaUsageRepository } from "@/lib/adapters/mock/memoire-ia-usage-repository";
+import type { BoiteEquipeRepository } from "@/lib/ports/boite-equipe-repository";
+import { SupabaseBoiteEquipeRepository } from "@/lib/adapters/supabase/supabase-boite-equipe-repository";
+import { MemoireBoiteEquipeRepository } from "@/lib/adapters/mock/memoire-boite-equipe-repository";
 
 export type { DbHealth };
 
@@ -758,6 +761,15 @@ export function getIaUsageRepository(): IaUsageRepository {
   if (coproSourceEstSupabase()) return new SupabaseIaUsageRepository();
   usageIaMemoire ??= new MemoireIaUsageRepository();
   return usageIaMemoire;
+}
+
+// Boîte d'équipe de l'écran E-mails (ADR-053 : attribution, notes internes, en attente) :
+// Supabase en réel, mémoire sinon (une instance par processus, pour qu'un geste se voie en dev).
+let boiteEquipeMemoire: MemoireBoiteEquipeRepository | null = null;
+export function getBoiteEquipeRepository(): BoiteEquipeRepository {
+  if (coproSourceEstSupabase()) return new SupabaseBoiteEquipeRepository();
+  boiteEquipeMemoire ??= new MemoireBoiteEquipeRepository();
+  return boiteEquipeMemoire;
 }
 
 // Health check BDD (lecture cabinet_settings via service_role).
