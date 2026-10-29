@@ -16,6 +16,7 @@ import { echec, echecDepuis, type Res } from "@/lib/actions/resultat";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { boiteTri } from "@/lib/domain/mail-gate";
 import { oublierCompteur } from "@/lib/services/tri-emails/compteur";
+import { oublierCompteurEmails } from "@/lib/services/mes-emails/compteur-emails";
 import {
   basculerMail,
   coprosDesAutresBoites,
@@ -67,6 +68,8 @@ export async function basculerMailAction(
     );
     oublierCompteur(source);
     oublierCompteur(r.boiteCible);
+    // Le mail quitte mon chiffre « À traiter » : la pastille « E-mails » suit (29/10/2026).
+    oublierCompteurEmails(g.id);
     return { ok: true, donnees: { boiteCible: r.boiteCible, dossierNom: r.dossierNom, rangementRefuse: r.rangementRefuse, cibleTriee: r.cibleTriee } };
   } catch (e) {
     return echecDepuis(e, "mes-emails");

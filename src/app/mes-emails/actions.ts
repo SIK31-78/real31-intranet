@@ -344,6 +344,8 @@ export async function envoyerABonneCoproAction(emailId: string, reference: strin
   if (!partagee) return echec("Seul un mail de la boîte partagée distribué à ton binôme peut changer de binôme.");
   try {
     const r = await envoyerABonneCopro(partagee, emailId, reference.toUpperCase(), g.email ?? g.id);
+    // Le mail quitte mon chiffre « À traiter » : la pastille suit (29/10/2026).
+    oublierCompteurEmails(g.id);
     return { ok: true, donnees: { dossierNom: r.dossierNom } };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
