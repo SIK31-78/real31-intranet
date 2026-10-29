@@ -33,8 +33,25 @@ import {
 
 const memeAdresse = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
 
-/** Un panneau qui s'ouvre sous son bouton ; se ferme au clic dehors et sur Échap. */
-export function Deroulant({ ouvert, onFermer, children, largeur = "w-72" }: { ouvert: boolean; onFermer: () => void; children: ReactNode; largeur?: string }) {
+/**
+ * Un panneau qui s'ouvre sous son bouton ; se ferme au clic dehors et sur Échap. `barre` : le
+ * bouton est dans la barre d'actions du volet, dont les gestes passent en deuxième ligne, à
+ * gauche, sous 960 px ; le panneau s'ouvre alors vers la droite, sinon le bord de la carte le
+ * couperait.
+ */
+export function Deroulant({
+  ouvert,
+  onFermer,
+  children,
+  largeur = "w-72",
+  barre = false,
+}: {
+  ouvert: boolean;
+  onFermer: () => void;
+  children: ReactNode;
+  largeur?: string;
+  barre?: boolean;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!ouvert) return;
@@ -53,7 +70,7 @@ export function Deroulant({ ouvert, onFermer, children, largeur = "w-72" }: { ou
   }, [ouvert, onFermer]);
   if (!ouvert) return null;
   return (
-    <div ref={ref} className={`absolute right-0 top-full mt-1 z-30 ${largeur} rounded-lg border border-line bg-surface shadow-2 py-1 text-left`}>
+    <div ref={ref} className={`absolute ${barre ? "left-0 @min-[960px]:left-auto @min-[960px]:right-0" : "right-0"} top-full mt-1 z-30 ${largeur} rounded-lg border border-line bg-surface shadow-2 py-1 text-left`}>
       {children}
     </div>
   );
@@ -246,7 +263,7 @@ export function BoutonsAttribution({
         </Button>
       )}
       <FlecheMenu label="Attribuer à…" title="Attribuer à… (puis une note si besoin)" ouvert={ouvert} onClick={ouvrir} />
-      <Deroulant ouvert={ouvert} onFermer={fermer}>
+      <Deroulant ouvert={ouvert} onFermer={fermer} barre>
         {noteApres ? (
           <form
             className="px-3 pt-1 pb-1 flex flex-col gap-2"
@@ -363,7 +380,7 @@ export function MenuAttente({
           <ChevronDown strokeWidth={1.75} />
         </Button>
       )}
-      <Deroulant ouvert={ouvert} onFermer={() => setOuvert(false)} largeur="w-60">
+      <Deroulant ouvert={ouvert} onFermer={() => setOuvert(false)} largeur="w-60" barre={icone}>
         {deCote ? (
           <Entree onClick={() => void choisir("de-cote")} disabled={enCours} title="Sans date : il sort du chiffre jusqu'à ce que vous le repreniez">
             De côté

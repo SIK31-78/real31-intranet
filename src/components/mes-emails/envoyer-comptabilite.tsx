@@ -88,7 +88,7 @@ export function EnvoyerEnComptabilite({
         onClick={() => setOuvert((o) => !o)}
         disabled={enCours}
       />
-      <Deroulant ouvert={ouvert} onFermer={() => setOuvert(false)}>
+      <Deroulant ouvert={ouvert} onFermer={() => setOuvert(false)} barre={compact}>
         <div className="px-3 py-1.5 flex flex-col gap-2">
           <Textarea
             autoFocus

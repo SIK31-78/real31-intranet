@@ -2355,7 +2355,10 @@ function AnalysePane({
             compact
           />
         ) : null}
-        <div className="ml-auto flex items-center gap-0.5">
+        {/* Écran large : une seule ligne. Plus étroit : deux lignes rangées (Sekou, 29/10/2026,
+            « un meilleur alignement ») : les réponses à gauche et « Traité » à droite en haut,
+            les gestes alignés à gauche en dessous. */}
+        <div className="order-3 w-full flex items-center gap-0.5 @min-[960px]:order-2 @min-[960px]:w-auto @min-[960px]:ml-auto">
           {/* « En attente » / « De côté » (décision 9), puis « Je prends / Attribuer à… » (décision 5). */}
           {actionsAttente}
           {actionsAttribution}
@@ -2376,7 +2379,7 @@ function AnalysePane({
             />
           ) : null}
         </div>
-        <div className="ml-1 flex items-center gap-1">
+        <div className="order-2 ml-auto flex items-center gap-1 @min-[960px]:order-3 @min-[960px]:ml-1">
           {classementOutlook ? (
             // Boîte perso : archiver = déplacer dans un dossier Outlook, qu'il faut choisir ; le
             // mail quitte la réception, donc la liste.
