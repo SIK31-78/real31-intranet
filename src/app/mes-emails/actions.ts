@@ -5,6 +5,7 @@
 // verifie le cloisonnement via withGestionnaire (defense en profondeur, on ne se repose
 // pas que sur l'UI) ; (3) ecrit puis revalide. L'identite vient du serveur, jamais du client.
 
+import { attribuerAuRepondant } from "@/lib/services/mes-emails/boite-equipe";
 import { revalidatePath } from "next/cache";
 import { echec, echecDepuis, messageUtilisateur, type Res } from "@/lib/actions/resultat";
 import { z } from "zod";
@@ -542,6 +543,9 @@ export async function finaliserEnvoiAction(input: unknown): Promise<{ ok: boolea
   try {
     await envoyerBrouillonPrepare(j);
     await noterRepondu(g, j.emailId, j.coproCode, j.boiteMessage);
+    // Répondre attribue le mail à celui qui répond, s'il n'est à personne (décision 5, ADR-053).
+    // Best-effort : ne lève jamais, une réponse partie ne doit pas sembler échouer.
+    await attribuerAuRepondant(g, j.boiteMessage, j.emailId);
     revalidatePath("/mes-emails");
     return { ok: true, envoye: true };
   } catch (e) {
