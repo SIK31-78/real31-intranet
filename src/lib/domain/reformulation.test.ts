@@ -157,6 +157,16 @@ describe("contrôles de la sortie", () => {
     expect(controlerSortie(o, "Le montant de 1 200 euros est dû pour le 15/01.")).toEqual({ ok: true });
   });
 
+  it("un petit nombre écrit en lettres vaut son chiffre", () => {
+    const o = "on vous a deja repondu 2 fois que les travaux ont ete votés en AG";
+    expect(controlerSortie(o, "Nous vous avons déjà répondu deux fois que les travaux ont été votés en AG.")).toEqual({ ok: true });
+    expect(controlerSortie(o, "Nous vous avons déjà répondu trois fois que les travaux ont été votés en AG.")).toEqual({
+      ok: false,
+      raison: "chiffres_perdus",
+    });
+    expect([...nombresDe("un immeuble neuf, une fois, dix-huit lots")]).toEqual([]);
+  });
+
   it("garde-fou : une adresse e-mail ou un lien perdu", () => {
     const o = "ecrivez a compta@real31.fr ou voir https://real31.fr/aide merci bien";
     expect(controlerSortie(o, "Écrivez à compta@real31.fr. Merci bien.")).toEqual({ ok: false, raison: "adresse_perdue" });

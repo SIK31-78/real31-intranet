@@ -169,8 +169,17 @@ export function longueurMaxSortie(original: string): number {
   return Math.ceil(original.trim().length * 1.3) + 150;
 }
 
-/** Les nombres d'un texte (« 1 200 » et « 1200 » sont le même). */
+/**
+ * Les petits nombres écrits en lettres valent leur chiffre : « 2 fois » devenu « deux fois »
+ * n'a rien perdu (refus à tort constaté par Sekou le 29/10/2026). Ni « un/une » (articles), ni
+ * « neuf » (un immeuble neuf), ni les composés (« dix-huit »).
+ */
+const EN_LETTRES: Record<string, string> = { deux: "2", trois: "3", quatre: "4", cinq: "5", six: "6", sept: "7", huit: "8", dix: "10" };
+const MOT_NOMBRE = new RegExp(`(?<![\\p{L}-])(${Object.keys(EN_LETTRES).join("|")})(?![\\p{L}-])`, "giu");
+
+/** Les nombres d'un texte (« 1 200 » et « 1200 » sont le même ; « deux » vaut « 2 »). */
 export function nombresDe(s: string): Set<string> {
+  s = s.replace(MOT_NOMBRE, (m) => EN_LETTRES[m.toLowerCase()] ?? m);
   const joint = s.replace(/(\d)[   ](?=\d{3}(?!\d))/g, "$1");
   return new Set(joint.match(/\d+/g) ?? []);
 }
