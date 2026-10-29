@@ -9,11 +9,13 @@ import { cn } from "@/lib/cn";
 type Largeur = { largeur?: "pleine" | "auto" };
 const LARGEUR: Record<NonNullable<Largeur["largeur"]>, string> = { pleine: "w-full", auto: "w-auto" };
 
-const CONTROLE =
-  "rounded-md border border-line bg-surface text-body text-ink placeholder:text-ink-3 " +
+// La taille du texte à part : le Select en a deux (cn() ne fusionne pas deux text-*).
+const CONTROLE_SANS_TEXTE =
+  "rounded-md border border-line bg-surface text-ink placeholder:text-ink-3 " +
   "transition-colors duration-120 hover:border-line-2 " +
   "focus:outline-none focus:border-line-2 focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1 " +
   "disabled:opacity-60 disabled:cursor-not-allowed aria-[invalid=true]:border-err-500";
+const CONTROLE = `${CONTROLE_SANS_TEXTE} text-body`;
 
 export function Field({
   label,
@@ -61,8 +63,16 @@ export function Input({ largeur = "pleine", className, ...props }: ComponentProp
   return <input className={cn(CONTROLE, LARGEUR[largeur], "h-8 px-2.5", className)} {...props} />;
 }
 
-export function Select({ largeur = "pleine", className, ...props }: ComponentProps<"select"> & Largeur) {
-  return <select className={cn(CONTROLE, LARGEUR[largeur], "h-8 pl-2.5 pr-8", className)} {...props} />;
+// `sm` : un choix d'appoint sur une ligne de titre (28 px, texte meta), comme un Button sm.
+const TAILLE_SELECT = { md: "h-8 pl-2.5 pr-8 text-body", sm: "h-7 pl-2 pr-7 text-meta" } as const;
+
+export function Select({
+  largeur = "pleine",
+  taille = "md",
+  className,
+  ...props
+}: ComponentProps<"select"> & Largeur & { taille?: keyof typeof TAILLE_SELECT }) {
+  return <select className={cn(CONTROLE_SANS_TEXTE, LARGEUR[largeur], TAILLE_SELECT[taille], className)} {...props} />;
 }
 
 export function Textarea({ largeur = "pleine", className, ...props }: ComponentProps<"textarea"> & Largeur) {
