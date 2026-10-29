@@ -60,6 +60,8 @@ export async function getMesEmails(g: Gestionnaire, maxPerso?: number, opts: { s
     mails,
     plusDeMails: triage.plusDeMails,
     boitesIllisibles: triage.erreurs,
+    aTraiterHorsListe: triage.horsListe,
+    traitesAujourdhui: triage.traitesAujourdhui,
     // L'adresse aussi : c'est elle que l'équipe reconnaît (Sekou, 15/10/2026).
     coprosDuGestionnaire: mesCopros.map((c) => ({
       code: c.code,

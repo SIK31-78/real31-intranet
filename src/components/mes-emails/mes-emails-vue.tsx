@@ -85,9 +85,10 @@ import {
   placeInternesValide,
   regrouperInternes,
   traitesAuChargement,
-  nonLusATraiter,
+  chiffreATraiter,
   type PlaceInternes,
 } from "@/lib/domain/mes-emails-liste";
+import { publierChiffre } from "./chiffre-a-traiter";
 import { VisionneusePj, type ApercuPj } from "./visionneuse-pj";
 import { deposerFichier } from "./deposer-fichier";
 import { NB_MAX_FICHIERS, TAILLE_MAX_FICHIER, TAILLE_MAX_TOTALE, typePieceJointe, urlPieceJointe } from "@/lib/domain/piece-jointe-flux";
@@ -240,6 +241,28 @@ export function MesEmailsVue({
   // cette session, et au chargement les traités de la boîte partagée. Plus d'onglet « Conclus »
   // (REA-422, 27/10/2026) : un mail archivé a quitté la réception, on le retrouve dans Outlook.
   const [classes, setClasses] = useState<Set<string>>(() => traitesAuChargement(data.mails, data.boites));
+  // L'heure du calcul du retard (« plus de 2 jours ouvrés ») : posée au chargement, avancée à
+  // chaque actualisation automatique (pas de Date.now() pendant le rendu).
+  const [maintenant] = useState(() => new Date());
+  // Le chiffre unique « À traiter » (décision 1, 29/10/2026) : la boîte de travail, sans ce qui
+  // est sorti (traité, archivé, parti ailleurs), plus les mails non chargés. Publié pour la
+  // pastille de la barre latérale, le titre de l'écran et celui de l'onglet du navigateur.
+  const sortis = useMemo(() => new Set([...classes, ...partis]), [classes, partis]);
+  const horsListe = data.aTraiterHorsListe;
+  const chiffre = useMemo(
+    () => chiffreATraiter(data.mails, data.boites, sortis, { maintenant, ...(horsListe ? { horsListe } : {}) }),
+    [data.mails, data.boites, sortis, maintenant, horsListe],
+  );
+  useEffect(() => {
+    publierChiffre(chiffre);
+    document.title = chiffre.principal > 0 ? `(${chiffre.principal}) E-mails - REAL31 Intranet` : "E-mails - REAL31 Intranet";
+  }, [chiffre]);
+  useEffect(
+    () => () => {
+      publierChiffre(null);
+    },
+    [],
+  );
   const [edits, setEdits] = useState<Map<string, string>>(new Map());
   // Réponse mise en forme (REA-345, pilote) : le HTML de l'éditeur, par mail, tant qu'on y a
   // touché. `edits` en garde le texte (contrôles, brouillon enregistré). Un texte posé
@@ -939,9 +962,9 @@ export function MesEmailsVue({
           {ongletsDe(data.boites).length > 1 && (
             <div role="tablist" aria-label="Boîte affichée" className="inline-flex rounded-md border border-line bg-surface-2 p-0.5">
               {ongletsDe(data.boites).map((b) => {
-                // Non lus ENCORE à traiter, même règle pour chaque onglet (perso, partagée, délégation) :
-                // un mail archivé ou traité sans avoir été ouvert ne compte plus. Rien d'affiché à 0.
-                const nonLus = nonLusATraiter(data.mails, b.id, boiteParDefaut, lus, classes, data.boites);
+                // Le chiffre unique, sur l'onglet de la boîte de travail seulement (la boîte perso ne
+                // compte pas, décision 1 du 29/10/2026). Rien d'affiché à 0. Couleur neutre.
+                const n = b.personnelle ? 0 : chiffreATraiter(data.mails, data.boites, sortis, { maintenant, onglet: b.id, ...(horsListe ? { horsListe } : {}) }).principal;
                 const actif = b.id === boiteActive;
                 return (
                   <button
@@ -958,7 +981,7 @@ export function MesEmailsVue({
                   >
                     {b.personnelle ? <Inbox strokeWidth={1.5} className="w-3.5 h-3.5" /> : <Users strokeWidth={1.5} className="w-3.5 h-3.5" />}
                     {b.libelle}
-                    {nonLus > 0 && <span className="text-meta font-semibold text-info-700">{nonLus}</span>}
+                    {n > 0 && <span className="text-meta font-semibold text-ink-2 tabular-nums">{n}</span>}
                   </button>
                 );
               })}
@@ -991,7 +1014,9 @@ export function MesEmailsVue({
             value={vue}
             onChange={(v) => v && setVue(v)}
             options={[
-              { value: "a_traiter", label: `À traiter · ${mailsBoite.filter((m) => !classes.has(m.id)).length}` },
+              // Plus de « · N » ici (29/10/2026) : c'était le nombre de mails CHARGÉS (40, 80), pas
+              // le travail qui reste. Le chiffre unique est à côté du titre et sur l'onglet.
+              { value: "a_traiter", label: "À traiter" },
               ...(pilote ? [{ value: "envoyes" as const, label: "Envoyés", title: "Les 30 derniers mails partis de cette boîte" }] : []),
             ]}
           />

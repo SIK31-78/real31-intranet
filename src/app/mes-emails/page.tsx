@@ -15,6 +15,7 @@ import { rafraichirAction } from "./actions";
 import { BoutonRafraichir } from "./bouton-rafraichir";
 import { Page } from "@/components/ui/page";
 import { EnvoyerEmail } from "@/components/mes-emails/envoyer-email";
+import { ChiffreTitre } from "@/components/mes-emails/chiffre-a-traiter";
 import { boiteDeComposition, boiteEnvoi, brouillonPossible, envoiDirectComposition } from "@/lib/services/mes-emails/composer-mail";
 import { reformulationDisponible } from "@/lib/services/ia/reformuler-mail";
 
@@ -67,7 +68,11 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
             compositeur « Envoyer un e-mail », dont chaque clic soumettait en plus une relecture
             complète des boîtes (bug B5). */}
         <div className="flex items-center gap-3">
-          <h1 className="text-page font-medium tracking-tight text-ink mr-auto">E-mails</h1>
+          {/* Le chiffre unique « À traiter », publié par l'écran (29/10/2026). */}
+          <div className="mr-auto flex items-baseline gap-3 flex-wrap">
+            <h1 className="text-page font-medium tracking-tight text-ink">E-mails</h1>
+            <ChiffreTitre />
+          </div>
           <EnvoyerEmail
             gestionnaireNom={g.nomComplet}
             agence={agence}

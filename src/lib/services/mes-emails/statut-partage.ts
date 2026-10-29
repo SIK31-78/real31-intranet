@@ -23,12 +23,15 @@ export const cleEtatBoite = (boite: string): string => `boite:${boite.trim().toL
  * Le statut commun d'un mail d'une boîte partagée, ou null s'il n'y en a pas (le statut
  * personnel s'applique alors). `lignes` = toutes les lignes connues de CE mail.
  */
-export function statutPartage(boite: string, lignes: StatutEcrit[]): { statut: StatutTraitement; etapesFaites: number[] } | null {
+export function statutPartage(
+  boite: string,
+  lignes: StatutEcrit[],
+): { statut: StatutTraitement; etapesFaites: number[]; marqueAt?: string } | null {
   const commune = lignes.find((l) => l.gestionnaireId === cleEtatBoite(boite));
-  if (commune) return { statut: commune.statut, etapesFaites: commune.etapesFaites };
+  if (commune) return { statut: commune.statut, etapesFaites: commune.etapesFaites, ...(commune.marqueAt ? { marqueAt: commune.marqueAt } : {}) };
   const traitees = lignes
     .filter((l) => l.statut !== "nouveau")
     .sort((x, y) => (y.marqueAt ?? "").localeCompare(x.marqueAt ?? ""));
   const t = traitees[0];
-  return t ? { statut: t.statut, etapesFaites: t.etapesFaites } : null;
+  return t ? { statut: t.statut, etapesFaites: t.etapesFaites, ...(t.marqueAt ? { marqueAt: t.marqueAt } : {}) } : null;
 }

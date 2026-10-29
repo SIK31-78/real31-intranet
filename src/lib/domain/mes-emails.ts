@@ -194,6 +194,11 @@ export interface MesEmails {
   plusDeMails?: boolean;
   /** Adresses des boîtes qui n'ont pas pu être lues : l'écran le dit au-dessus de la liste. */
   boitesIllisibles?: string[];
+  /** Par boîte partagée : les mails à traiter que la liste n'a pas lus faute de place (les plus
+   *  anciens). Ils comptent dans le chiffre « À traiter » (29/10/2026). */
+  aTraiterHorsListe?: Record<string, number>;
+  /** Mails des boîtes partagées marqués traités aujourd'hui (« Tout est traité », 29/10/2026). */
+  traitesAujourdhui?: number;
   /** Copros du portefeuille du gestionnaire (rempli par le service ; rattachement manuel). */
   coprosDuGestionnaire?: { code: string; nom: string; adresse?: string }[];
 }

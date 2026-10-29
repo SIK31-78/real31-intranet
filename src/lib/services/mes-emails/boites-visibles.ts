@@ -83,6 +83,8 @@ interface MailDistribue {
   copro: string | null;
   /** « Fanny S. » quand le mail est range chez un binome du titulaire et pas chez les miens. */
   pour: string | null;
+  /** Quand le tri l'a range chez le binome (le retard de la pastille, 29/10/2026). */
+  faitLe: string;
 }
 
 /**
@@ -94,6 +96,17 @@ interface MailDistribue {
 export async function distributionDe(g: Personne, boite: string): Promise<Map<string, string | null>> {
   const out = new Map<string, string | null>();
   for (const [id, m] of await distributionDetaillee(g, boite)) out.set(id, m.copro);
+  return out;
+}
+
+/**
+ * Les mails distribues a mes binomes dans cette boite, avec la date de leur rangement :
+ * internetMessageId -> faitLe, le plus recent d'abord. La pastille de la barre laterale s'en
+ * sert pour le retard (« plus de 2 jours ouvres ») sans lire Outlook (29/10/2026).
+ */
+export async function distributionDatee(g: Personne, boite: string): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (const [id, m] of await distributionDetaillee(g, boite)) out.set(id, m.faitLe);
   return out;
 }
 
@@ -119,7 +132,7 @@ const distributionEnCache = cache(async (email: string, userId: string, comptabl
   const out = new Map<string, MailDistribue>();
   const { lignes, pourDeCle } = await rangementsDeMesBinomes(email, userId, comptable, boite);
   for (const e of lignes) {
-    if (!out.has(e.internetMessageId)) out.set(e.internetMessageId, { copro: e.coproReference, pour: pourDeCle.get(e.dossierCle ?? "") ?? null });
+    if (!out.has(e.internetMessageId)) out.set(e.internetMessageId, { copro: e.coproReference, pour: pourDeCle.get(e.dossierCle ?? "") ?? null, faitLe: e.faitLe });
   }
   return out;
 });

@@ -64,12 +64,14 @@ export async function AppShell({ user, active, breadcrumb, children }: AppShellP
   // "E-mails" d'un COMPTABLE (role de la table, Sekou 28/10/2026) : quelle que soit son agence,
   // sa boite perso et le dossier « Comptabilité » de toutes les boites triees (boites-visibles).
   const emailsComptable = emailsOuvert && estComptableTable(g?.role);
-  // Pastille "E-mails" (27/10/2026) : les mails a traiter non lus de mes boites, comptee
+  // Pastille "E-mails" : le chiffre unique « À traiter » (29/10/2026, boite de travail, lus ou non), compte
   // seulement pour qui voit l'entree ouverte, gardee une minute, abandonnee au-dela de 1,5 s
   // (cf. compteur-emails). En incarnation, sans boite perso, comme l'ecran.
   const emailsATraiter =
     g && emailsOuvert && (adminOuvert || echangesOuvert || emailsComptable)
-      ? await compterMailsATraiter(g, { superAdmin: adminOuvert, incarnation: await incarnationEnCours() })
+      ? await compterMailsATraiter(g, { superAdmin: adminOuvert, incarnation: await incarnationEnCours() }).then((c) =>
+          c ? { principal: c.principal, enRetard: c.enRetard, aRepartir: c.aRepartir } : null,
+        )
       : null;
   // Entree "Annuaire Linkus" : ADMIN de la table User (Léa, téléphonie) + super-admin.
   const linkusOuvert = peutExporterAnnuaireLinkus(g?.email, g?.role);

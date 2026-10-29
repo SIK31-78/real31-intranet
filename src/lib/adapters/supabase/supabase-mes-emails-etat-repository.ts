@@ -81,15 +81,21 @@ export class SupabaseMesEmailsEtatRepository implements MesEmailsEtatRepository 
   async getStatutsDesMails(emailIds: string[]): Promise<StatutEcrit[]> {
     if (!emailIds.length) return [];
     const sb = createSupabasePublicClient();
-    const { data, error } = await sb
-      .from(TABLE)
-      .select("gestionnaire_id, email_id, statut, etapes_faites, marque_at")
-      .in("email_id", emailIds);
+    // Par lots (29/10/2026) : le chiffre « À traiter » lit les statuts de TOUS les mails
+    // distribués (45 jours), plus seulement des 80 derniers ; une liste de plusieurs centaines
+    // d'identifiants dans une seule URL serait refusée.
+    const lots = [];
+    for (let i = 0; i < emailIds.length; i += LOT) lots.push(emailIds.slice(i, i + LOT));
+    const reponses = await Promise.all(
+      lots.map((lot) => sb.from(TABLE).select("gestionnaire_id, email_id, statut, etapes_faites, marque_at").in("email_id", lot)),
+    );
     // Lecture d'appoint : en cas d'echec, chacun garde son statut personnel.
-    if (error) {
-      console.warn("[mes-emails] statuts partages illisibles :", error.message);
+    const echec = reponses.find((r) => r.error)?.error;
+    if (echec) {
+      console.warn("[mes-emails] statuts partages illisibles :", echec.message);
       return [];
     }
+    const data = reponses.flatMap((r) => r.data ?? []);
     return ((data as (Pick<Row, "email_id" | "statut" | "etapes_faites"> & { gestionnaire_id: string; marque_at: string | null })[] | null) ?? []).map(
       (r) => ({
         gestionnaireId: r.gestionnaire_id,

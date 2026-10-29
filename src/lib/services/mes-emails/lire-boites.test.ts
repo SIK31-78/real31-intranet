@@ -13,6 +13,8 @@ const etat = vi.hoisted(() => ({
   lus: new Map<string, Map<string, boolean>>(),
   demandes: [] as unknown[],
   panneLu: false,
+  distribues: new Map<string, string | null>([["<p1>", "S0297"]]),
+  statuts: [] as { emailId: string; gestionnaireId: string; statut: string; etapesFaites: number[]; marqueAt?: string }[],
 }));
 
 vi.mock("@/lib/adapters/router", () => ({
@@ -27,12 +29,14 @@ vi.mock("@/lib/adapters/router", () => ({
       return etat.lus.get(p.boite) ?? new Map();
     },
   }),
+  getMesEmailsEtatRepository: () => ({ getStatutsDesMails: async () => etat.statuts }),
   // Référentiel indisponible : la copro n'est pas déduite, ce n'est pas le sujet ici.
   getReferentielTriProvider: () => ({ charger: async () => Promise.reject(new Error("hors sujet")) }),
 }));
 vi.mock("@/lib/services/tri-emails/acces", () => ({ boiteDe: async () => null }));
 vi.mock("./boites-visibles", () => ({
-  distributionDe: async () => new Map([["<p1>", "S0297"]]),
+  distributionDe: async () => etat.distribues,
+  distributionDatee: async () => new Map([...etat.distribues.keys()].map((id) => [id, "2099-10-27T08:00:00Z"])),
   mailsParDelegation: async () => new Map(),
 }));
 vi.mock("@/lib/observabilite", () => ({ signalerException: () => undefined }));
@@ -70,6 +74,37 @@ beforeEach(() => {
   ]);
   etat.demandes = [];
   etat.panneLu = false;
+  etat.distribues = new Map([["<p1>", "S0297"]]);
+  etat.statuts = [];
+});
+
+describe("lireBoitesLive : la boîte partagée, tous ses mails à traiter (décision 7, 29/10/2026)", () => {
+  it("lit les mails non traités, même au-delà des 80 derniers, et pas les traités", async () => {
+    const ids = Array.from({ length: 120 }, (_, i) => `<m${i}>`);
+    etat.distribues = new Map(ids.map((id) => [id, null]));
+    etat.bruts.set(SYNDIC4, ids.map(brut));
+    // Les 100 plus récents sont traités ; les 20 plus anciens non (avant : hors des 80 lus).
+    etat.statuts = ids.slice(0, 100).map((id) => ({
+      emailId: id,
+      gestionnaireId: `boite:${SYNDIC4}`,
+      statut: "classe",
+      etapesFaites: [],
+      marqueAt: new Date().toISOString(),
+    }));
+    const r = await lireBoitesLive(g, boites, []);
+    expect(r.mails.filter((m) => m.boite === SYNDIC4).map((m) => m.id).sort()).toEqual(ids.slice(100).sort());
+    expect(r.horsListe).toEqual({});
+    expect(r.traitesAujourdhui).toBe(100);
+  });
+
+  it("au-delà du plafond de lecture : les plus anciens ne sont pas lus mais comptés", async () => {
+    const ids = Array.from({ length: 230 }, (_, i) => `<m${i}>`);
+    etat.distribues = new Map(ids.map((id) => [id, null]));
+    etat.bruts.set(SYNDIC4, ids.map(brut));
+    const r = await lireBoitesLive(g, boites, []);
+    expect(r.mails.filter((m) => m.boite === SYNDIC4)).toHaveLength(200);
+    expect(r.horsListe).toEqual({ [SYNDIC4]: 30 });
+  });
 });
 
 describe("lireBoitesLive : le lu d'Outlook", () => {

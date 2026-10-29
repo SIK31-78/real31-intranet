@@ -116,21 +116,23 @@ export class GraphMailIngestionProvider implements MailIngestionProvider {
     const tk = await jetonGraph();
     const select = SELECT_MESSAGE;
     const ids = [...new Set(internetMessageIds.filter(Boolean))];
-    const out: RawMail[] = [];
-    // Par lots de 10 (filtre OR) : une URL raisonnable, peu d'appels.
-    for (let i = 0; i < ids.length; i += 10) {
-      const filtre = ids
-        .slice(i, i + 10)
-        .map((id) => `internetMessageId eq '${id.replace(/'/g, "''")}'`)
-        .join(" or ");
+    // Par lots de 10 (filtre OR) : une URL raisonnable. Quatre lots a la fois (29/10/2026) : la
+    // boite partagee lit maintenant tous ses mails a traiter (jusqu'a 200), plus seulement 80 ;
+    // vingt allers-retours en serie auraient coute une dizaine de secondes.
+    const lots: string[][] = [];
+    for (let i = 0; i < ids.length; i += 10) lots.push(ids.slice(i, i + 10));
+    const lireLot = async (lot: string[]): Promise<RawMail[]> => {
+      const filtre = lot.map((id) => `internetMessageId eq '${id.replace(/'/g, "''")}'`).join(" or ");
       const r = await graphFetch(
         `${GRAPH}/users/${encodeURIComponent(email)}/messages?$filter=${encodeURIComponent(filtre)}&$select=${select}&${EXPAND_VERBE}&$top=50`,
         { headers: { Authorization: `Bearer ${tk}`, Prefer: 'outlook.body-content-type="text"' } },
       );
       if (!r.ok) throw new Error(`Graph messages par id ${r.status} : ${(await r.text()).slice(0, 200)}`);
       const j = (await r.json()) as { value?: GraphMessage[] };
-      out.push(...(j.value ?? []).map(versRaw));
-    }
+      return (j.value ?? []).map(versRaw);
+    };
+    const out: RawMail[] = [];
+    for (let i = 0; i < lots.length; i += 4) out.push(...(await Promise.all(lots.slice(i, i + 4).map(lireLot))).flat());
     // Un meme mail peut exister en double (copie dans Elements envoyes...) : un par id.
     const vus = new Set<string>();
     return out

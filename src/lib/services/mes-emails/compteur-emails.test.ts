@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// La pastille « E-mails » (27/10/2026) avec ses dépendances simulées : boîtes visibles,
-// distribution, lu d'Outlook de la boîte perso, états en base. Données inventées.
+// La pastille « E-mails » : le chiffre unique « À traiter » (29/10/2026), avec ses dépendances
+// simulées : boîtes visibles, distribution datée, statuts en base. Données inventées.
 
 const etat = vi.hoisted(() => ({
   appelsBoites: [] as { sansBoitePerso?: boolean }[],
-  appelsLu: [] as string[],
-  delaiLu: 0,
+  appelsStatuts: 0,
+  delai: 0,
 }));
 
 vi.mock("./boites-visibles", () => ({
@@ -17,30 +17,26 @@ vi.mock("./boites-visibles", () => ({
       { id: "syndic2@real31.fr", adresse: "syndic2@real31.fr", libelle: "syndic2 · mes mails", personnelle: false },
     ];
   },
-  distributionDe: async () =>
+  // 90 mails distribués : plus que les 80 que l'écran lisait avant le 29/10/2026.
+  distributionDatee: async () =>
     new Map([
-      ["<p1>", "S0297"],
-      ["<p2>", "S0297"],
-      ["<p3>", null],
+      ["<p1>", new Date().toISOString()],
+      ["<p2>", new Date().toISOString()],
+      ["<vieux>", "2026-01-05T08:00:00Z"],
+      ...Array.from({ length: 87 }, (_, i) => [`<x${i}>`, new Date().toISOString()] as [string, string]),
     ]),
 }));
-vi.mock("./lire-boites", () => ({ MAX_PERSO: 40, MAX_PARTAGEE: 80 }));
 vi.mock("@/lib/adapters/router", () => ({
-  getMailboxProvider: () => ({
-    lireEtatsLu: async (p: { boite: string }) => {
-      etat.appelsLu.push(p.boite);
-      if (etat.delaiLu) await new Promise((r) => setTimeout(r, etat.delaiLu));
-      return new Map([
-        ["<m1>", false],
-        ["<m2>", true],
-        ["<m3>", false],
-      ]);
-    },
-  }),
   getMesEmailsEtatRepository: () => ({
-    // <p1> marqué traité pour la boîte (statut commun) ; <p2> ouvert dans l'intranet par moi.
-    getStatutsDesMails: async () => [{ emailId: "<p1>", gestionnaireId: "boite:syndic2@real31.fr", statut: "classe", etapesFaites: [] }],
-    getEtats: async () => [{ emailId: "<p2>", lu: true }],
+    getStatutsDesMails: async () => {
+      etat.appelsStatuts++;
+      if (etat.delai) await new Promise((r) => setTimeout(r, etat.delai));
+      // <p1> marqué traité aujourd'hui pour la boîte (statut commun) ; <p2> répondu, reste à traiter.
+      return [
+        { emailId: "<p1>", gestionnaireId: "boite:syndic2@real31.fr", statut: "classe", etapesFaites: [], marqueAt: new Date().toISOString() },
+        { emailId: "<p2>", gestionnaireId: "u-moi", statut: "repondu", etapesFaites: [] },
+      ];
+    },
   }),
 }));
 
@@ -51,17 +47,15 @@ const opts = { superAdmin: false, incarnation: false };
 
 beforeEach(() => {
   etat.appelsBoites = [];
-  etat.appelsLu = [];
-  etat.delaiLu = 0;
+  etat.appelsStatuts = 0;
+  etat.delai = 0;
   oublierCompteurEmails(moi.id);
 });
 afterEach(() => vi.useRealTimers());
 
 describe("compterMailsATraiter", () => {
-  it("additionne la boîte perso (non lus Outlook) et la partagée (distribués - traités - ouverts)", async () => {
-    // Perso : <m1>, <m3> ; partagée : <p3> seulement.
-    expect(await compterMailsATraiter(moi, opts)).toBe(3);
-    expect(etat.appelsLu).toEqual(["moi@real31.fr"]);
+  it("la boîte de travail seulement, sans plafond, lus ou non ; le vieux mail est en retard", async () => {
+    expect(await compterMailsATraiter(moi, opts)).toEqual({ principal: 89, enRetard: 1, aRepartir: 0, traitesAujourdhui: 1 });
   });
 
   it("garde le compte une minute, puis relit ; oublierCompteurEmails le relit tout de suite", async () => {
@@ -74,16 +68,25 @@ describe("compterMailsATraiter", () => {
   });
 
   it("au-delà de 1,5 s : null (pas de pastille), sans attendre", async () => {
-    etat.delaiLu = 5_000;
+    etat.delai = 5_000;
     vi.useFakeTimers();
     const p = compterMailsATraiter(moi, opts);
     await vi.advanceTimersByTimeAsync(1_600);
     expect(await p).toBeNull();
   });
 
-  it("en incarnation : aucune boîte perso n'est lue, la partagée compte", async () => {
-    expect(await compterMailsATraiter(moi, { superAdmin: false, incarnation: true })).toBe(1);
+  it("l'état d'équipe et le mode attribution donnent le chiffre personnel", async () => {
+    const r = await compterMailsATraiter(moi, {
+      ...opts,
+      mode: { type: "attribution", moi: "u-moi" },
+      etatEquipe: async (_b, ids) =>
+        new Map(ids.map((id) => [id, id === "<p2>" ? { attribueA: "u-moi" } : id === "<vieux>" ? { attribueA: null } : { attribueA: "u-autre" }])),
+    });
+    expect(r).toMatchObject({ principal: 1, enRetard: 0, aRepartir: 1 });
+  });
+
+  it("en incarnation : la boîte partagée compte de même", async () => {
+    expect((await compterMailsATraiter(moi, { superAdmin: false, incarnation: true }))?.principal).toBe(89);
     expect(etat.appelsBoites.at(-1)).toMatchObject({ sansBoitePerso: true });
-    expect(etat.appelsLu).toEqual([]);
   });
 });

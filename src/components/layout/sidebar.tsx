@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import Link from "next/link";
 import {
   BellRing, Bot, Briefcase, Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, MailCheck, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ShieldAlert, ShieldCheck, Signature, Sparkles, Users, Vote,
@@ -7,6 +7,8 @@ import {
 import { cn } from "@/lib/cn";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { UserMenu } from "@/components/layout/user-menu";
+import { PastilleEmails } from "@/components/mes-emails/chiffre-a-traiter";
+import type { ChiffreATraiter } from "@/lib/domain/mes-emails-liste";
 
 export type NavKey =
   | "accueil"
@@ -66,6 +68,8 @@ type Item = {
   count?: number;
   /** Le compteur est une alerte (pastille rouge) : des choses attendent. */
   alerte?: boolean;
+  /** Une pastille vivante à la place du compteur (« E-mails » : le chiffre unique, 29/10/2026). */
+  pastille?: ReactNode;
   /** Page pas encore ouverte : grisee, non cliquable, badge "a venir". */
   aVenir?: boolean;
   /** Autre application : s'ouvre dans un nouvel onglet, jamais surlignee. */
@@ -259,7 +263,8 @@ function NavItem({ item, active }: { item: Item; active: boolean }) {
     >
       <Icon strokeWidth={1.5} className={cn("w-3.5 h-3.5 shrink-0", active ? "text-green-700" : "text-rail-muted")} />
       <span className="truncate">{item.label}</span>
-      {item.count !== undefined &&
+      {item.pastille ??
+        (item.count !== undefined &&
         (item.alerte ? (
           <span
             className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-err-500 text-white text-meta font-semibold tabular-nums leading-[18px] text-center"
@@ -271,7 +276,7 @@ function NavItem({ item, active }: { item: Item; active: boolean }) {
           <span className={cn("ml-auto text-meta tabular-nums rounded-full border px-1.5", active ? "text-green-700 border-green-200" : "text-rail-muted border-rail-line")}>
             {item.count}
           </span>
-        ))}
+        )))}
     </Link>
   );
 }
@@ -378,8 +383,8 @@ export function Sidebar({
   triOuvert?: boolean;
   /** Mails dans la boite de reception generique (pastille rouge) ; null = inconnu. */
   triATrier?: number | null;
-  /** Mails a traiter non lus de mes boites (pastille rouge de « E-mails », 27/10/2026). */
-  emailsATraiter?: number | null;
+  /** Le chiffre unique « À traiter » de « E-mails » (29/10/2026) : neutre, rouge s'il y a du retard. */
+  emailsATraiter?: ChiffreATraiter | null;
   /** Entree "Échanges" : l'agence de l'utilisateur a une boite commune configuree (Houilles d'abord), ou super-admin. */
   echangesOuvert?: boolean;
   /** Entree "E-mails" d'un comptable (role COMPTABLE, module actif) : le dossier « Comptabilité » des boites triees (28/10/2026). */
@@ -419,7 +424,7 @@ export function Sidebar({
             ).map((item) => (
               <NavItem
                 key={item.key}
-                item={item.key === "emails" && emailsATraiter ? { ...item, count: emailsATraiter, alerte: true } : item}
+                item={item.key === "emails" ? { ...item, pastille: <PastilleEmails initial={emailsATraiter} /> } : item}
                 active={item.key === active}
               />
             ))}
@@ -459,8 +464,8 @@ export function Sidebar({
                   const it =
                     item.key === "emails" && !emailsOuvert
                       ? { ...item, aVenir: true }
-                      : item.key === "emails" && emailsATraiter
-                        ? { ...item, count: emailsATraiter, alerte: true }
+                      : item.key === "emails"
+                        ? { ...item, pastille: <PastilleEmails initial={emailsATraiter} /> }
                       : item.key === "tri-emails" && triATrier
                         ? { ...item, count: triATrier, alerte: true }
                         : item.key === "recap-ag" && recapsEnRetard

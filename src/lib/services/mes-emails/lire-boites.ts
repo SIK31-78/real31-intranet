@@ -22,13 +22,15 @@ import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import { cleanBody, significantAttachments } from "@/lib/domain/tri-mail/clean";
 import { groupAffaires } from "@/lib/domain/tri-mail/group";
 import { resoudreExpediteur } from "@/lib/domain/tri-mail/sender";
-import { getMailboxProvider, getMailIngestionProvider, getReferentielTriProvider } from "@/lib/adapters/router";
+import { getMailboxProvider, getMailIngestionProvider, getMesEmailsEtatRepository, getReferentielTriProvider } from "@/lib/adapters/router";
 import { cleDeReference, suggererCopro, type ReferentielTri } from "@/lib/domain/tri-emails";
 import { boiteTri, recuDepuisDebutTri } from "@/lib/domain/mail-gate";
 import { jourParis } from "@/lib/services/date-du-jour";
 import { signalerException, tracer } from "@/lib/observabilite";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
-import { distributionDe, mailsParDelegation } from "./boites-visibles";
+import { travailDistribue } from "@/lib/domain/mes-emails-liste";
+import { distributionDatee, distributionDe, mailsParDelegation } from "./boites-visibles";
+import { statutPartage, type StatutEcrit } from "./statut-partage";
 
 // Plafond par BOITE (et non global) : une boite partagee tres active ne doit pas
 // chasser les mails de la boite personnelle de l'affichage. Boite perso : 40 par defaut,
@@ -42,7 +44,15 @@ async function agencesDuReferentiel(g: Gestionnaire, boites: BoiteMail[]): Promi
   const partagees = boites.filter((b) => !b.personnelle).flatMap((b) => boiteTri(b.adresse)?.agences ?? []);
   return [...new Set([...miennes, ...partagees])];
 }
-export const MAX_PARTAGEE = 80;
+/**
+ * Boite PARTAGEE : on lit TOUS ses mails encore a traiter, et seulement eux (la liste n'a plus
+ * d'onglet « Conclus »), decision de Sekou n° 7 du 29/10/2026. Jusque-la on lisait les 80 derniers distribues, traites
+ * compris : a 30 mails par jour et par binome, un mail non traite de plus de trois jours sortait
+ * de la liste et du chiffre sans prevenir (defaut D4 de l'audit UX). Garde-fou : au-dela de
+ * MAX_A_TRAITER mails a traiter, les plus anciens ne sont pas lus (Graph, poids de la page) mais
+ * restent comptes (`horsListe`) et l'ecran le dit.
+ */
+export const MAX_A_TRAITER = 200;
 
 export interface TriageLive {
   mails: MailEntrant[];
@@ -53,6 +63,10 @@ export interface TriageLive {
   /** Adresses des boites qui n'ont pas pu etre lues (droits Exchange, panne Graph) :
    *  l'ecran le dit au lieu d'afficher une liste vide (27/10/2026). */
   erreurs: string[];
+  /** Par boite partagee : les mails a traiter non lus faute de place (au-dela de MAX_A_TRAITER). */
+  horsListe: Record<string, number>;
+  /** Mails des boites partagees marques traites aujourd'hui (l'ecran a 0 : « Tout est traite »). */
+  traitesAujourdhui: number;
 }
 
 // Le jour de réception À PARIS : Graph horodate en UTC, et `receivedAt.slice(0, 10)` faisait
@@ -92,7 +106,15 @@ async function ingererBoite(
   g: Gestionnaire,
   boite: BoiteMail,
   maxPerso: number,
-): Promise<{ boite: BoiteMail; bruts: RawMail[]; luOutlook: Map<string, boolean>; pour?: Map<string, string>; erreur?: string }> {
+): Promise<{
+  boite: BoiteMail;
+  bruts: RawMail[];
+  luOutlook: Map<string, boolean>;
+  pour?: Map<string, string>;
+  erreur?: string;
+  horsListe?: number;
+  traitesAujourdhui?: number;
+}> {
   try {
     const ingestion = getMailIngestionProvider();
     if (boite.personnelle) {
@@ -105,20 +127,36 @@ async function ingererBoite(
       ]);
       return { boite, bruts, luOutlook, ...(boite.pour ? { pour: new Map(bruts.map((m) => [m.internetMessageId, boite.pour!])) } : {}) };
     }
-    const [distribues, pour] = await Promise.all([distributionDe(g, boite.adresse), mailsParDelegation(g, boite.adresse)]);
+    const [distribues, dates, pour] = await Promise.all([
+      distributionDe(g, boite.adresse),
+      distributionDatee(g, boite.adresse),
+      mailsParDelegation(g, boite.adresse),
+    ]);
     if (distribues.size === 0) return { boite, bruts: [], luOutlook: new Map() };
-    const ids = [...distribues.keys()].slice(0, MAX_PARTAGEE);
+    // Ce qui reste a traiter, d'apres les statuts communs (meme regle que la pastille). Rien
+    // d'avant la mise en service, juge ici sur la date de rangement (puis sur la reception).
+    const tous = [...distribues.keys()].filter((id) => recuDepuisDebutTri(dates.get(id) ?? "", boite.adresse));
+    const statuts = await getMesEmailsEtatRepository()
+      .getStatutsDesMails(tous)
+      .catch((): StatutEcrit[] => []);
+    const parMail = new Map<string, StatutEcrit[]>();
+    for (const l of statuts) parMail.set(l.emailId, [...(parMail.get(l.emailId) ?? []), l]);
+    const travail = travailDistribue(tous, (id) => statutPartage(boite.adresse, parMail.get(id) ?? []), jourParis());
+    const ids = travail.aTraiter.slice(0, MAX_A_TRAITER);
+    const horsListe = travail.aTraiter.length - ids.length;
+    const aLire = new Set(ids);
+    if (ids.length === 0) return { boite, bruts: [], luOutlook: new Map(), traitesAujourdhui: travail.traitesAujourdhui };
     const [lus, luOutlook] = await Promise.all([
       ingestion.lireParIds
         ? ingestion.lireParIds(boite.adresse, ids)
-        : ingestion.lireRecents({ email: boite.adresse, max: 200 }).then((l) => l.filter((m) => distribues.has(m.internetMessageId))),
+        : ingestion.lireRecents({ email: boite.adresse, max: 200 }).then((l) => l.filter((m) => aLire.has(m.internetMessageId))),
       etatsLu({ boite: boite.adresse, internetMessageIds: ids }),
     ]);
     // Rien d'avant la mise en service : les rangements des essais ne reviennent pas « a traiter ».
     const bruts = lus.filter((m) => recuDepuisDebutTri(m.receivedAt, boite.adresse));
     // La copro decidee au tri fait foi (choix humain) : on la pose avant toute deduction.
     for (const m of bruts) m.copro = distribues.get(m.internetMessageId) ?? "";
-    return { boite, bruts, luOutlook, pour };
+    return { boite, bruts, luOutlook, pour, horsListe, traitesAujourdhui: travail.traitesAujourdhui };
   } catch (err) {
     console.warn(`[mes-emails] boite ${boite.adresse} illisible :`, (err as Error).message);
     signalerException(err, { source: "mes-emails-lecture", detail: { boite: boite.adresse } });
@@ -136,7 +174,7 @@ export async function lireBoitesLive(
   coprosEnCours: Copropriete[] | Promise<Copropriete[]>,
   maxPerso: number = MAX_PERSO,
 ): Promise<TriageLive> {
-  if (boites.length === 0) return { mails: [], nbMailsAnalyses: 0, plusDeMails: false, erreurs: [] };
+  if (boites.length === 0) return { mails: [], nbMailsAnalyses: 0, plusDeMails: false, erreurs: [], horsListe: {}, traitesAujourdhui: 0 };
 
   // Boites, portefeuille (ESTALE en direct) et referentiel du tri sont lus EN PARALLELE :
   // leurs latences ne s'additionnent pas (mesure prod du 14/10 : jusqu'a 7 s en serie).
@@ -162,6 +200,9 @@ export async function lireBoitesLive(
   // La boite perso est pleine : il en reste sans doute d'autres a charger.
   const plusDeMails = parBoite.some(({ boite, bruts: lot }) => boite.personnelle && lot.length >= maxPerso);
   const erreurs = parBoite.flatMap(({ erreur }) => (erreur ? [erreur] : []));
+  const horsListe: Record<string, number> = {};
+  for (const p of parBoite) if (p.horsListe) horsListe[p.boite.id] = p.horsListe;
+  const traitesAujourdhui = parBoite.reduce((n, p) => n + (p.traitesAujourdhui ?? 0), 0);
   const boiteDe = new Map<string, string>();
   // Le lu d'Outlook de chaque mail brut (cle : id Graph, unique d'une boite a l'autre).
   const luDe = new Map<string, boolean>();
@@ -177,7 +218,7 @@ export async function lireBoitesLive(
       bruts.push(b);
     }
   }
-  if (bruts.length === 0) return { mails: [], nbMailsAnalyses: 0, plusDeMails: false, erreurs };
+  if (bruts.length === 0) return { mails: [], nbMailsAnalyses: 0, plusDeMails: false, erreurs, horsListe, traitesAujourdhui };
 
   // Copro des mails que le tri n'a pas tranches : le MOTEUR DU TRI (codes, annuaire ESTALE+Crypto,
   // immatriculation, nom/adresse hors signature), seulement quand il est SUR. L'ancien
@@ -256,5 +297,5 @@ export async function lireBoitesLive(
     };
   });
 
-  return { mails, nbMailsAnalyses: bruts.length, plusDeMails, erreurs };
+  return { mails, nbMailsAnalyses: bruts.length, plusDeMails, erreurs, horsListe, traitesAujourdhui };
 }
