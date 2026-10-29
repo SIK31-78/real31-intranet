@@ -12,17 +12,17 @@
 // plus distribué au binôme et la note serait refusée), et suit le mail en Comptabilité.
 
 import { useState, useTransition } from "react";
-import { Calculator, ChevronDown } from "lucide-react";
+import { Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { envoyerEnComptabiliteAction } from "@/app/mes-emails/actions-comptabilite";
 import { ajouterNoteAction } from "@/app/mes-emails/actions-equipe";
 import { NOTE_LONGUEUR_MAX } from "@/lib/domain/boite-equipe";
-import { Deroulant } from "./equipe-mail";
+import { Deroulant, FlecheMenu } from "./equipe-mail";
 
 /**
- * `compact` : en petit, en texte, dans la barre d'actions du volet (29/10/2026).
+ * `compact` : petite icône avec info-bulle, dans la barre d'actions du volet (29/10/2026).
  * `notePossible` : la petite flèche « avec une note » (boîte d'équipe active, hors incarnation).
  */
 export function EnvoyerEnComptabilite({
@@ -60,8 +60,20 @@ export function EnvoyerEnComptabilite({
     });
   }
 
-  const bouton = (
-    <Button size={compact ? "sm" : "lg"} variant={compact ? "ghost" : "secondary"} onClick={() => envoyer()} disabled={enCours} title="Envoyer ce mail dans le dossier Comptabilité de la boîte partagée">
+  const bouton = compact ? (
+    <Button
+      size="sm"
+      variant="ghost"
+      iconOnly
+      onClick={() => envoyer()}
+      loading={enCours}
+      aria-label="Comptabilité"
+      title="Comptabilité : envoyer ce mail dans le dossier Comptabilité de la boîte partagée"
+    >
+      {enCours ? null : <Calculator strokeWidth={1.5} />}
+    </Button>
+  ) : (
+    <Button size="lg" variant="secondary" onClick={() => envoyer()} disabled={enCours} title="Envoyer ce mail dans le dossier Comptabilité de la boîte partagée">
       <Calculator strokeWidth={1.5} />
       Comptabilité
     </Button>
@@ -70,18 +82,13 @@ export function EnvoyerEnComptabilite({
   return (
     <div className="relative inline-flex items-center">
       {bouton}
-      <Button
-        size={compact ? "sm" : "lg"}
-        variant="ghost"
-        iconOnly
-        aria-label="Comptabilité, avec une note"
-        title="Envoyer en Comptabilité avec une note interne pour les comptables"
-        aria-expanded={ouvert}
+      <FlecheMenu
+        label="Comptabilité, avec une note"
+        title="Comptabilité avec une note interne pour les comptables"
+        ouvert={ouvert}
         onClick={() => setOuvert((o) => !o)}
         disabled={enCours}
-      >
-        <ChevronDown strokeWidth={1.75} />
-      </Button>
+      />
       <Deroulant ouvert={ouvert} onFermer={() => setOuvert(false)}>
         <div className="px-3 py-1.5 flex flex-col gap-2">
           <Textarea

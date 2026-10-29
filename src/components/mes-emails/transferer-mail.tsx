@@ -29,7 +29,10 @@ export function TransfererMail({
   piecesJointes,
   onTransfere,
   reformulation = false,
+  compact = false,
 }: {
+  /** Barre d'actions du volet : petit, en texte, sans icône (une seule ligne à 1280 px). */
+  compact?: boolean;
   /** « Reformuler » proposé sur le mot du transfert (ADR-051). */
   reformulation?: boolean;
   emailId: string;
@@ -45,8 +48,8 @@ export function TransfererMail({
   const [ouvert, setOuvert] = useState(false);
   return (
     <>
-      <Button variant="doux" onClick={() => setOuvert(true)}>
-        <Forward strokeWidth={1.75} />
+      <Button variant="doux" size={compact ? "sm" : "md"} onClick={() => setOuvert(true)}>
+        {compact ? null : <Forward strokeWidth={1.75} />}
         Transférer
       </Button>
       {ouvert ? (

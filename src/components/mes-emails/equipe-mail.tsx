@@ -8,6 +8,8 @@
 //   aussi à « Relancer si pas de réponse » sur un mail envoyé (sans « De côté »).
 // Règle d'or : jamais un clic de plus sur les parcours fréquents. Le geste simple reste un clic ;
 // ce qui est facultatif (la note, le choix d'une personne) est derrière la petite flèche.
+// Dans la barre d'actions, ce sont de petites icônes avec info-bulle (Sekou, 29/10/2026 : neuf
+// boutons sur deux lignes, « on comprend rien ») : une seule ligne de boutons à 1280 px.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BellRing, CalendarClock, Check, ChevronDown, ExternalLink, Hand, StickyNote, UserMinus } from "lucide-react";
@@ -72,6 +74,23 @@ function Entree({ onClick, disabled, children, title }: { onClick: () => void; d
   );
 }
 
+/** La petite flèche collée à une icône de la barre : le menu du geste (attribuer à…, note). */
+export function FlecheMenu({ label, title, ouvert, onClick, disabled }: { label: string; title: string; ouvert: boolean; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={title}
+      aria-expanded={ouvert}
+      onClick={onClick}
+      disabled={disabled}
+      className="h-7 w-4 inline-flex items-center justify-center rounded-sm text-ink-3 hover:text-ink hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:opacity-50"
+    >
+      <ChevronDown strokeWidth={1.75} className="w-3 h-3" />
+    </button>
+  );
+}
+
 /** Les initiales de la personne à qui le mail est attribué ; en vert quand c'est moi. */
 export function PastilleAttributaire({ membre, moi, taille = "sm" }: { membre: MembreEquipe; moi: string; taille?: "sm" | "md" }) {
   const amoi = memeAdresse(membre.email, moi);
@@ -91,10 +110,11 @@ export function PastilleAttributaire({ membre, moi, taille = "sm" }: { membre: M
 }
 
 /**
- * « Je prends » + la petite flèche « Attribuer à… ». Un clic sur « Je prends » suffit (le mail
+ * L'icône « Je prends » + la petite flèche « Attribuer à… ». Un clic sur l'icône suffit (le mail
  * est à moi) ; la flèche ouvre la liste des personnes possibles (binôme, ou comptables en
- * Comptabilité), une note facultative et « Retirer l'attribution ». La note ne coûte rien
- * quand on l'ignore : le champ est déjà dans le menu ouvert.
+ * Comptabilité), une note facultative et « Retirer l'attribution ». Mail déjà attribué :
+ * l'icône montre les initiales ; un clic le prend s'il est à un autre, ouvre le menu (changer,
+ * retirer) s'il est à moi. La note ne coûte rien quand on l'ignore : le champ est dans le menu.
  */
 export function BoutonsAttribution({
   emailId,
@@ -178,23 +198,33 @@ export function BoutonsAttribution({
   }
 
   return (
-    <div className="relative inline-flex items-center gap-0.5">
-      {amoi ? (
-        <span className="inline-flex items-center gap-1.5 h-8 pl-1 pr-2 text-meta text-ink-2" title="Ce mail est à vous">
-          <PastilleAttributaire membre={moi} moi={moi.email} taille="md" />À moi
-        </span>
-      ) : (
+    <div className="relative inline-flex items-center">
+      {attributaire ? (
+        // Déjà attribué : les initiales à la place de la main.
         <Button
-          onClick={() => void prendre()}
-          title={attributaire ? `Attribué à ${attributaire.nomComplet} : le prendre` : "Ce mail est à moi : il entre dans mon chiffre"}
+          size="sm"
+          variant="ghost"
+          iconOnly
+          onClick={() => (amoi ? ouvrir() : void prendre())}
+          aria-label={amoi ? "À moi : changer ou retirer l'attribution" : `Attribué à ${attributaire.nomComplet} : je prends`}
+          title={amoi ? "À moi. Cliquer pour l'attribuer à quelqu'un d'autre ou la retirer" : `Attribué à ${attributaire.nomComplet}. Cliquer : je prends`}
         >
+          <span
+            aria-hidden="true"
+            className={
+              "inline-flex items-center justify-center h-[18px] min-w-[18px] px-0.5 rounded-full border text-meta font-semibold leading-none tabular-nums " +
+              (amoi ? "bg-green-50 text-green-700 border-green-500/40" : "bg-surface-2 text-ink-2 border-line")
+            }
+          >
+            {attributaire.initiales || attributaire.email.slice(0, 2).toUpperCase()}
+          </span>
+        </Button>
+      ) : (
+        <Button size="sm" variant="ghost" iconOnly onClick={() => void prendre()} aria-label="Je prends" title="Je prends : ce mail est à moi (la flèche : attribuer à…)">
           <Hand strokeWidth={1.5} />
-          Je prends
         </Button>
       )}
-      <Button iconOnly aria-label="Attribuer à…" title="Attribuer à… (avec une note si besoin)" onClick={ouvrir} aria-expanded={ouvert}>
-        <ChevronDown strokeWidth={1.75} />
-      </Button>
+      <FlecheMenu label="Attribuer à…" title="Attribuer à… (avec une note si besoin)" ouvert={ouvert} onClick={ouvrir} />
       <Deroulant ouvert={ouvert} onFermer={() => setOuvert(false)}>
         <p className="px-3 pt-1 pb-1.5 text-meta text-ink-3">Attribuer à…</p>
         {possibles === null ? (
@@ -250,6 +280,7 @@ export function MenuAttente({
   deCote,
   onChoisir,
   taille = "md",
+  icone = false,
 }: {
   libelle: string;
   titre: string;
@@ -257,6 +288,8 @@ export function MenuAttente({
   deCote: boolean;
   onChoisir: (choix: ChoixAttente) => Promise<boolean>;
   taille?: "sm" | "md";
+  /** Petite icône seule (barre d'actions du volet) : le libellé passe en aria-label. */
+  icone?: boolean;
 }) {
   const [ouvert, setOuvert] = useState(false);
   const [jour, setJour] = useState("");
@@ -274,11 +307,17 @@ export function MenuAttente({
   }
   return (
     <div className="relative inline-flex">
-      <Button size={taille} onClick={() => setOuvert((o) => !o)} aria-expanded={ouvert} title={titre}>
-        <CalendarClock strokeWidth={1.5} />
-        {libelle}
-        <ChevronDown strokeWidth={1.75} />
-      </Button>
+      {icone ? (
+        <Button size="sm" variant="ghost" iconOnly onClick={() => setOuvert((o) => !o)} aria-expanded={ouvert} aria-label={libelle} title={titre}>
+          <CalendarClock strokeWidth={1.5} />
+        </Button>
+      ) : (
+        <Button size={taille} onClick={() => setOuvert((o) => !o)} aria-expanded={ouvert} title={titre}>
+          <CalendarClock strokeWidth={1.5} />
+          {libelle}
+          <ChevronDown strokeWidth={1.75} />
+        </Button>
+      )}
       <Deroulant ouvert={ouvert} onFermer={() => setOuvert(false)} largeur="w-60">
         {deCote ? (
           <Entree onClick={() => void choisir("de-cote")} disabled={enCours} title="Sans date : il sort du chiffre jusqu'à ce que vous le repreniez">
