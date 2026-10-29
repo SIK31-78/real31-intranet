@@ -62,8 +62,15 @@ describe("tableRemplacement", () => {
     // La base ecrit `CSSupp`, le gabarit `[CsSuppHT]` : sans la correspondance, deux
     // lignes de tarif resteraient en clair sur le contrat.
     const table = tableRemplacement(champs());
-    expect(table["[CsSuppHT]"]).toBe("100.00");
-    expect(table["[Tarifs.Tarif.CsSupp]"]).toBe("120.00");
+    expect(table["[CsSuppHT]"]).toBe("100,00");
+    expect(table["[Tarifs.Tarif.CsSupp]"]).toBe("120,00");
+  });
+
+  it("met les montants au format francais, espace insecable entre les milliers (REA-398)", () => {
+    const table = tableRemplacement(champs());
+    expect(table["[FormulaireContratSyndic.HonoGestion]"]).toBe("9 419,00");
+    expect(table["[HonoGestionHT]"]).toBe("7 849,17");
+    expect(table["[FormulaireContratSyndic.FraisPostaux]"]).toBe("792,00");
   });
 
   it("met les dates au format francais", () => {

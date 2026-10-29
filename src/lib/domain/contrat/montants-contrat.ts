@@ -24,3 +24,18 @@ export function htDepuisTtc(montantTtc: number): string {
 export function ttcBrut(montantTtc: number): string {
   return montantTtc.toFixed(2);
 }
+
+/**
+ * Montant au format francais POUR LE CONTRAT : "8284.17" ou 9941 -> "8 284,17" / "9 941,00".
+ * Decide par le patron au point du 22/10/2026 (REA-398) : les nouveaux contrats passent au
+ * format francais, les contrats deja signes ne changent pas. Espace insecable entre les
+ * milliers, pour qu'un montant ne soit jamais coupe en fin de ligne. Une valeur qui n'est pas
+ * un nombre est rendue telle quelle (jamais « NaN » sur un contrat).
+ */
+export function montantContrat(valeur: number | string): string {
+  const n = typeof valeur === "number" ? valeur : Number(valeur);
+  if (!Number.isFinite(n)) return String(valeur);
+  const [entier, decimales] = Math.abs(n).toFixed(2).split(".");
+  const milliers = entier.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `${n < 0 ? "-" : ""}${milliers},${decimales}`;
+}

@@ -5,7 +5,7 @@
 import { libelleFormeJuridique } from "@/lib/domain/copropriete";
 import { siegeAgence } from "@/lib/domain/salles-reunion";
 import type { ChampsContrat, PrestationContrat } from "./champs-contrat";
-import { htDepuisTtc, ttcBrut } from "./montants-contrat";
+import { htDepuisTtc, montantContrat, ttcBrut } from "./montants-contrat";
 
 /**
  * Nom de la prestation DANS LES PLACEHOLDERS, quand il differe de son identifiant en base.
@@ -40,9 +40,9 @@ function nombre(v: number | null | undefined): string {
 
 /**
  * Table de remplacement complete : les 65 placeholders du gabarit.
- * Identique a celle du legacy, y compris le fait que le forfait timbres et les honoraires
- * TTC sont injectes bruts (sans mise en forme francaise) - c'est ainsi que les contrats
- * deja signes sont ecrits.
+ * Les MONTANTS sont au format francais (« 8 284,17 ») depuis le 29/10/2026 (REA-398,
+ * decision du patron du 22/10) ; le legacy les injectait bruts (« 8284.17 », « 9941 »).
+ * Les contrats deja signes ne sont pas reedites pour autant.
  */
 export function tableRemplacement(champs: ChampsContrat): Record<string, string> {
   const { copro } = champs;
@@ -67,9 +67,9 @@ export function tableRemplacement(champs: ChampsContrat): Record<string, string>
     "[DebutContrat]": dateOuBlanc(champs.debutISO),
     "[FinContrat]": dateOuBlanc(champs.finISO),
     "[DureeContrat]": champs.dureeTexte,
-    "[HonoGestionHT]": champs.honorairesGestionHt,
-    "[FormulaireContratSyndic.HonoGestion]": String(champs.honorairesGestionTtc),
-    "[FormulaireContratSyndic.FraisPostaux]": String(champs.forfaitPostauxTtc),
+    "[HonoGestionHT]": montantContrat(champs.honorairesGestionHt),
+    "[FormulaireContratSyndic.HonoGestion]": montantContrat(champs.honorairesGestionTtc),
+    "[FormulaireContratSyndic.FraisPostaux]": montantContrat(champs.forfaitPostauxTtc),
     // Contrat de mandat (ASL / AFUL) : la forme en capitales et la denomination officielle.
     "[FormeJuridique]": libelleFormeJuridique(copro.formeJuridique),
     "[Coproprietes.Denomination]": copro.denomination ?? copro.nom,
@@ -77,8 +77,8 @@ export function tableRemplacement(champs: ChampsContrat): Record<string, string>
 
   for (const tarif of champs.tarifs) {
     const nom = NOM_PLACEHOLDER[tarif.identifiant] ?? tarif.identifiant;
-    table[`[${nom}HT]`] = tarif.ht;
-    table[`[Tarifs.Tarif.${nom}]`] = tarif.ttcTexte;
+    table[`[${nom}HT]`] = montantContrat(tarif.ht);
+    table[`[Tarifs.Tarif.${nom}]`] = montantContrat(tarif.ttcTexte);
   }
   return table;
 }
