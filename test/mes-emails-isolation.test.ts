@@ -356,12 +356,12 @@ describe("comptables : le dossier « Comptabilité » de toutes les boîtes tri�
     expect((await compterMailsATraiter(sophie, { superAdmin: false, incarnation: true }))?.principal).toBe(1);
   });
 
-  it("chiffre personnel : les mails « Comptabilité » non attribués sont « à répartir », ceux à moi dans le chiffre", async () => {
+  it("les mails « Comptabilité » comptent attribués ou non ; la part à moi suit l'attribution", async () => {
     const mode = { type: "attribution" as const, moi: "elsa@real31.fr" };
     oublierCompteurEmails(elsa.id);
     expect(await compterMailsATraiter(elsa, { superAdmin: false, incarnation: true, mode, etatEquipe: async () => new Map(), relances: async () => [] })).toMatchObject({
-      principal: 0,
-      aRepartir: 2,
+      principal: 2,
+      aMoi: 0,
     });
     oublierCompteurEmails(elsa.id);
     expect(
@@ -372,7 +372,7 @@ describe("comptables : le dossier « Comptabilité » de toutes les boîtes tri�
         etatEquipe: async (_b, ids) => new Map(ids.map((id) => [id, { attribueA: "elsa@real31.fr" }])),
         relances: async () => [],
       }),
-    ).toMatchObject({ principal: 2, aRepartir: 0 });
+    ).toMatchObject({ principal: 2, aMoi: 2 });
     oublierCompteurEmails(elsa.id);
   });
 });

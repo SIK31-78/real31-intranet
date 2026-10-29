@@ -338,8 +338,8 @@ const journalDeLaBoite = cache(async (email: string, comptable: boolean, boite: 
 
 /**
  * L'état d'équipe de ces mails (attributaire, nombre de notes, attente ou relance en vigueur et
- * son statut maintenant), pour la liste, les filtres « À moi / Non attribués / De côté » et le
- * chiffre (domain/boite-equipe : placeDansMesChiffres, horsATraiter, relanceDue).
+ * son statut maintenant), pour la liste, les onglets « À moi » / « En attente » et le chiffre
+ * (domain/boite-equipe : horsATraiter, relanceDue).
  *
  * Le dossier actuel de chaque mail vient du journal du tri (dossiers du lecteur) ; `dossierCle`
  * passé par l'appelant l'emporte. Les réponses arrivées dans le fil viennent du même journal,

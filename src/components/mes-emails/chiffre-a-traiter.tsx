@@ -7,6 +7,7 @@
 // du serveur (compteur-emails).
 //
 // Couleur neutre ; rouge seulement quand des mails attendent depuis plus de 2 jours ouvrés.
+// Le chiffre = les mails à traiter du binôme, attribués ou non (hors en attente / de côté).
 
 import { useSyncExternalStore } from "react";
 import type { ChiffreATraiter } from "@/lib/domain/mes-emails-liste";
@@ -23,7 +24,7 @@ function abonner(f: () => void) {
 
 /** L'écran publie son chiffre (null en le quittant : la pastille reprend celui du serveur). */
 export function publierChiffre(c: ChiffreATraiter | null): void {
-  if (c && courant && c.principal === courant.principal && c.enRetard === courant.enRetard && c.aRepartir === courant.aRepartir) return;
+  if (c && courant && c.principal === courant.principal && c.enRetard === courant.enRetard && c.aMoi === courant.aMoi) return;
   courant = c;
   for (const f of abonnes) f();
 }
@@ -55,7 +56,11 @@ export function PastilleEmails({ initial }: { initial: ChiffreATraiter | null })
   );
 }
 
-/** À côté du titre « E-mails » : « 12 à traiter », la part en retard, et « 3 à répartir ». */
+/**
+ * À côté du titre « E-mails » : « 22 à traiter » (le chiffre de la vue affichée) et la part en
+ * retard ; « Tout est traité » à 0. Un seul chiffre (Sekou, 29/10/2026) : plus de « Rien à
+ * traiter pour vous » ni de « à répartir ».
+ */
 export function ChiffreTitre() {
   const c = useChiffreEcran();
   if (!c) return null;
@@ -65,9 +70,6 @@ export function ChiffreTitre() {
         <>
           <span className="text-title font-semibold text-ink">{c.principal}</span> à traiter
         </>
-      ) : c.aRepartir > 0 ? (
-        // Chiffre personnel à 0, mais des mails du binôme ne sont à personne (ADR-053).
-        "Rien à traiter pour vous"
       ) : (
         "Tout est traité"
       )}
@@ -77,7 +79,6 @@ export function ChiffreTitre() {
           · dont {c.enRetard} depuis plus de 2 jours
         </span>
       ) : null}
-      {c.aRepartir > 0 ? <span className="text-ink-3"> · {c.aRepartir} à répartir</span> : null}
     </span>
   );
 }

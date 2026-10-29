@@ -71,16 +71,16 @@ describe("chiffreATraiter : le chiffre unique de l'écran (décision 1, 29/10/20
     { id: "sans-boite", date: "2026-10-01" },
   ];
   it("la boîte de travail seulement, lus ou non ; la boîte perso ne compte pas", () => {
-    expect(chiffreATraiter(liste, boites, new Set(), { maintenant })).toEqual({ principal: 3, enRetard: 1, aRepartir: 0 });
+    expect(chiffreATraiter(liste, boites, new Set(), { maintenant })).toEqual({ principal: 3, enRetard: 1, aMoi: 0 });
   });
   it("baisse dès qu'un mail sort (traité, Comptabilité, Pas pour moi…)", () => {
-    expect(chiffreATraiter(liste, boites, new Set(["a", "b"]), { maintenant })).toEqual({ principal: 1, enRetard: 0, aRepartir: 0 });
+    expect(chiffreATraiter(liste, boites, new Set(["a", "b"]), { maintenant })).toEqual({ principal: 1, enRetard: 0, aMoi: 0 });
   });
   it("les mails non chargés (au-delà du plafond de lecture) comptent, en retard", () => {
     expect(chiffreATraiter(liste, boites, new Set(), { maintenant, horsListe: { "syndic2@real31.fr": 5, "moi@real31.fr": 9 } })).toEqual({
       principal: 8,
       enRetard: 6,
-      aRepartir: 0,
+      aMoi: 0,
     });
   });
   it("par onglet", () => {
@@ -110,7 +110,7 @@ describe("travailDistribue : le chiffre sans plafond, depuis le journal et les s
   });
 });
 
-describe("repartirChiffre : le chiffre personnel (révision de Sekou du 29/10/2026)", () => {
+describe("repartirChiffre : un seul chiffre, et la part « à moi » (Sekou, 29/10/2026)", () => {
   const entrees = [
     { etat: { attribueA: "moi" }, retard: true },
     { etat: { attribueA: "moi", horsChiffre: true }, retard: true },
@@ -118,11 +118,14 @@ describe("repartirChiffre : le chiffre personnel (révision de Sekou du 29/10/20
     { retard: false },
     { etat: { attribueA: "binome" }, retard: true },
   ];
-  it("provisoire (pas encore d'attribution) : le binôme, sans les mails en attente ou de côté", () => {
-    expect(repartirChiffre(entrees, { type: "provisoire" })).toEqual({ principal: 4, enRetard: 2, aRepartir: 0 });
+  it("provisoire (attribution illisible) : tout ce qui est à traiter, sans les mails en attente ou de côté", () => {
+    expect(repartirChiffre(entrees, { type: "provisoire" })).toEqual({ principal: 4, enRetard: 2, aMoi: 0 });
   });
-  it("attribution : à moi en principal, non attribués à répartir, ceux d'un autre nulle part", () => {
-    expect(repartirChiffre(entrees, { type: "attribution", moi: "moi" })).toEqual({ principal: 1, enRetard: 1, aRepartir: 2 });
+  it("attribution : le même chiffre (attribués ou non), et la part à moi pour l'onglet", () => {
+    expect(repartirChiffre(entrees, { type: "attribution", moi: "moi" })).toEqual({ principal: 4, enRetard: 2, aMoi: 1 });
+  });
+  it("personne n'a rien attribué : le chiffre n'est pas à 0 (« on comprend rien », 29/10)", () => {
+    expect(repartirChiffre([{ retard: false }, { etat: { attribueA: null }, retard: false }], { type: "attribution", moi: "moi" })).toEqual({ principal: 2, enRetard: 0, aMoi: 0 });
   });
   it("le chiffre de l'écran suit le même mode", () => {
     const boites = construireBoites("moi@real31.fr", "syndic2@real31.fr");
@@ -135,7 +138,7 @@ describe("repartirChiffre : le chiffre personnel (révision de Sekou du 29/10/20
       etatDe: (m) => ({ attribueA: m.id === "a" ? "moi" : null }),
       mode: { type: "attribution", moi: "moi" },
     });
-    expect(r).toEqual({ principal: 1, enRetard: 0, aRepartir: 1 });
+    expect(r).toEqual({ principal: 2, enRetard: 0, aMoi: 1 });
   });
 });
 
@@ -164,7 +167,7 @@ describe("chiffre personnel (ADR-053)", () => {
     expect(etatPourChiffre({ attributaire: null, horsATraiter: true })).toEqual({ attribueA: null, horsChiffre: true });
   });
 
-  it("une relance due compte pour qui l'a posée, sur la boîte de travail seulement", () => {
+  it("une relance due revient à traiter (à moi si je l'ai posée), sur la boîte de travail seulement", () => {
     const r = chiffreATraiter([mail("a", "syndic2@real31.fr")], boites, new Set(), {
       maintenant,
       mode: { type: "attribution", moi: "moi@real31.fr" },
@@ -174,6 +177,6 @@ describe("chiffre personnel (ADR-053)", () => {
         { boite: "moi@real31.fr", parEmail: "moi@real31.fr" },
       ],
     });
-    expect(r).toEqual({ principal: 1, enRetard: 0, aRepartir: 1 });
+    expect(r).toEqual({ principal: 3, enRetard: 0, aMoi: 1 });
   });
 });

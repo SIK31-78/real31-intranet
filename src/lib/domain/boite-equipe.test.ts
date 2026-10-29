@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   attributairesPossibles,
-  placeDansMesChiffres,
   echeanceAttente,
   echeanceDuChoix,
   etatAttente,
@@ -124,18 +123,12 @@ describe("un état de file suit le dossier, pas le mail", () => {
 });
 
 describe("filtres et chiffre", () => {
-  it("À moi / Non attribués / Tous", () => {
+  it("À moi : les miens seulement ; À traiter (« tous ») : tout", () => {
     expect(passeLeFiltre("a-moi", "Fanny.S@real31.fr", "fanny.s@real31.fr")).toBe(true);
     expect(passeLeFiltre("a-moi", null, "fanny.s@real31.fr")).toBe(false);
-    expect(passeLeFiltre("non-attribues", null, "fanny.s@real31.fr")).toBe(true);
-    expect(passeLeFiltre("non-attribues", "x@real31.fr", "fanny.s@real31.fr")).toBe(false);
+    expect(passeLeFiltre("a-moi", "x@real31.fr", "fanny.s@real31.fr")).toBe(false);
     expect(passeLeFiltre("tous", "x@real31.fr", "fanny.s@real31.fr")).toBe(true);
-  });
-
-  it("chiffre personnel : les miens, et à côté les non attribués à répartir", () => {
-    expect(placeDansMesChiffres("A@x", "a@x")).toBe("moi");
-    expect(placeDansMesChiffres(null, "a@x")).toBe("a-repartir");
-    expect(placeDansMesChiffres("b@x", "a@x")).toBeNull();
+    expect(passeLeFiltre("tous", null, "fanny.s@real31.fr")).toBe(true);
   });
 });
 

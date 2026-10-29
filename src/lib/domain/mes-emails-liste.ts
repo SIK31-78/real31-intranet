@@ -36,12 +36,12 @@ export function traitesAuChargement(
 // perso ne compte pas. Remplace le compteur de non-lus par onglet et la pastille rouge du
 // 27/10/2026, qui comptaient des non-lus (et l'écran marquait lu tout seul).
 //
-// Révision de Sekou (29/10/2026) : le chiffre est PERSONNEL. Avec l'attribution, le chiffre
-// principal = les mails attribués à moi ; les non attribués du binôme forment un second chiffre
-// discret (« 3 à répartir »), jamais dans le principal. Un mail « en attente » ou « de côté »
-// ne compte nulle part. Tant que l'attribution n'existe pas (mode « provisoire »), le principal
-// est le chiffre du binôme. L'état d'équipe de chaque mail (attributaire, en attente) vient d'un
-// service à part : le calcul le prend en entrée, il ne le lit pas.
+// Révision de Sekou (29/10/2026, soir) : UN SEUL chiffre, celui des mails à traiter, attribués
+// ou non. Le chiffre personnel (« à moi » en principal, « 3 à répartir » à côté) affichait
+// « Rien à traiter pour vous · 22 à répartir » au-dessus de 22 mails tant que personne n'avait
+// rien attribué : incompréhensible. « À moi » reste calculé, pour l'onglet du même nom. Un mail
+// « en attente » ou « de côté » ne compte nulle part. L'état d'équipe de chaque mail
+// (attributaire, en attente) vient d'un service à part : le calcul le prend en entrée.
 
 /** Au-delà de ce nombre de jours ouvrés d'attente, un mail est « en retard » (rouge). */
 export const SEUIL_RETARD_JOURS_OUVRES = 2;
@@ -83,14 +83,14 @@ export interface EtatEquipeMail {
   horsChiffre?: boolean;
 }
 
-/** « provisoire » : l'attribution n'existe pas encore, le chiffre est celui du binôme. */
+/** « provisoire » : l'attribution n'est pas lisible (tables absentes), pas de part « à moi ». */
 export type ModeChiffre = { type: "provisoire" } | { type: "attribution"; moi: string };
 
 export const MODE_PROVISOIRE: ModeChiffre = { type: "provisoire" };
 
 /**
- * Le mode du chiffre : personnel (« attribution ») dès que l'état d'équipe est lisible (tables
- * créées) et qu'on sait qui regarde ; sinon provisoire (le binôme). Adresse en minuscules.
+ * Le mode du chiffre : « attribution » (on compte la part « à moi ») dès que l'état d'équipe est
+ * lisible (tables créées) et qu'on sait qui regarde ; sinon provisoire. Adresse en minuscules.
  */
 export function modeChiffre(actif: boolean, moi: string | null | undefined): ModeChiffre {
   const m = moi?.trim().toLowerCase();
@@ -103,21 +103,21 @@ export function etatPourChiffre(e: Pick<EtatEquipeComplet, "attributaire" | "hor
 }
 
 /**
- * Une relance due compte comme un mail à traiter de la personne qui l'a posée (« Relancer si
- * pas de réponse », décision 9) : dans son chiffre, pas dans « à répartir ».
+ * Une relance due (« Relancer si pas de réponse », décision 9) revient dans « À traiter » ; elle
+ * est « à moi » pour la personne qui l'a posée.
  */
 export function entreeRelance(r: Pick<RelanceAffichee, "parEmail">): EntreeChiffre {
   return { etat: { attribueA: r.parEmail.trim().toLowerCase() }, retard: false };
 }
 
-/** Le chiffre, sa part en retard, et le second chiffre « à répartir ». */
+/** Le chiffre « À traiter », sa part en retard, et la part attribuée à moi (l'onglet « À moi »). */
 export interface ChiffreATraiter {
-  /** Le chiffre principal : à moi (le binôme en mode provisoire). */
+  /** LE chiffre : les mails à traiter du binôme, lus ou non, hors en attente / de côté. */
   principal: number;
   /** Dont en attente depuis plus de 2 jours ouvrés (le rouge). */
   enRetard: number;
-  /** Non attribués du binôme (0 en mode provisoire) : second chiffre discret, jamais additionné. */
-  aRepartir: number;
+  /** Dont attribués à moi (0 en mode provisoire) : le nombre de l'onglet « À moi », jamais le titre. */
+  aMoi: number;
 }
 
 /** Une entrée du calcul : un mail encore à traiter, son état d'équipe et son retard. */
@@ -129,17 +129,17 @@ export interface EntreeChiffre {
 /**
  * LA règle du chiffre, commune à l'écran et à la barre latérale. Chaque entrée est un mail de
  * la boîte de travail encore à traiter (ni traité ni parti). En attente / de côté : ignoré.
- * Mode attribution : à moi -> principal ; non attribué -> à répartir ; à un autre : nulle part.
+ * Un seul chiffre (Sekou, 29/10/2026, après la mise en ligne : « on comprend rien » avec un
+ * chiffre personnel à 0 et 22 mails dans la liste) : tout ce qui est à traiter, attribué ou
+ * non. Mode attribution : on compte en plus la part « à moi », pour l'onglet du même nom.
  */
 export function repartirChiffre(entrees: Iterable<EntreeChiffre>, mode: ModeChiffre): ChiffreATraiter {
-  const out: ChiffreATraiter = { principal: 0, enRetard: 0, aRepartir: 0 };
+  const out: ChiffreATraiter = { principal: 0, enRetard: 0, aMoi: 0 };
   for (const e of entrees) {
     if (e.etat?.horsChiffre) continue;
-    const qui = e.etat?.attribueA ?? null;
-    if (mode.type === "provisoire" || qui === mode.moi) {
-      out.principal++;
-      if (e.retard) out.enRetard++;
-    } else if (qui === null) out.aRepartir++;
+    out.principal++;
+    if (e.retard) out.enRetard++;
+    if (mode.type === "attribution" && e.etat?.attribueA === mode.moi) out.aMoi++;
   }
   return out;
 }

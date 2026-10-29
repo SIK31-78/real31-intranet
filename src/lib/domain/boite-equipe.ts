@@ -135,24 +135,15 @@ export function etatDeFileEnVigueur(stocke: CleMail & { dossierCle: string | nul
   return stocke.dossierCle === courant.dossierCle;
 }
 
-/** Le filtre « À moi / Non attribués / Tous » d'un mail de boîte commune. */
-export type FiltreAttribution = "a-moi" | "non-attribues" | "tous";
+/**
+ * L'onglet « À moi » d'un mail de boîte commune ; « tous » = l'onglet « À traiter ». Plus de
+ * « Non attribués » ni de « Tous » à part (Sekou, 29/10/2026 : une seule rangée d'onglets).
+ */
+export type FiltreAttribution = "a-moi" | "tous";
 
 export function passeLeFiltre(filtre: FiltreAttribution, attributaireEmail: string | null | undefined, moiEmail: string): boolean {
   if (filtre === "tous") return true;
-  if (!attributaireEmail) return filtre === "non-attribues";
-  return filtre === "a-moi" && minuscules(attributaireEmail) === minuscules(moiEmail);
-}
-
-/**
- * Où un mail « à traiter » compte, une fois l'attribution livrée (décision 1, révision de Sekou
- * du 29/10/2026 : le chiffre est PERSONNEL). « moi » : attribué à moi, le chiffre principal ;
- * « a-repartir » : non attribué, le second chiffre discret (« 3 à répartir ») ; null : attribué
- * à un collègue, dans aucun de mes chiffres. Le mail mis en attente ou de côté est sorti avant.
- */
-export function placeDansMesChiffres(attributaireEmail: string | null | undefined, moiEmail: string): "moi" | "a-repartir" | null {
-  if (!attributaireEmail) return "a-repartir";
-  return minuscules(attributaireEmail) === minuscules(moiEmail) ? "moi" : null;
+  return !!attributaireEmail && minuscules(attributaireEmail) === minuscules(moiEmail);
 }
 
 // --- Notes internes (décision 6) -------------------------------------------------------------

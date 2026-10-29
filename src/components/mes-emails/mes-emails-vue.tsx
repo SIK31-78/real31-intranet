@@ -23,7 +23,6 @@ import {
   CircleCheck,
   Archive,
   Reply,
-  ReplyAll,
   Trash2,
   ExternalLink,
   FolderPlus,
@@ -315,8 +314,8 @@ export function MesEmailsVue({
       const g = p.base === equipe ? p : { base: equipe, etats: new Map<string, EtatEquipeComplet>(), relancesLevees: new Set<string>() };
       return { ...g, relancesLevees: new Set(g.relancesLevees).add(cleRelance(r)) };
     });
-  // Le chiffre PERSONNEL dès que l'état d'équipe est lisible (à moi ; les non attribués « à
-  // répartir ») ; sinon celui du binôme. Les mails en attente / de côté n'y sont pas.
+  // Un seul chiffre, celui du binôme, attribués ou non (Sekou, 29/10/2026) ; la part « à moi »
+  // sert à l'onglet du même nom. Les mails en attente / de côté n'y sont pas.
   const optsChiffre = useMemo(
     () => ({
       maintenant,
@@ -416,7 +415,8 @@ export function MesEmailsVue({
   // « Envoyés » (REA-341) : vue en pilote, lecture seule du dossier Éléments envoyés.
   // « En attente » (ADR-053) : les mails mis de côté ou en attente datée, pour les reprendre.
   const [vue, setVue] = useState<"a_traiter" | "attente" | "envoyes">("a_traiter");
-  // Filtre de la boîte de travail (décision 5) : « À moi / Non attribués / Tous ».
+  // Onglet « À moi » de la boîte de travail (décision 5) ; « tous » = l'onglet « À traiter ».
+  // Une seule rangée d'onglets (29/10/2026) : À traiter, À moi, En attente, Envoyés.
   const [filtre, setFiltre] = useState<FiltreAttribution>("tous");
   // « Note interne » cliqué dans l'en-tête : le champ s'ouvre dans le bandeau jaune.
   const [ajoutNote, setAjoutNote] = useState(false);
@@ -684,6 +684,10 @@ export function MesEmailsVue({
   );
   // Combien attendent dans l'onglet (le libellé de la vue « En attente »).
   const nbEnAttente = equipe.actif ? mailsTries.filter((m) => !partis.has(m.id) && !classes.has(m.id) && etatEquipeDe(m.id)?.horsATraiter).length : 0;
+  // Le chiffre de la boîte affichée (boîte de travail seulement) : « À traiter N » et « À moi N ».
+  const chiffreOnglet = ongletDeTravail ? chiffreATraiter(data.mails, data.boites, sortis, { ...optsChiffre, onglet: boiteActive }) : null;
+  // L'onglet de la rangée unique : « À moi » est « À traiter » filtré sur moi.
+  const ongletVue: "a_traiter" | "a_moi" | "attente" | "envoyes" = vue === "a_traiter" && filtreActif && filtre === "a-moi" ? "a_moi" : vue;
   // Les relances dues de l'onglet, filtrées comme les mails (À moi : les miennes).
   const relancesOnglet = relancesActives.filter(
     (r) => ongletDe(data.boites, r.boite) === boiteActive && (!filtreActif || passeLeFiltre(filtre, r.parEmail, moi)),
@@ -773,12 +777,18 @@ export function MesEmailsVue({
         setBoiteActive(onglet);
         setSelId("");
       }
-      if (f === "a-moi" || f === "non-attribues" || f === "tous") setFiltre(f);
+      if (f === "a-moi" || f === "tous") setFiltre(f);
     });
   }, [boiteActive, data.boites]);
   function choisirFiltre(f: FiltreAttribution) {
     ecrireLocal(CLE_FILTRE, f);
     setFiltre(f);
+  }
+  function choisirOnglet(v: "a_traiter" | "a_moi" | "attente" | "envoyes") {
+    if (v === "a_traiter" || v === "a_moi") {
+      setVue("a_traiter");
+      choisirFiltre(v === "a_moi" ? "a-moi" : "tous");
+    } else setVue(v);
   }
 
   // Corbeille (REA-340) : seulement les mails cochés ENCORE visibles (un filtre a pu en
@@ -1153,10 +1163,11 @@ export function MesEmailsVue({
           {ongletsDe(data.boites).length > 1 && (
             <div role="tablist" aria-label="Boîte affichée" className="inline-flex rounded-md border border-line bg-surface-2 p-0.5">
               {ongletsDe(data.boites).map((b) => {
-                // Le chiffre unique, sur l'onglet de la boîte de travail seulement (la boîte perso ne
-                // compte pas, décision 1 du 29/10/2026). Rien d'affiché à 0. Couleur neutre.
-                const n = b.personnelle ? 0 : chiffreATraiter(data.mails, data.boites, sortis, { ...optsChiffre, onglet: b.id }).principal;
+                // Le chiffre d'une AUTRE boîte de travail (la boîte perso ne compte pas, décision 1 du
+                // 29/10/2026) ; celui de la boîte affichée est sur « À traiter », pas en double ici.
+                // Rien d'affiché à 0. Couleur neutre.
                 const actif = b.id === boiteActive;
+                const n = b.personnelle || actif ? 0 : chiffreATraiter(data.mails, data.boites, sortis, { ...optsChiffre, onglet: b.id }).principal;
                 return (
                   <button
                     key={b.id}
@@ -1183,54 +1194,45 @@ export function MesEmailsVue({
             <Input
               type="search"
               value={recherche}
-              onChange={(e) => setRecherche(e.target.value)}
+              onChange={(e) => {
+                setRecherche(e.target.value);
+                // La croix du champ (ou tout effacer) ramène à la boîte.
+                if (e.target.value === "") setFouille(null);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") lancerFouille();
+                if (e.key === "Escape") {
+                  setRecherche("");
+                  setFouille(null);
+                }
               }}
               placeholder="Copro (S247), personne, mot… · Entrée : chercher dans tous les échanges"
-              aria-label="Filtrer la boîte ; Entrée pour chercher dans tous les échanges"
+              aria-label="Filtrer la boîte ; Entrée pour chercher dans tous les échanges, Échap pour revenir"
+              title="Entrée : chercher dans tous les échanges, reçus et envoyés. Échap : revenir à la boîte."
               className="pl-8"
             />
           </div>
-          <Button onClick={lancerFouille} disabled={recherche.trim().length < 2} title="Chercher dans tous les échanges, reçus et envoyés">
-            <Search strokeWidth={1.5} />
-            Tous les échanges
-          </Button>
         </div>
+        {/* UNE rangée d'onglets, chacun avec son nombre (Sekou, 29/10/2026) : jusque-là deux
+            rangées côte à côte (« À traiter / En attente / Envoyés » et « À moi / Non attribués /
+            Tous ») qu'on ne comprenait pas. « À traiter » = tout ; « À moi » = attribués à moi
+            parmi eux. Le nombre de « À traiter » est celui du titre. */}
         {!fouille && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <SegmentedControl
-            label="Événements affichés"
-            size="sm"
-            value={vue}
-            onChange={(v) => v && setVue(v)}
-            options={[
-              // Plus de « · N » ici (29/10/2026) : c'était le nombre de mails CHARGÉS (40, 80), pas
-              // le travail qui reste. Le chiffre unique est à côté du titre et sur l'onglet.
-              { value: "a_traiter", label: "À traiter" },
-              // Les mails de côté ou en attente datée (ADR-053), pour les retrouver et les reprendre.
-              ...(equipe.actif
-                ? [{ value: "attente" as const, label: nbEnAttente ? `En attente · ${nbEnAttente}` : "En attente", title: "Mails mis de côté ou en attente d'une date" }]
-                : []),
-              ...(pilote ? [{ value: "envoyes" as const, label: "Envoyés", title: "Les 30 derniers mails partis de cette boîte" }] : []),
-            ]}
-          />
-          {/* Qui s'occupe de quoi (décision 5) : sur la boîte de travail, à la place de l'ancien
-              choix « collègues en haut / en bas ». « Tous » par défaut : rien n'est caché. */}
-          {filtreActif && vue === "a_traiter" ? (
+          <div className="flex">
             <SegmentedControl
-              label="Mails affichés selon l'attribution"
+              label="Mails affichés"
               size="sm"
-              value={filtre}
-              onChange={(v) => v && choisirFiltre(v)}
+              value={ongletVue}
+              onChange={(v) => v && choisirOnglet(v)}
               options={[
-                { value: "a-moi", label: "À moi" },
-                { value: "non-attribues", label: "Non attribués" },
-                { value: "tous", label: "Tous" },
+                { value: "a_traiter", label: chiffreOnglet ? `À traiter ${chiffreOnglet.principal}` : "À traiter", title: "Les mails à traiter de la boîte, attribués ou non" },
+                ...(filtreActif ? [{ value: "a_moi" as const, label: `À moi ${chiffreOnglet?.aMoi ?? 0}`, title: "Les mails à traiter qui me sont attribués" }] : []),
+                // Les mails de côté ou en attente datée (ADR-053), pour les retrouver et les reprendre.
+                ...(equipe.actif ? [{ value: "attente" as const, label: `En attente ${nbEnAttente}`, title: "Mails mis de côté ou en attente d'une date" }] : []),
+                ...(pilote ? [{ value: "envoyes" as const, label: "Envoyés", title: "Les 30 derniers mails partis de cette boîte" }] : []),
               ]}
             />
-          ) : null}
-        </div>
+          </div>
         )}
       </div>
 
@@ -1318,7 +1320,7 @@ export function MesEmailsVue({
                   </li>
                 ) : (
                   <li className="px-4 py-6 text-center text-body text-ink-3">
-                    {vue === "attente" ? "Aucun mail en attente ni de côté." : filtreActif && filtre !== "tous" ? "Aucun mail pour ce filtre." : "Aucun mail."}
+                    {vue === "attente" ? "Aucun mail en attente ni de côté." : ongletVue === "a_moi" ? "Aucun mail ne vous est attribué." : "Aucun mail."}
                   </li>
                 ))}
             </ul>
@@ -1532,7 +1534,7 @@ export function MesEmailsVue({
               {...(equipe.actif
                 ? {
                     actionsAttente: etatEquipeDe(selection.id)?.horsATraiter ? (
-                      <Button onClick={() => void reprendreMail(selection)} title="Le mail revient dans « À traiter »">
+                      <Button size="sm" onClick={() => void reprendreMail(selection)} title="Le mail revient dans « À traiter »">
                         <Undo2 strokeWidth={1.5} />
                         Reprendre
                       </Button>
@@ -1540,7 +1542,8 @@ export function MesEmailsVue({
                       <MenuAttente
                         key={`attente-${selection.id}`}
                         libelle="En attente"
-                        titre="Sortir le mail du chiffre : de côté (sans date) ou jusqu'à une date"
+                        titre="En attente : de côté (sans date) ou jusqu'à une date ; il sort du chiffre"
+                        icone
                         deCote
                         onChoisir={(c) => mettreEnAttenteMail(selection, c)}
                       />
@@ -1566,12 +1569,12 @@ export function MesEmailsVue({
                 <p className="text-body font-medium text-ink mt-3">Rien en attente</p>
                 <p className="text-body text-ink-3 mt-1">« En attente » dans la barre d&apos;un mail le met de côté, ou jusqu&apos;à une date.</p>
               </Card>
-            ) : filtreActif && filtre !== "tous" ? (
+            ) : ongletVue === "a_moi" ? (
               <Card className="px-6 py-16 text-center">
                 <Search strokeWidth={1.25} className="w-8 h-8 text-ink-3 mx-auto" />
                 <p className="text-body text-ink-3 mt-3">
-                  {filtre === "a-moi" ? "Aucun mail ne vous est attribué." : "Aucun mail non attribué."}
-                  {chiffre.aRepartir > 0 && filtre === "a-moi" ? ` ${chiffre.aRepartir} à répartir dans « Non attribués ».` : ""}
+                  Aucun mail ne vous est attribué.
+                  {chiffreOnglet && chiffreOnglet.principal > 0 ? ` ${chiffreOnglet.principal} à traiter dans « À traiter ».` : ""}
                 </p>
               </Card>
             ) : ongletDeTravail ? (
@@ -2272,21 +2275,71 @@ function AnalysePane({
       ? { libelle: "Envoyer et archiver", titre: `Envoie la réponse, puis archive le mail dans « ${dossierArchive ?? "le dossier choisi"} »` }
       : null;
 
+  // Boîte perso : le dossier où archiver. Dans la barre quand elle est assez large ; sinon sous
+  // le titre du mail (jamais une deuxième ligne de boutons dans la barre, 29/10/2026).
+  const choixDossier = classementOutlook ? (
+    <>
+      <Select
+        largeur="auto"
+        value={dossierIdChoisi}
+        onChange={(e) => onChoisirDossier(e.target.value)}
+        aria-label="Dossier Outlook où archiver le mail traité"
+        className="max-w-[200px]"
+      >
+        <option value="">{dossiers === null ? "Chargement des dossiers…" : "Archiver dans…"}</option>
+        {dossiers &&
+          (() => {
+            const { reception, autres } = grouperDossiersBoite(dossiers);
+            return (
+              <>
+                {reception.length > 0 && (
+                  <optgroup label="Sous-dossiers de la réception">
+                    {reception.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.nom}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {autres.length > 0 && (
+                  <optgroup label="Autres dossiers">
+                    {autres.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.nom}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </>
+            );
+          })()}
+      </Select>
+      {dossierACreer ? (
+        <Button size="sm" variant="ghost" onClick={onCreerDossierOutlook} title="Crée le sous-dossier dans votre boîte de réception">
+          <FolderPlus strokeWidth={1.5} />
+          Créer «&nbsp;{dossierACreer}&nbsp;»
+        </Button>
+      ) : null}
+    </>
+  ) : null;
+
   return (
     // overflow-clip et pas overflow-hidden : hidden ferait de la carte un conteneur de défilement
-    // et la barre d'actions ne resterait plus collée en haut de l'écran.
-    <Card className="overflow-clip">
-      {/* Barre d'actions TOUJOURS visible, collée en haut du volet (décision 3, 29/10/2026) :
-          jusque-là « Marquer traité » était en bas de la fiche, à une hauteur différente pour
-          chaque mail, souvent sous la ligne de flottaison. Les gestes du mail à gauche, les
-          gestes de fin à droite, « Traité » toujours au même endroit. */}
-      <div className="sticky top-0 z-10 bg-surface border-b border-line px-5 py-2 flex flex-wrap items-center gap-2">
-        <Button variant="doux" onClick={() => repondreEtEcrire(false)} disabled={ecrit} title={ecrit ? "La réponse est ouverte plus bas" : undefined}>
+    // et la barre d'actions ne resterait plus collée en haut de l'écran. @container : la barre et
+    // l'en-tête se règlent sur la largeur du volet (choix du dossier d'archivage).
+    <Card className="overflow-clip @container">
+      {/* Barre d'actions TOUJOURS visible, collée en haut du volet (décision 3, 29/10/2026), sur
+          UNE ligne à 1280 px (Sekou, 29/10/2026 : neuf boutons sur deux lignes, « on comprend
+          rien ») : à gauche Répondre, Répondre à tous, Transférer ; à droite « Traité » (ou
+          « Archiver »), toujours au même endroit ; entre les deux, de petites icônes avec
+          info-bulle, chacune en un clic comme avant : En attente, Je prends (sa flèche :
+          attribuer à…), Pas pour moi, Comptabilité (sa flèche : avec une note). */}
+      <div className="sticky top-0 z-10 bg-surface border-b border-line px-3 py-1.5 flex flex-wrap items-center gap-1">
+        <Button size="sm" variant="doux" onClick={() => repondreEtEcrire(false)} disabled={ecrit} title={ecrit ? "La réponse est ouverte plus bas" : undefined}>
           <Reply strokeWidth={1.75} />
           Répondre
         </Button>
-        <Button onClick={() => repondreEtEcrire(true)} disabled={ecrit}>
-          <ReplyAll strokeWidth={1.75} />
+        <Button size="sm" onClick={() => repondreEtEcrire(true)} disabled={ecrit}>
           Répondre à tous
         </Button>
         {pilote ? (
@@ -2299,59 +2352,36 @@ function AnalysePane({
             piecesJointes={m.attachments.length === 0 ? [] : piecesJointes}
             onTransfere={onTransfere}
             reformulation={reformulation !== null}
+            compact
           />
         ) : null}
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          {/* Emplacement de « Je prends / Attribuer à… » (décision 5) : rien tant que
-              l'attribution n'est pas livrée, aucun bouton factice. */}
-          {actionsAttribution}
-          {/* Emplacement de « En attente » / « De côté » (décision 9). */}
+        <div className="ml-auto flex items-center gap-0.5">
+          {/* « En attente » / « De côté » (décision 9), puis « Je prends / Attribuer à… » (décision 5). */}
           {actionsAttente}
+          {actionsAttribution}
+          {/* « Pas pour moi » et « Comptabilité » : deux gestes sans retour, en icônes, à
+              distance de « Traité ». */}
+          {!classementOutlook && onParti ? <PasPourMoi key={m.id} emailId={m.id} boite={boiteDuMail} onParti={onParti} compact /> : null}
+          {/* « Comptabilité » (28/10/2026) : pour le binôme. Une boîte regroupée sous un onglet
+              commun est le dossier Comptabilité vu par un comptable : le mail y est déjà. */}
+          {!classementOutlook && onParti && !boites.find((b) => b.id === boiteDuMail)?.onglet ? (
+            <EnvoyerEnComptabilite
+              key={`compta-${m.id}`}
+              emailId={m.id}
+              boite={boiteDuMail}
+              onParti={onParti}
+              compact
+              notePossible={notesComptabilite !== undefined}
+              {...(notesComptabilite ? { onNoteAjoutee: notesComptabilite } : {})}
+            />
+          ) : null}
+        </div>
+        <div className="ml-1 flex items-center gap-1">
           {classementOutlook ? (
             // Boîte perso : archiver = déplacer dans un dossier Outlook, qu'il faut choisir ; le
             // mail quitte la réception, donc la liste.
             <>
-              <Select
-                largeur="auto"
-                value={dossierIdChoisi}
-                onChange={(e) => onChoisirDossier(e.target.value)}
-                aria-label="Dossier Outlook où archiver le mail traité"
-                className="max-w-[200px]"
-              >
-                <option value="">{dossiers === null ? "Chargement des dossiers…" : "Archiver dans…"}</option>
-                {dossiers &&
-                  (() => {
-                    const { reception, autres } = grouperDossiersBoite(dossiers);
-                    return (
-                      <>
-                        {reception.length > 0 && (
-                          <optgroup label="Sous-dossiers de la réception">
-                            {reception.map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {d.nom}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                        {autres.length > 0 && (
-                          <optgroup label="Autres dossiers">
-                            {autres.map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {d.nom}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                      </>
-                    );
-                  })()}
-              </Select>
-              {dossierACreer ? (
-                <Button size="sm" variant="ghost" onClick={onCreerDossierOutlook} title="Crée le sous-dossier dans votre boîte de réception">
-                  <FolderPlus strokeWidth={1.5} />
-                  Créer «&nbsp;{dossierACreer}&nbsp;»
-                </Button>
-              ) : null}
+              <span className="hidden @min-[760px]:inline-flex items-center gap-1">{choixDossier}</span>
               <Button
                 variant={ecrit ? "secondary" : "primary"}
                 onClick={onValider}
@@ -2363,35 +2393,18 @@ function AnalysePane({
               </Button>
             </>
           ) : (
-            <>
-              {/* « Pas pour moi » et « Comptabilité » : visibles sans menu, mais en petit et en
-                  texte, à distance de « Traité » (deux gestes sans retour). */}
-              {onParti ? <PasPourMoi key={m.id} emailId={m.id} boite={boiteDuMail} onParti={onParti} compact /> : null}
-              {/* « Comptabilité » (28/10/2026) : pour le binôme. Une boîte regroupée sous un onglet
-                  commun est le dossier Comptabilité vu par un comptable : le mail y est déjà. */}
-              {onParti && !boites.find((b) => b.id === boiteDuMail)?.onglet ? (
-                <EnvoyerEnComptabilite
-                  key={`compta-${m.id}`}
-                  emailId={m.id}
-                  boite={boiteDuMail}
-                  onParti={onParti}
-                  compact
-                  notePossible={notesComptabilite !== undefined}
-                  {...(notesComptabilite ? { onNoteAjoutee: notesComptabilite } : {})}
-                />
-              ) : null}
-              <Button
-                variant={ecrit ? "secondary" : "primary"}
-                onClick={onConclure}
-                title="Le mail sort de « À traiter » pour tout le binôme ; il reste dans son dossier Outlook"
-              >
-                <CircleCheck strokeWidth={1.75} />
-                Traité
-              </Button>
-            </>
+            <Button
+              variant={ecrit ? "secondary" : "primary"}
+              onClick={onConclure}
+              title="Le mail sort de « À traiter » pour tout le binôme ; il reste dans son dossier Outlook"
+            >
+              <CircleCheck strokeWidth={1.75} />
+              Traité
+            </Button>
           )}
           {onSupprimer ? (
             <Button
+              size="sm"
               variant="ghost"
               iconOnly
               onClick={onSupprimer}
@@ -2413,6 +2426,7 @@ function AnalysePane({
           {statut !== "nouveau" ? <StatutBadge statut={statut} /> : null}
         </div>
         <EnTeteMail m={m} />
+        {choixDossier ? <div className="mt-2 flex flex-wrap items-center gap-1 @min-[760px]:hidden">{choixDossier}</div> : null}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1 text-meta">

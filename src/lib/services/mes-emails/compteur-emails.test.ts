@@ -55,7 +55,7 @@ afterEach(() => vi.useRealTimers());
 
 describe("compterMailsATraiter", () => {
   it("la boîte de travail seulement, sans plafond, lus ou non ; le vieux mail est en retard", async () => {
-    expect(await compterMailsATraiter(moi, opts)).toEqual({ principal: 89, enRetard: 1, aRepartir: 0, traitesAujourdhui: 1 });
+    expect(await compterMailsATraiter(moi, opts)).toEqual({ principal: 89, enRetard: 1, aMoi: 0, traitesAujourdhui: 1 });
   });
 
   it("garde le compte une minute, puis relit ; oublierCompteurEmails le relit tout de suite", async () => {
@@ -75,14 +75,14 @@ describe("compterMailsATraiter", () => {
     expect(await p).toBeNull();
   });
 
-  it("l'état d'équipe et le mode attribution donnent le chiffre personnel", async () => {
+  it("l'état d'équipe ne change pas le chiffre (attribués ou non) ; il donne la part à moi", async () => {
     const r = await compterMailsATraiter(moi, {
       ...opts,
       mode: { type: "attribution", moi: "u-moi" },
       etatEquipe: async (_b, ids) =>
         new Map(ids.map((id) => [id, id === "<p2>" ? { attribueA: "u-moi" } : id === "<vieux>" ? { attribueA: null } : { attribueA: "u-autre" }])),
     });
-    expect(r).toMatchObject({ principal: 1, enRetard: 0, aRepartir: 1 });
+    expect(r).toMatchObject({ principal: 89, enRetard: 1, aMoi: 1 });
   });
 
   it("en incarnation : la boîte partagée compte de même", async () => {
@@ -92,12 +92,12 @@ describe("compterMailsATraiter", () => {
 });
 
 describe("compterMailsATraiter : état d'équipe", () => {
-  it("tables absentes (lecture null) : chiffre provisoire du binôme, sans erreur", async () => {
+  it("tables absentes (lecture null) : le même chiffre, sans part à moi, sans erreur", async () => {
     const r = await compterMailsATraiter(moi, { ...opts, mode: { type: "attribution", moi: "moi@real31.fr" }, etatEquipe: async () => null, relances: async () => null });
-    expect(r).toMatchObject({ principal: 89, aRepartir: 0 });
+    expect(r).toMatchObject({ principal: 89, aMoi: 0 });
   });
 
-  it("une relance due posée par moi entre dans mon chiffre ; un mail de côté en sort", async () => {
+  it("une relance due entre dans le chiffre (à moi si je l'ai posée) ; un mail de côté en sort", async () => {
     const r = await compterMailsATraiter(moi, {
       ...opts,
       mode: { type: "attribution", moi: "moi@real31.fr" },
@@ -105,6 +105,6 @@ describe("compterMailsATraiter : état d'équipe", () => {
         new Map(ids.map((id) => [id, id === "<p2>" ? { attribueA: "moi@real31.fr" } : id === "<vieux>" ? { attribueA: "moi@real31.fr", horsChiffre: true } : { attribueA: "autre@real31.fr" }])),
       relances: async () => [{ etat: { attribueA: "moi@real31.fr" }, retard: false }],
     });
-    expect(r).toMatchObject({ principal: 2, enRetard: 0, aRepartir: 0 });
+    expect(r).toMatchObject({ principal: 89, enRetard: 0, aMoi: 2 });
   });
 });

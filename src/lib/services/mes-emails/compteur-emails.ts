@@ -15,10 +15,10 @@
 // réception, en général le même jour) ; la mise en service du tri se juge sur la date de
 // rangement. Sur l'écran E-mails lui-même, la pastille prend le chiffre de l'écran.
 //
-// Chiffre PERSONNEL (révision de Sekou du 29/10/2026, ADR-053) : `optionsEquipe` branche l'état
-// d'équipe (attribution, en attente / de côté) et les relances dues ; le principal devient « à
-// moi », les non attribués « à répartir ». Tant que les tables ne sont pas créées (lecture
-// null), le chiffre reste celui du binôme (provisoire), sans erreur.
+// État d'équipe (ADR-053) : `optionsEquipe` branche l'attribution, l'attente / de côté (hors du
+// chiffre) et les relances dues (dans le chiffre). Le chiffre reste celui du binôme, attribués
+// ou non (Sekou, 29/10/2026 : un seul chiffre) ; seule la part « à moi » dépend de qui regarde.
+// Tant que les tables ne sont pas créées (lecture null) : sans état d'équipe, sans erreur.
 
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import {
@@ -69,8 +69,8 @@ export interface OptionsCompteur {
 }
 
 /**
- * Le chiffre personnel de cette personne : l'état d'équipe et les relances dues lus dans les
- * tables de la boîte d'équipe (ADR-053). Sans les tables : provisoire (le binôme).
+ * L'état d'équipe et les relances dues de cette personne, lus dans les tables de la boîte
+ * d'équipe (ADR-053). Sans les tables : sans état d'équipe (ni attente, ni part à moi).
  */
 export function optionsEquipe(g: Pick<Personne, "email" | "role">): Pick<OptionsCompteur, "etatEquipe" | "relances" | "mode"> {
   const lecteur = { ...(g.email ? { email: g.email } : {}), ...(g.role ? { role: g.role } : {}) };
@@ -121,8 +121,8 @@ async function compter(g: Personne, opts: OptionsCompteur): Promise<CompteurEmai
       }),
   );
   const relances = opts.relances ? await opts.relances(boites) : [];
-  // Une lecture d'équipe impossible (tables absentes) : tout le monde au provisoire, sans les
-  // états partiels (un chiffre personnel à moitié serait faux).
+  // Une lecture d'équipe impossible (tables absentes) : sans aucun état d'équipe, plutôt que des
+  // états partiels (des attentes lues dans une boîte et pas dans l'autre).
   const equipeLue = relances !== null && parBoite.every((p) => p.equipeLue);
   const entrees = equipeLue ? [...parBoite.flatMap((p) => p.entrees), ...(relances ?? [])] : parBoite.flatMap((p) => p.entrees.map((e) => ({ retard: e.retard })));
   return {
