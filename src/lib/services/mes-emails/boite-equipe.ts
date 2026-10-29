@@ -46,7 +46,7 @@ export interface Acteur {
 }
 
 /** Fenêtre du journal relue pour situer un mail : celle de « E-mails » (boites-visibles). */
-const FENETRE_JOURS = 45;
+const FENETRE_JOURS = 90;
 const depuisFenetre = () => new Date(Date.now() - FENETRE_JOURS * 86_400_000).toISOString();
 const minuscules = (e: string) => e.trim().toLowerCase();
 
@@ -235,7 +235,14 @@ export async function supprimerNoteMail(acteur: Acteur, noteId: string, internet
  * une attente datée revient à la date ou dès qu'une réponse arrive dans le fil. Rend la date de
  * retour (null : de côté).
  */
-export async function mettreEnAttente(acteur: Acteur, boite: string, internetMessageId: string, choix: ChoixAttente): Promise<string | null> {
+export async function mettreEnAttente(
+  acteur: Acteur,
+  boite: string,
+  internetMessageId: string,
+  choix: ChoixAttente,
+  /** Le fil du mail quand le journal du tri ne le connaît pas (boîte perso : la liste l'a). */
+  conversationId?: string | null,
+): Promise<string | null> {
   const moi = emailDe(acteur);
   const maintenant = new Date();
   const e = echeanceDuChoix(choix, "attente", maintenant);
@@ -246,7 +253,7 @@ export async function mettreEnAttente(acteur: Acteur, boite: string, internetMes
     boite: ctx.boite,
     nature: "attente",
     jusquAu: e.jusquAu,
-    conversationId: ctx.conversationId,
+    conversationId: ctx.conversationId ?? (conversationId?.trim() || null),
     dossierCle: ctx.dossierCle ?? null,
     depuis: maintenant.toISOString(),
     parEmail: moi,

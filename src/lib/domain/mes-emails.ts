@@ -145,6 +145,9 @@ export interface MailEntrant {
   /** Arrivé par une délégation de portefeuille : « Fanny S. », le titulaire pour qui l'on répond
    *  (badge « Pour Fanny S. », complément d'ADR-041 du 27/10/2026). Absent : un mail à moi. */
   pour?: string;
+  /** Conversation Graph (le fil) : une réponse arrivée dans le fil ramène un mail en attente
+   *  (boîte perso surtout : les boîtes partagées le lisent dans le journal du tri, ADR-053). */
+  conversationId?: string;
   /** Lu / non lu (feeling boite mail ; passe a true a l'ouverture). */
   lu: boolean;
   /** Corps du mail (deja nettoye : sans l'historique cite, qui se charge a la demande). */

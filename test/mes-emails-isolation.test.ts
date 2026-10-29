@@ -67,7 +67,7 @@ vi.mock("@/lib/services/mes-emails/historique-mail", () => ({
 
 const { chargerHistoriqueAction, envoyerABonneCoproAction, lireEnvoyeAction, marquerTraiteAction } = await import("@/app/mes-emails/actions");
 const { boitesVisibles, mailsParDelegation } = await import("@/lib/services/mes-emails/boites-visibles");
-const { compterMailsATraiter } = await import("@/lib/services/mes-emails/compteur-emails");
+const { compterMailsATraiter, oublierCompteurEmails } = await import("@/lib/services/mes-emails/compteur-emails");
 
 const SYNDIC4 = "syndic4@real31.fr";
 const SYNDIC2 = "syndic2@real31.fr";
@@ -351,7 +351,28 @@ describe("comptables : le dossier « Comptabilité » de toutes les boîtes tri�
   });
 
   it("la pastille compte les mails « Comptabilité » des deux boîtes", async () => {
-    expect(await compterMailsATraiter(elsa, { superAdmin: false, incarnation: true })).toBe(2);
-    expect(await compterMailsATraiter(sophie, { superAdmin: false, incarnation: true })).toBe(1);
+    // Mode provisoire (sans les tables de la boîte d'équipe) : le chiffre du dossier.
+    expect((await compterMailsATraiter(elsa, { superAdmin: false, incarnation: true }))?.principal).toBe(2);
+    expect((await compterMailsATraiter(sophie, { superAdmin: false, incarnation: true }))?.principal).toBe(1);
+  });
+
+  it("chiffre personnel : les mails « Comptabilité » non attribués sont « à répartir », ceux à moi dans le chiffre", async () => {
+    const mode = { type: "attribution" as const, moi: "elsa@real31.fr" };
+    oublierCompteurEmails(elsa.id);
+    expect(await compterMailsATraiter(elsa, { superAdmin: false, incarnation: true, mode, etatEquipe: async () => new Map(), relances: async () => [] })).toMatchObject({
+      principal: 0,
+      aRepartir: 2,
+    });
+    oublierCompteurEmails(elsa.id);
+    expect(
+      await compterMailsATraiter(elsa, {
+        superAdmin: false,
+        incarnation: true,
+        mode,
+        etatEquipe: async (_b, ids) => new Map(ids.map((id) => [id, { attribueA: "elsa@real31.fr" }])),
+        relances: async () => [],
+      }),
+    ).toMatchObject({ principal: 2, aRepartir: 0 });
+    oublierCompteurEmails(elsa.id);
   });
 });

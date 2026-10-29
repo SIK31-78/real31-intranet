@@ -90,3 +90,21 @@ describe("compterMailsATraiter", () => {
     expect(etat.appelsBoites.at(-1)).toMatchObject({ sansBoitePerso: true });
   });
 });
+
+describe("compterMailsATraiter : état d'équipe", () => {
+  it("tables absentes (lecture null) : chiffre provisoire du binôme, sans erreur", async () => {
+    const r = await compterMailsATraiter(moi, { ...opts, mode: { type: "attribution", moi: "moi@real31.fr" }, etatEquipe: async () => null, relances: async () => null });
+    expect(r).toMatchObject({ principal: 89, aRepartir: 0 });
+  });
+
+  it("une relance due posée par moi entre dans mon chiffre ; un mail de côté en sort", async () => {
+    const r = await compterMailsATraiter(moi, {
+      ...opts,
+      mode: { type: "attribution", moi: "moi@real31.fr" },
+      etatEquipe: async (_b, ids) =>
+        new Map(ids.map((id) => [id, id === "<p2>" ? { attribueA: "moi@real31.fr" } : id === "<vieux>" ? { attribueA: "moi@real31.fr", horsChiffre: true } : { attribueA: "autre@real31.fr" }])),
+      relances: async () => [{ etat: { attribueA: "moi@real31.fr" }, retard: false }],
+    });
+    expect(r).toMatchObject({ principal: 2, enRetard: 0, aRepartir: 0 });
+  });
+});

@@ -82,7 +82,7 @@ export class SupabaseMesEmailsEtatRepository implements MesEmailsEtatRepository 
     if (!emailIds.length) return [];
     const sb = createSupabasePublicClient();
     // Par lots (29/10/2026) : le chiffre « À traiter » lit les statuts de TOUS les mails
-    // distribués (45 jours), plus seulement des 80 derniers ; une liste de plusieurs centaines
+    // distribués (90 jours), plus seulement des 80 derniers ; une liste de plusieurs centaines
     // d'identifiants dans une seule URL serait refusée.
     const lots = [];
     for (let i = 0; i < emailIds.length; i += LOT) lots.push(emailIds.slice(i, i + LOT));

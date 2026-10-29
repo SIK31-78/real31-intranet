@@ -8,6 +8,7 @@
 
 import type { MailEntrant, StatutTraitement } from "./mes-emails";
 import { ongletDe, type BoiteMail } from "./boites-mail";
+import type { EtatEquipeMail as EtatEquipeComplet, RelanceAffichee } from "./boite-equipe";
 
 /**
  * Les mails déjà traités au chargement, absents de « À traiter » (REA-422, 27/10/2026). Boîte
@@ -87,6 +88,28 @@ export type ModeChiffre = { type: "provisoire" } | { type: "attribution"; moi: s
 
 export const MODE_PROVISOIRE: ModeChiffre = { type: "provisoire" };
 
+/**
+ * Le mode du chiffre : personnel (« attribution ») dès que l'état d'équipe est lisible (tables
+ * créées) et qu'on sait qui regarde ; sinon provisoire (le binôme). Adresse en minuscules.
+ */
+export function modeChiffre(actif: boolean, moi: string | null | undefined): ModeChiffre {
+  const m = moi?.trim().toLowerCase();
+  return actif && m ? { type: "attribution", moi: m } : MODE_PROVISOIRE;
+}
+
+/** L'état d'équipe complet d'un mail (service d'attribution) réduit à ce que compte le chiffre. */
+export function etatPourChiffre(e: Pick<EtatEquipeComplet, "attributaire" | "horsATraiter">): EtatEquipeMail {
+  return { attribueA: e.attributaire ? e.attributaire.email.trim().toLowerCase() : null, horsChiffre: e.horsATraiter };
+}
+
+/**
+ * Une relance due compte comme un mail à traiter de la personne qui l'a posée (« Relancer si
+ * pas de réponse », décision 9) : dans son chiffre, pas dans « à répartir ».
+ */
+export function entreeRelance(r: Pick<RelanceAffichee, "parEmail">): EntreeChiffre {
+  return { etat: { attribueA: r.parEmail.trim().toLowerCase() }, retard: false };
+}
+
 /** Le chiffre, sa part en retard, et le second chiffre « à répartir ». */
 export interface ChiffreATraiter {
   /** Le chiffre principal : à moi (le binôme en mode provisoire). */
@@ -143,6 +166,8 @@ export function chiffreATraiter<M extends Pick<MailEntrant, "id" | "boite" | "re
     horsListe?: Readonly<Record<string, number>>;
     etatDe?: (m: M) => EtatEquipeMail | undefined;
     mode?: ModeChiffre;
+    /** Les relances dues (mails envoyés), avec leur boîte : comptées comme leur boîte. */
+    relances?: readonly Pick<RelanceAffichee, "boite" | "parEmail">[];
   },
 ): ChiffreATraiter {
   const dansOnglet = (boite: string) => opts.onglet === undefined || ongletDe(boites, boite) === opts.onglet;
@@ -154,6 +179,9 @@ export function chiffreATraiter<M extends Pick<MailEntrant, "id" | "boite" | "re
   }
   for (const [boite, n] of Object.entries(opts.horsListe ?? {})) {
     if (boiteDeTravail(boites, boite) && dansOnglet(boite)) for (let i = 0; i < n; i++) entrees.push({ retard: true });
+  }
+  for (const r of opts.relances ?? []) {
+    if (boiteDeTravail(boites, r.boite) && dansOnglet(r.boite)) entrees.push(entreeRelance(r));
   }
   return repartirChiffre(entrees, opts.mode ?? MODE_PROVISOIRE);
 }

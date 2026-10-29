@@ -15,12 +15,17 @@
 // réception, en général le même jour) ; la mise en service du tri se juge sur la date de
 // rangement. Sur l'écran E-mails lui-même, la pastille prend le chiffre de l'écran.
 //
-// Attribution (à venir) : `etatEquipe` (l'état d'équipe de chaque mail, fourni par le service
-// d'attribution) et `mode` (« attribution » + moi) suffisent à passer au chiffre personnel.
+// Chiffre PERSONNEL (révision de Sekou du 29/10/2026, ADR-053) : `optionsEquipe` branche l'état
+// d'équipe (attribution, en attente / de côté) et les relances dues ; le principal devient « à
+// moi », les non attribués « à répartir ». Tant que les tables ne sont pas créées (lecture
+// null), le chiffre reste celui du binôme (provisoire), sans erreur.
 
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import {
   enRetard,
+  entreeRelance,
+  etatPourChiffre,
+  modeChiffre,
   MODE_PROVISOIRE,
   repartirChiffre,
   travailDistribue,
@@ -32,7 +37,9 @@ import {
 import { recuDepuisDebutTri } from "@/lib/domain/mail-gate";
 import { getMesEmailsEtatRepository } from "@/lib/adapters/router";
 import { jourParis } from "@/lib/services/date-du-jour";
+import type { BoiteMail } from "@/lib/domain/boites-mail";
 import { boitesVisibles, distributionDatee } from "./boites-visibles";
+import { etatEquipeDesMails, relancesDesBoites } from "./boite-equipe";
 import { statutPartage, type StatutEcrit } from "./statut-partage";
 
 const TTL_MS = 60_000;
@@ -46,14 +53,45 @@ const cache = new Map<string, { valeur: CompteurEmails; expire: number }>();
 /** `role` : la pastille d'un comptable compte le dossier « Comptabilité » des boîtes triées (28/10/2026). */
 type Personne = Pick<Gestionnaire, "id" | "email" | "agencyId" | "role">;
 
-/** L'état d'équipe des mails d'une boîte (attribution, en attente) ; absent tant qu'il n'existe pas. */
-export type LireEtatEquipe = (boite: string, internetMessageIds: string[]) => Promise<ReadonlyMap<string, EtatEquipeMail>>;
+/** L'état d'équipe des mails d'une boîte (attribution, en attente) ; null = tables absentes. */
+export type LireEtatEquipe = (boite: string, internetMessageIds: string[]) => Promise<ReadonlyMap<string, EtatEquipeMail> | null>;
+
+/** Les relances dues des boîtes partagées (mails envoyés sans réponse) ; null = tables absentes. */
+export type LireRelances = (boites: BoiteMail[]) => Promise<EntreeChiffre[] | null>;
 
 export interface OptionsCompteur {
   superAdmin: boolean;
   incarnation: boolean;
   etatEquipe?: LireEtatEquipe;
+  relances?: LireRelances;
+  /** Le mode quand l'état d'équipe est lisible ; une lecture null ramène au provisoire. */
   mode?: ModeChiffre;
+}
+
+/**
+ * Le chiffre personnel de cette personne : l'état d'équipe et les relances dues lus dans les
+ * tables de la boîte d'équipe (ADR-053). Sans les tables : provisoire (le binôme).
+ */
+export function optionsEquipe(g: Pick<Personne, "email" | "role">): Pick<OptionsCompteur, "etatEquipe" | "relances" | "mode"> {
+  const lecteur = { ...(g.email ? { email: g.email } : {}), ...(g.role ? { role: g.role } : {}) };
+  return {
+    mode: modeChiffre(true, g.email),
+    etatEquipe: async (boite, ids) => {
+      const r = await etatEquipeDesMails(
+        ids.map((internetMessageId) => ({ internetMessageId, boite })),
+        { lecteur },
+      );
+      if (!r.actif) return null;
+      return new Map([...r.parMail].map(([id, e]) => [id, etatPourChiffre(e)]));
+    },
+    relances: async (boites) => {
+      const r = await relancesDesBoites(
+        boites.filter((b) => !b.personnelle).map((b) => ({ id: b.id, personnelle: false })),
+        { lecteur },
+      );
+      return r === null ? null : r.filter((x) => x.statut === "a-traiter").map(entreeRelance);
+    },
+  };
 }
 
 /** Le compte, sans cache ni délai : toutes les boîtes partagées en parallèle. */
@@ -69,7 +107,7 @@ async function compter(g: Personne, opts: OptionsCompteur): Promise<CompteurEmai
         const dates = await distributionDatee(g, b.adresse);
         // Rien d'avant la mise en service du tri (comme l'écran), jugé sur la date de rangement.
         const ids = [...dates].filter(([, faitLe]) => recuDepuisDebutTri(faitLe, b.adresse)).map(([id]) => id);
-        if (ids.length === 0) return { entrees: [] as EntreeChiffre[], traitesAujourdhui: 0 };
+        if (ids.length === 0) return { entrees: [] as EntreeChiffre[], traitesAujourdhui: 0, equipeLue: true };
         const statuts = await etats.getStatutsDesMails(ids);
         const parMail = new Map<string, StatutEcrit[]>();
         for (const l of statuts) parMail.set(l.emailId, [...(parMail.get(l.emailId) ?? []), l]);
@@ -79,14 +117,16 @@ async function compter(g: Personne, opts: OptionsCompteur): Promise<CompteurEmai
           const etat = equipe?.get(id);
           return { ...(etat ? { etat } : {}), retard: enRetard(dates.get(id), maintenant) };
         });
-        return { entrees, traitesAujourdhui: travail.traitesAujourdhui };
+        return { entrees, traitesAujourdhui: travail.traitesAujourdhui, equipeLue: !opts.etatEquipe || equipe !== null };
       }),
   );
+  const relances = opts.relances ? await opts.relances(boites) : [];
+  // Une lecture d'équipe impossible (tables absentes) : tout le monde au provisoire, sans les
+  // états partiels (un chiffre personnel à moitié serait faux).
+  const equipeLue = relances !== null && parBoite.every((p) => p.equipeLue);
+  const entrees = equipeLue ? [...parBoite.flatMap((p) => p.entrees), ...(relances ?? [])] : parBoite.flatMap((p) => p.entrees.map((e) => ({ retard: e.retard })));
   return {
-    ...repartirChiffre(
-      parBoite.flatMap((p) => p.entrees),
-      opts.mode ?? MODE_PROVISOIRE,
-    ),
+    ...repartirChiffre(entrees, equipeLue ? (opts.mode ?? MODE_PROVISOIRE) : MODE_PROVISOIRE),
     traitesAujourdhui: parBoite.reduce((n, p) => n + p.traitesAujourdhui, 0),
   };
 }

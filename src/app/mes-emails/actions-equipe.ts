@@ -198,15 +198,23 @@ export async function supprimerNoteAction(emailId: string, boite: string, noteId
  * « En attente » d'un mail REÇU : « de-cote » (sans date), « demain », « 3-jours », « semaine »
  * ou { jour: "AAAA-MM-JJ" }. Rend la date de retour (null : de côté).
  */
-export async function mettreEnAttenteAction(emailId: string, boite: string | undefined, choix: unknown): Promise<Res<{ jusquAu: string | null }>> {
-  const v = z.object({ emailId: zId, boite: zBoite.optional(), choix: zChoixAttente }).safeParse({ emailId, boite, choix });
+export async function mettreEnAttenteAction(
+  emailId: string,
+  boite: string | undefined,
+  choix: unknown,
+  /** Le fil du mail (liste), pour la boîte perso que le journal du tri ne connaît pas. */
+  conversationId?: string,
+): Promise<Res<{ jusquAu: string | null }>> {
+  const v = z
+    .object({ emailId: zId, boite: zBoite.optional(), choix: zChoixAttente, conversationId: z.string().trim().min(1).max(600).optional() })
+    .safeParse({ emailId, boite, choix, conversationId });
   if (!v.success) return echec("Données invalides.");
   const g = await getGestionnaireCourant();
   if (!g) return echec("Non connecté.");
   const cible = await boiteDuMail(g, v.data.boite, v.data.emailId);
   if (!cible) return echec(REFUS_MAIL);
   try {
-    const jusquAu = await mettreEnAttente(g, cible, v.data.emailId, v.data.choix);
+    const jusquAu = await mettreEnAttente(g, cible, v.data.emailId, v.data.choix, v.data.conversationId);
     oublierCompteurEmails(g.id);
     return { ok: true, donnees: { jusquAu } };
   } catch (e) {

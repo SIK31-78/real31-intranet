@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   chiffreATraiter,
   enRetard,
+  etatPourChiffre,
   joursOuvresEcoules,
+  modeChiffre,
   marqueLu,
   repartirChiffre,
   traitesAuChargement,
@@ -143,5 +145,35 @@ describe("marqueLu : lu seulement quand on ouvre le mail (décision 2)", () => {
     expect(marqueLu("reponse", false)).toBe(true);
     expect(marqueLu("affichage", false)).toBe(false);
     expect(marqueLu("clic", true)).toBe(false);
+  });
+});
+
+describe("chiffre personnel (ADR-053)", () => {
+  const boites = construireBoites("moi@real31.fr", "syndic2@real31.fr");
+  const maintenant = new Date("2026-10-29T10:00:00Z");
+  const mail = (id: string, boite: string) => ({ id, boite, recuLe: "2026-10-29T08:00:00Z", date: "2026-10-29" });
+
+  it("modeChiffre : personnel seulement si l'état d'équipe est lisible et qu'on sait qui regarde", () => {
+    expect(modeChiffre(true, " Moi@Real31.fr ")).toEqual({ type: "attribution", moi: "moi@real31.fr" });
+    expect(modeChiffre(false, "moi@real31.fr")).toEqual({ type: "provisoire" });
+    expect(modeChiffre(true, "")).toEqual({ type: "provisoire" });
+  });
+
+  it("etatPourChiffre : l'attributaire en minuscules, l'attente hors du chiffre", () => {
+    expect(etatPourChiffre({ attributaire: { email: "Elsa@real31.fr", nomComplet: "Elsa", initiales: "EP" }, horsATraiter: false })).toEqual({ attribueA: "elsa@real31.fr", horsChiffre: false });
+    expect(etatPourChiffre({ attributaire: null, horsATraiter: true })).toEqual({ attribueA: null, horsChiffre: true });
+  });
+
+  it("une relance due compte pour qui l'a posée, sur la boîte de travail seulement", () => {
+    const r = chiffreATraiter([mail("a", "syndic2@real31.fr")], boites, new Set(), {
+      maintenant,
+      mode: { type: "attribution", moi: "moi@real31.fr" },
+      relances: [
+        { boite: "syndic2@real31.fr", parEmail: "Moi@real31.fr" },
+        { boite: "syndic2@real31.fr", parEmail: "autre@real31.fr" },
+        { boite: "moi@real31.fr", parEmail: "moi@real31.fr" },
+      ],
+    });
+    expect(r).toEqual({ principal: 1, enRetard: 0, aRepartir: 1 });
   });
 });

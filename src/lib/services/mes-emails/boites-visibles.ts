@@ -37,8 +37,9 @@ import { titulairesDelegants } from "./delegations-mail";
 /** La personne : son id sert a lire ses delegations (sans id, aucune), son role a reconnaitre un comptable. */
 type Personne = Pick<Gestionnaire, "email" | "agencyId" | "role"> & { id?: string };
 
-/** Fenetre du journal relue : les rangements des 45 derniers jours. */
-const FENETRE_JOURS = 45;
+/** Fenetre du journal relue : les rangements des 90 derniers jours (45 jusqu'au 29/10/2026 : un mail
+ * non traité depuis plus d'un mois et demi sortait du chiffre sans prévenir). */
+const FENETRE_JOURS = 90;
 
 /**
  * Ma boite perso, puis la boite triee de mon agence (aucune si mon agence n'a pas de boite),

@@ -404,3 +404,50 @@ export function etatEquipe(p: {
     relanceDue: attente?.nature === "relance" && etat?.statut === "a-traiter",
   };
 }
+
+// --- Ce que l'écran E-mails reçoit du serveur -----------------------------------------------
+
+/**
+ * Une relance due (mail ENVOYÉ, date passée, pas de réponse) telle que l'écran l'affiche en tête
+ * de « À traiter » : « Relance : pas de réponse depuis le … ». L'objet et les destinataires
+ * viennent d'Outlook (le mail envoyé), lus à l'affichage ; rien n'est stocké de son contenu.
+ */
+export interface RelanceAffichee {
+  internetMessageId: string;
+  boite: string;
+  conversationId: string | null;
+  /** ISO : l'envoi du mail (« pas de réponse depuis le … »). */
+  envoyeLe: string;
+  /** ISO : la date de relance, passée. */
+  jusquAu: string;
+  /** Qui l'a posée (en minuscules) : son chiffre personnel. */
+  parEmail: string;
+  parInitiales: string;
+  /** « (mail envoyé) » si Outlook n'a pas pu le relire. */
+  objet: string;
+  a: string[];
+  lienOutlook?: string;
+}
+
+/**
+ * L'état d'équipe de l'écran E-mails, calculé côté serveur au chargement (et à chaque
+ * actualisation). `actif` false : les tables ne sont pas créées, l'écran se comporte comme
+ * avant (aucun bouton d'équipe, chiffre provisoire du binôme).
+ */
+export interface EquipeEcran {
+  actif: boolean;
+  /** L'adresse de la personne connectée, en minuscules (« À moi », chiffre personnel). */
+  moi: string;
+  /** Les mails affichés qui ont un état (attribués, annotés, en attente) ; absent = rien. */
+  etats: EtatEquipeMail[];
+  relances: RelanceAffichee[];
+}
+
+export const EQUIPE_INACTIVE: EquipeEcran = { actif: false, moi: "", etats: [], relances: [] };
+
+/** « jeudi 30 oct. » : la date de retour d'une attente, lisible dans un menu ou une ligne. */
+export function libelleRetour(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return d.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "short" });
+}

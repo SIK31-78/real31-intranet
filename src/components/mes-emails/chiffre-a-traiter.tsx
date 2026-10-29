@@ -65,6 +65,9 @@ export function ChiffreTitre() {
         <>
           <span className="text-title font-semibold text-ink">{c.principal}</span> à traiter
         </>
+      ) : c.aRepartir > 0 ? (
+        // Chiffre personnel à 0, mais des mails du binôme ne sont à personne (ADR-053).
+        "Rien à traiter pour vous"
       ) : (
         "Tout est traité"
       )}

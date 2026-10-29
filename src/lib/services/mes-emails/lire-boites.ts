@@ -270,6 +270,7 @@ export async function lireBoitesLive(
       id: m.internetMessageId || m.id,
       boite: boiteDe.get(m.id) ?? boites[0]!.id,
       ...(pourDe.has(m.id) ? { pour: pourDe.get(m.id)! } : {}),
+      ...(m.conversationId ? { conversationId: m.conversationId } : {}),
       de: m.fromName || nomCourt(m.from),
       // L'adresse réelle, même d'un collègue : on doit pouvoir lui répondre (comme Outlook).
       expediteurEmail: m.from,
