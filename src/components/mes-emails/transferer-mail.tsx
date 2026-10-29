@@ -5,7 +5,7 @@
 // « Envoyer un e-mail » ; les pièces jointes d'origine partent avec (createForward de
 // Graph), depuis la boîte qui détient le mail.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Forward, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
@@ -88,6 +88,13 @@ function FenetreTransfert({
   const [corps, setCorps] = useState("");
   const [enCours, setEnCours] = useState(false);
   const confirmer = useConfirm();
+  // Un clic sur « Transférer » = on tape le destinataire (comme Outlook) : le curseur va
+  // dans « À », pas sur la croix de la fenêtre. Cet effet passe après celui de la fenêtre
+  // (enfant), qui pose le focus sur le premier élément focusable.
+  const champA = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    champA.current?.querySelector<HTMLInputElement>("input")?.focus();
+  }, []);
   // Une saisie en cours ne se perd ni d'un clic à côté, ni d'Échap, ni en fermant l'onglet.
   const saisieEnCours = Boolean(a.length || cc.length || corps.trim());
   useAlerteSortie(saisieEnCours);
@@ -155,7 +162,9 @@ function FenetreTransfert({
               Boîte partagée : tant que l&apos;envoi n&apos;y est pas ouvert, le transfert reste en brouillon dans Outlook, à relire puis envoyer.
             </p>
           ) : null}
-          <ChampPersonnes champ="a" label="À" personnes={a} onChange={setA} onDeplacer={deplacer} placeholder="Nom du collègue ou de la personne (ou une adresse)…" />
+          <div ref={champA}>
+            <ChampPersonnes champ="a" label="À" personnes={a} onChange={setA} onDeplacer={deplacer} placeholder="Nom du collègue ou de la personne (ou une adresse)…" />
+          </div>
           <ChampPersonnes champ="cc" label="Cc" personnes={cc} onChange={setCc} onDeplacer={deplacer} placeholder="Nom ou adresse…" />
           <p className="text-body text-ink-2">
             <span className="text-ink-3">Objet : </span>TR: {objet}
