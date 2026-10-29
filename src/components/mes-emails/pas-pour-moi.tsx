@@ -95,8 +95,9 @@ export function PasPourMoi({ emailId, boite, onParti, compact = false }: { email
   return (
     <>
       {compact ? (
-        <Button size="sm" variant="ghost" iconOnly onClick={ouvrir} aria-label="Pas pour moi" title="Pas pour moi : rangé chez vous par erreur, l'envoyer au binôme de la bonne copropriété">
+        <Button size="sm" variant="ghost" onClick={ouvrir} title="Pas pour moi : rangé chez vous par erreur, l'envoyer au binôme de la bonne copropriété">
           <UserX strokeWidth={1.5} />
+          Pas pour moi
         </Button>
       ) : (
         <Button size="lg" variant="secondary" onClick={ouvrir} title="Ce mail a été rangé chez vous par erreur : l'envoyer au binôme de la bonne copropriété">

@@ -64,13 +64,12 @@ export function EnvoyerEnComptabilite({
     <Button
       size="sm"
       variant="ghost"
-      iconOnly
       onClick={() => envoyer()}
       loading={enCours}
-      aria-label="Comptabilité"
       title="Comptabilité : envoyer ce mail dans le dossier Comptabilité de la boîte partagée"
     >
       {enCours ? null : <Calculator strokeWidth={1.5} />}
+      Compta
     </Button>
   ) : (
     <Button size="lg" variant="secondary" onClick={() => envoyer()} disabled={enCours} title="Envoyer ce mail dans le dossier Comptabilité de la boîte partagée">

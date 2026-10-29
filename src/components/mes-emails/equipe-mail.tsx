@@ -112,9 +112,11 @@ export function PastilleAttributaire({ membre, moi, taille = "sm" }: { membre: M
 /**
  * L'icône « Je prends » + la petite flèche « Attribuer à… ». Un clic sur l'icône suffit (le mail
  * est à moi) ; la flèche ouvre la liste des personnes possibles (binôme, ou comptables en
- * Comptabilité), une note facultative et « Retirer l'attribution ». Mail déjà attribué :
- * l'icône montre les initiales ; un clic le prend s'il est à un autre, ouvre le menu (changer,
- * retirer) s'il est à moi. La note ne coûte rien quand on l'ignore : le champ est dans le menu.
+ * Comptabilité) et « Retirer l'attribution ». Mail déjà attribué : l'icône montre les
+ * initiales ; un clic le prend s'il est à un autre, ouvre le menu (changer, retirer) s'il est à
+ * moi. Une fois la personne choisie, le menu propose une note (Sekou, 29/10/2026 : « je choisis
+ * WHT, ensuite ça me propose de mettre une note ») : l'attribution est déjà faite, l'ignorer ne
+ * coûte aucun clic.
  */
 export function BoutonsAttribution({
   emailId,
@@ -139,6 +141,8 @@ export function BoutonsAttribution({
   const [ouvert, setOuvert] = useState(false);
   const [possibles, setPossibles] = useState<MembreEquipe[] | null>(null);
   const [note, setNote] = useState("");
+  /** La personne qu'on vient de choisir : le menu passe à la note pour elle. */
+  const [noteApres, setNoteApres] = useState<MembreEquipe | null>(null);
   const [enCours, setEnCours] = useState(false);
   const amoi = attributaire !== null && memeAdresse(attributaire.email, moi.email);
 
@@ -152,8 +156,15 @@ export function BoutonsAttribution({
     }
   }
 
+  function fermer() {
+    setOuvert(false);
+    setNoteApres(null);
+    setNote("");
+  }
+
   function ouvrir() {
-    setOuvert((o) => !o);
+    if (ouvert) return fermer();
+    setOuvert(true);
     if (possibles === null) {
       void attributairesAction(emailId, boite).then((r) => {
         if (r.ok) setPossibles(r.donnees ?? []);
@@ -168,18 +179,27 @@ export function BoutonsAttribution({
   async function attribuer(cible: MembreEquipe) {
     setEnCours(true);
     try {
-      // La note d'abord : elle se lit avec le mail, quel que soit l'attributaire.
-      if (note.trim()) {
-        const n = await ajouterNoteAction(emailId, boite, note);
-        if (!n.ok) return void toast.err(n.erreur);
-        onNoteAjoutee();
-        setNote("");
-      }
       const r = await attribuerMailAction(emailId, boite, cible.email);
       if (!r.ok) return void toast.err(r.erreur);
       onAttribue(r.donnees ?? cible);
-      toast.ok(memeAdresse(cible.email, moi.email) ? "Le mail est à vous." : `Attribué à ${cible.nomComplet}.`);
-      setOuvert(false);
+      const pourMoi = memeAdresse(cible.email, moi.email);
+      toast.ok(pourMoi ? "Le mail est à vous." : `Attribué à ${cible.nomComplet}.`);
+      // Confié à quelqu'un d'autre : on propose d'expliquer le mail. À soi-même, rien à dire.
+      if (!pourMoi && notesPossibles) setNoteApres(r.donnees ?? cible);
+      else fermer();
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  async function enregistrerNote() {
+    if (!note.trim()) return fermer();
+    setEnCours(true);
+    try {
+      const n = await ajouterNoteAction(emailId, boite, note);
+      if (!n.ok) return void toast.err(n.erreur);
+      onNoteAjoutee();
+      fermer();
     } finally {
       setEnCours(false);
     }
@@ -220,12 +240,46 @@ export function BoutonsAttribution({
           </span>
         </Button>
       ) : (
-        <Button size="sm" variant="ghost" iconOnly onClick={() => void prendre()} aria-label="Je prends" title="Je prends : ce mail est à moi (la flèche : attribuer à…)">
+        <Button size="sm" variant="ghost" onClick={() => void prendre()} title="Je prends : ce mail est à moi (la flèche : attribuer à…)">
           <Hand strokeWidth={1.5} />
+          Je prends
         </Button>
       )}
-      <FlecheMenu label="Attribuer à…" title="Attribuer à… (avec une note si besoin)" ouvert={ouvert} onClick={ouvrir} />
-      <Deroulant ouvert={ouvert} onFermer={() => setOuvert(false)}>
+      <FlecheMenu label="Attribuer à…" title="Attribuer à… (puis une note si besoin)" ouvert={ouvert} onClick={ouvrir} />
+      <Deroulant ouvert={ouvert} onFermer={fermer}>
+        {noteApres ? (
+          <form
+            className="px-3 pt-1 pb-1 flex flex-col gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void enregistrerNote();
+            }}
+          >
+            <p className="flex items-center gap-1.5 text-meta text-ink-2">
+              <Check strokeWidth={2} className="w-3.5 h-3.5 text-green-700" />
+              Attribué à {noteApres.nomComplet}
+            </p>
+            <Textarea
+              autoFocus
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={NOTE_LONGUEUR_MAX}
+              rows={3}
+              placeholder="Un mot pour expliquer le mail ? (interne, jamais envoyé)"
+              aria-label="Note interne pour la personne à qui le mail est attribué (facultatif)"
+            />
+            <div className="flex justify-end gap-1.5">
+              <Button size="sm" variant="ghost" type="button" onClick={fermer} disabled={enCours}>
+                Sans note
+              </Button>
+              <Button size="sm" variant="primary" type="submit" disabled={!note.trim()} loading={enCours}>
+                <StickyNote strokeWidth={1.5} />
+                Ajouter la note
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <>
         <p className="px-3 pt-1 pb-1.5 text-meta text-ink-3">Attribuer à…</p>
         {possibles === null ? (
           <p className="px-3 py-1.5 text-meta text-ink-3">Chargement…</p>
@@ -240,18 +294,6 @@ export function BoutonsAttribution({
             </Entree>
           ))
         )}
-        {notesPossibles ? (
-          <div className="px-3 pt-2 pb-1 border-t border-line mt-1">
-            <Textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              maxLength={NOTE_LONGUEUR_MAX}
-              rows={2}
-              placeholder="Note interne pour l'équipe (facultatif)"
-              aria-label="Note interne jointe à l'attribution (facultatif)"
-            />
-          </div>
-        ) : null}
         {attributaire ? (
           <div className="border-t border-line mt-1 pt-1">
             <Entree onClick={() => void retirer()} disabled={enCours}>
@@ -260,6 +302,8 @@ export function BoutonsAttribution({
             </Entree>
           </div>
         ) : null}
+          </>
+        )}
       </Deroulant>
     </div>
   );
@@ -308,8 +352,9 @@ export function MenuAttente({
   return (
     <div className="relative inline-flex">
       {icone ? (
-        <Button size="sm" variant="ghost" iconOnly onClick={() => setOuvert((o) => !o)} aria-expanded={ouvert} aria-label={libelle} title={titre}>
+        <Button size="sm" variant="ghost" onClick={() => setOuvert((o) => !o)} aria-expanded={ouvert} title={titre}>
           <CalendarClock strokeWidth={1.5} />
+          {libelle}
         </Button>
       ) : (
         <Button size={taille} onClick={() => setOuvert((o) => !o)} aria-expanded={ouvert} title={titre}>
