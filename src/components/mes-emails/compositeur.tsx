@@ -7,6 +7,11 @@
 // Avec le conseil syndical, l'autre membre du binôme de la copro arrive en Cc, comme sur Crypto
 // (28/10/2026) : retirable d'un clic, et retiré de lui-même si plus aucun membre du CS n'est en « À ».
 // L'objet est taggé par la copro (code · nom) pour le tri.
+// Taper le code d'une copro dans « À » (« S247 ») propose « Conseil syndical · S247 … » et
+// « Toute la copropriété · S247 … » : un clic remplit copro, destinataires, objet et copie au
+// binôme (décision 11, 29/10/2026 : 3 clics au lieu de 8). Avec deux destinataires ou plus en
+// « À », « Envoyer séparément » fait un mail par personne (décision 10). Les collègues passent
+// en tête de l'autocomplétion, et l'adresse perso d'un collègue se fait confirmer (décision 14).
 // Pièces jointes et signature (Signitic) partent avec. Le bouton ENVOIE quand l'envoi depuis
 // la boîte partagée est ouvert (MAIL_ENVOI=on) ; sinon il crée un BROUILLON, relu puis
 // envoyé depuis Outlook (ADR-047). Fichiers et destinataires se glissent-déposent. Les
@@ -15,7 +20,8 @@
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { Building2, Paperclip, Users, X } from "lucide-react";
 import { Button, classesBouton } from "@/components/ui/button";
-import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { Choix, Field, Input, Select, Textarea } from "@/components/ui/field";
+import { Badge } from "@/components/ui/badge";
 import { Callout } from "@/components/ui/callout";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
@@ -24,7 +30,10 @@ import {
   adressesTouteLaCopro,
   controleTouteLaCopro,
   enLots,
+  envoisSepares,
   fusionnerModele,
+  phraseEnvoisSepares,
+  raccourcisCopro,
   sansPolitesseEnDouble,
   objetCompose,
   prefixeObjetCopro,
@@ -37,11 +46,15 @@ import {
   type CoproChoisissable,
   type DestinataireTrouve,
   type ModeleMail,
+  type NatureRaccourciCopro,
+  type RaccourciCopro,
   type VariablesModele,
 } from "@/lib/domain/mes-emails-composition";
+import { alertesAdressePersonnelle, type Collegue } from "@/lib/domain/destinataires-collegues";
 import {
   abandonnerCompositionAction,
   finaliserCompositionAction,
+  listerColleguesAction,
   listerContactsCompositionAction,
   listerDossiersCompositionAction,
   preparerCompositionAction,
@@ -138,6 +151,37 @@ function suggestionCopro(proposees: readonly CoproChoisissable[]): string {
 
 export const adresses = (l: Personne[]) => [...new Set(l.flatMap((p) => p.emails.map((e) => e.toLowerCase())))];
 
+/**
+ * Les collègues (adresses REAL31), lus une fois à l'ouverture : de quoi reconnaître à l'envoi
+ * l'adresse personnelle d'un collègue (décision 14). Lecture ratée : liste vide, rien ne bloque.
+ */
+export function useCollegues(): Collegue[] {
+  const [liste, setListe] = useState<Collegue[]>([]);
+  useEffect(() => {
+    let vivant = true;
+    void listerColleguesAction().then((r) => {
+      if (vivant && r.ok) setListe(r.donnees ?? []);
+    });
+    return () => {
+      vivant = false;
+    };
+  }, []);
+  return liste;
+}
+
+/** « Collègue » (salarié, adresse REAL31) ou « Client » (fiche d'annuaire au nom d'un collègue). */
+export function BadgeDestinataire({ genre }: { genre: DestinataireTrouve["genre"] }) {
+  if (genre === "collegue") return <Badge ton="neutral">Collègue</Badge>;
+  if (genre === "client") {
+    return (
+      <Badge ton="warn" title="Fiche de client (copropriétaire…) au nom d'un collègue : pas son adresse REAL31">
+        Client
+      </Badge>
+    );
+  }
+  return null;
+}
+
 export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine, modeles, pilote = false, reformulation = false, onSaisie }: Props) {
   const toast = useToast();
   const confirmer = useConfirm();
@@ -176,10 +220,21 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   // Garde anti-course : seule la DERNIÈRE copro choisie peut remplir CS et dossiers.
   const derniereCopro = useRef("");
+  const collegues = useCollegues();
+  // Envoi séparé (décision 10) : un mail par personne en « À », chacun ne voit que lui.
+  const [separe, setSepare] = useState(false);
+  const champObjet = useRef<HTMLInputElement>(null);
+  // Les destinataires au moment présent, pour ce qui arrive après un chargement (raccourci copro).
+  const etat = useRef({ a, cc });
+  useEffect(() => {
+    etat.current = { a, cc };
+  }, [a, cc]);
 
   const copro = useMemo(() => copros.find((c) => c.reference.toUpperCase() === refCopro.trim().toUpperCase()) ?? proposees.find((c) => c.reference === refCopro) ?? null, [copros, proposees, refCopro]);
 
-  function choisirCopro(ref: string) {
+  // `ensuite` : le raccourci tapé dans « À » (« Conseil syndical · S247 ») à appliquer dès que
+  // les contacts de la copro sont chargés.
+  function choisirCopro(ref: string, ensuite?: NatureRaccourciCopro) {
     const nouvelle = copros.find((x) => x.reference.toUpperCase() === ref.trim().toUpperCase()) ?? proposees.find((x) => x.reference === ref) ?? null;
     setObjet((o) => remplacerPrefixeCopro(o, copro, nouvelle));
     const modele = modeles.find((x) => x.id === modeleId);
@@ -203,11 +258,22 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       if (derniereCopro.current !== c.reference) return;
       if (rc.ok) {
         const contacts = rc.donnees?.contacts ?? [];
-        setConseil(rc.donnees?.conseil ?? { source: "aucune", membres: [] });
-        setCopieBinome(rc.donnees?.copieBinome ?? []);
-        setTouteCopro(adressesTouteLaCopro(contacts));
+        const cs: ConseilComposition = rc.donnees?.conseil ?? { source: "aucune", membres: [] };
+        const binome = rc.donnees?.copieBinome ?? [];
+        const toute = adressesTouteLaCopro(contacts);
+        setConseil(cs);
+        setCopieBinome(binome);
+        setTouteCopro(toute);
         setControleCopro(controleTouteLaCopro(contacts, rc.donnees?.lotsPrincipaux));
-      }
+        if (ensuite === "conseil") {
+          if (cs.membres.length) ajouterConseil(cs, binome);
+          else toast.warn(`Aucune liste de conseil syndical pour ${c.reference} : tapez les noms dans « À ».`);
+        }
+        if (ensuite === "toute") {
+          if (toute.length) setCciCopro(true);
+          else toast.warn(`Aucune adresse de copropriétaire connue pour ${c.reference} (copro ESTALE : passer par le mailing ESTALE).`);
+        }
+      } else if (ensuite) toast.err(rc.erreur);
       if (rd.ok) setDossiers(rd.donnees ?? []);
     });
   }
@@ -243,17 +309,41 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     }
   }
 
-  function ajouterConseil() {
-    if (!conseil?.membres.length) return;
-    const deja = new Set(adresses(a));
-    const ajout = conseil.membres.filter((c) => !deja.has(c.email)).map((c) => ({ cle: c.email, nom: c.nom, emails: [c.email] }));
-    setA((l) => [...l, ...ajout]);
-    conseilAjoute.current = conseil.membres.map((c) => c.email);
+  // Le CS et le binôme passés en paramètres quand ils arrivent d'un raccourci (pas encore dans l'état).
+  function ajouterConseil(cs: ConseilComposition | null = conseil, binome: typeof copieBinome = copieBinome) {
+    if (!cs?.membres.length) return;
+    const { a: dejaA, cc: dejaCc } = etat.current;
+    const deja = new Set(adresses(dejaA));
+    const ajout = cs.membres.filter((c) => !deja.has(c.email)).map((c) => ({ cle: c.email, nom: c.nom, emails: [c.email] }));
+    setA((l) => [...l, ...ajout.filter((p) => !l.some((x) => x.cle === p.cle))]);
+    conseilAjoute.current = cs.membres.map((c) => c.email);
     // Le binôme en Cc (28/10/2026), sauf adresse déjà en « À » ou en « Cc ».
-    const presents = new Set([...deja, ...ajout.flatMap((p) => p.emails), ...adresses(cc)]);
-    const copie = copieBinome.filter((m) => !presents.has(m.email.toLowerCase())).map((m) => ({ cle: `${CLE_COPIE_BINOME}${m.email}`, nom: m.nomComplet, emails: [m.email] }));
-    if (copie.length) setCc((l) => [...l, ...copie]);
+    const presents = new Set([...deja, ...ajout.flatMap((p) => p.emails), ...adresses(dejaCc)]);
+    const copie = binome.filter((m) => !presents.has(m.email.toLowerCase())).map((m) => ({ cle: `${CLE_COPIE_BINOME}${m.email}`, nom: m.nomComplet, emails: [m.email] }));
+    if (copie.length) setCc((l) => [...l, ...copie.filter((p) => !l.some((x) => x.cle === p.cle))]);
   }
+
+  // « Conseil syndical · S247 » ou « Toute la copropriété · S247 » choisi dans « À » : la copro
+  // est rattachée (préfixe d'objet compris), les destinataires suivent au chargement, et le
+  // curseur part dans l'objet, après le préfixe.
+  function choisirRaccourci(r: RaccourciCopro<CoproChoisissable>) {
+    if (!proposees.some((p) => p.reference === r.copro.reference)) setAutreCopro(true);
+    choisirCopro(r.copro.reference, r.nature);
+    requestAnimationFrame(() => {
+      const champ = champObjet.current;
+      if (!champ) return;
+      champ.focus();
+      champ.setSelectionRange(champ.value.length, champ.value.length);
+    });
+  }
+  const raccourcisPour = (saisie: string): RaccourciChamp[] =>
+    raccourcisCopro(saisie, copros).map((r) => ({
+      cle: `${r.nature}:${r.copro.reference}`,
+      libelle: r.libelle,
+      detail: r.nature === "conseil" ? "en « À », le binôme en copie" : "en copie cachée, aucun ne voit les autres",
+      icone: r.nature === "conseil" ? "conseil" : "copro",
+      onChoisir: () => choisirRaccourci(r),
+    }));
   const phraseBinome = phraseCopieBinome(cc.filter(estCopieBinome).map((p) => p.nom));
 
   // Mêmes limites que la réponse (REA-421) : 25 Mo par fichier, 25 Mo au total, 10 fichiers.
@@ -341,9 +431,13 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   }
 
   const cci = cciCopro ? (touteCopro ?? []) : [];
+  // Envoi séparé : proposé dès deux personnes en « À » ; la découpe (et ses refus) vient du domaine.
+  const separePossible = a.filter((p) => p.emails.length).length >= 2;
+  const decoupe = separe && separePossible ? envoisSepares(a.map((p) => p.emails), adresses(cc), cci) : null;
+  const envoisPrets = decoupe?.ok ? decoupe.envois : null;
   // L'objet doit dire de quoi parle le mail : le préfixe copro seul ne suffit pas (incident du 28/10/2026).
   const aUnSujet = Boolean(sujetDeLObjet(objet, copro));
-  const pretAEnvoyer = Boolean(aUnSujet && (adresses(a).length || cci.length) && corps.trim());
+  const pretAEnvoyer = Boolean(aUnSujet && (adresses(a).length || cci.length) && corps.trim() && (!decoupe || decoupe.ok));
   // Tout est prêt sauf l'objet, réduit à la copro : on dit pourquoi le bouton reste grisé.
   const objetReduitACopro = Boolean(copro && !aUnSujet && (adresses(a).length || cci.length) && corps.trim());
   const adressesInvalides = [...adresses(a), ...adresses(cc)].filter((e) => !adresseMailValide(e));
@@ -361,18 +455,42 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       toast.err("Il manque un destinataire, l'objet ou le message.");
       return;
     }
+    if (decoupe && !decoupe.ok) {
+      toast.err(decoupe.motif);
+      return;
+    }
+    // L'adresse personnelle d'un collègue (incident Elsa, décision 14) : dite dans la
+    // confirmation, jamais bloquante. Une seule confirmation à la fois : elle s'y ajoute.
+    const avertissementCollegue = alertesAdressePersonnelle([...a, ...cc], collegues).join(" ");
+    let confirme = false;
+    // Envoi séparé : UNE confirmation qui dit combien de mails partiront (et l'absence de copro).
+    if (envoisPrets && brouillonPossible) {
+      const n = envoisPrets.length;
+      const ok = await confirmer({
+        titre: envoiDirect ? `Envoyer ${n} mails séparés ?` : `Créer ${n} brouillons séparés ?`,
+        message:
+          phraseEnvoisSepares(n, envoiDirect) +
+          (copro ? "" : " Aucune copropriété n'est choisie : ces mails ne seront rattachés à aucune copro." + suggestionCopro(proposees)),
+        confirmer: envoiDirect ? `Envoyer les ${n} mails` : `Créer les ${n} brouillons`,
+        ...(avertissementCollegue ? { avertissement: avertissementCollegue } : {}),
+      });
+      if (!ok) return;
+      confirme = true;
+    }
     // Sans copro, le mail n'est rattaché à rien et le tri ne le classera pas : on le fait
     // confirmer, sans l'interdire (identifiants extranet, pré-état daté… sont légitimes).
     // Toute la copropriété suppose une copro : les deux confirmations ne s'empilent jamais.
-    if (!copro && brouillonPossible) {
+    if (!copro && brouillonPossible && !confirme) {
       const ok = await confirmer({
         titre: envoiDirect ? "Envoyer sans copropriété ?" : "Créer le brouillon sans copropriété ?",
         message:
           "Aucune copropriété n'est choisie : ce mail ne sera rattaché à aucune copro et le tri ne pourra pas le classer." +
           suggestionCopro(proposees),
         confirmer: envoiDirect ? "Envoyer quand même" : "Créer le brouillon quand même",
+        ...(avertissementCollegue ? { avertissement: avertissementCollegue } : {}),
       });
       if (!ok) return;
+      confirme = true;
     }
     // Un envoi à toute la copropriété part à des dizaines de personnes : on le fait confirmer.
     if (cci.length && brouillonPossible) {
@@ -386,7 +504,20 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
           (lots > 1 ? ` Le mail partira en ${lots} envois, pour rester sous la limite de la messagerie.` : "") +
           (envoiDirect ? " Il part tout de suite." : " Le brouillon se relit dans Outlook."),
         confirmer: envoiDirect ? "Envoyer" : "Créer le brouillon",
-        ...(controleCopro?.alerte ? { avertissement: controleCopro.alerte } : {}),
+        ...(controleCopro?.alerte || avertissementCollegue
+          ? { avertissement: [controleCopro?.alerte, avertissementCollegue].filter(Boolean).join(" ") }
+          : {}),
+      });
+      if (!ok) return;
+      confirme = true;
+    }
+    if (avertissementCollegue && !confirme) {
+      const ok = await confirmer({
+        titre: "Écrire à l'adresse personnelle d'un collègue ?",
+        message: "Un destinataire porte le nom d'un collègue, mais l'adresse choisie n'est pas son adresse REAL31.",
+        avertissement: avertissementCollegue,
+        confirmer: envoiDirect ? "Envoyer quand même" : brouillonPossible ? "Créer le brouillon quand même" : "Continuer",
+        annuler: "Corriger",
       });
       if (!ok) return;
     }
@@ -402,6 +533,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         cc: adresses(cc),
         ...(cci.length ? { cci } : {}),
         ...(dossierId ? { dossierId } : {}),
+        ...(envoisPrets ? { envois: envoisPrets } : {}),
         fichiers: fichiers.map(({ nom, taille }) => ({ nom, taille })),
       });
       if (!prep.ok) {
@@ -416,7 +548,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         return;
       }
       const jetons = p.jetons;
-      // Toute la copropriété en plusieurs mails : chaque brouillon reçoit les fichiers.
+      // Toute la copropriété ou envoi séparé, en plusieurs mails : chaque brouillon reçoit les fichiers.
       for (const [lot, jeton] of jetons.entries()) {
         for (const [i, f] of fichiers.entries()) {
           const d = await deposerFichier(jeton, f.fichier, (x) => majProgres(i, (lot + x) / jetons.length));
@@ -441,7 +573,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       // À qui et depuis quelle boîte (REA-349, 16/10/2026) : la fenêtre se ferme aussitôt,
       // ce toast est la seule trace visible de l'envoi.
       const pour = a.length
-        ? resumeDestinataires(a.map((p) => p.nom || p.emails[0] || ""))
+        ? resumeDestinataires(a.map((p) => p.nom || p.emails[0] || "")) + (envoisPrets ? ", chacun séparément" : "")
         : `toute la copropriété (${cci.length} adresses)`;
       toast.ok(
         res.envoye
@@ -469,7 +601,8 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         onChange={majA}
         onDeplacer={deplacer}
         onChoisie={personneChoisie}
-        placeholder="Nom du destinataire (ou une adresse)…"
+        raccourcis={raccourcisPour}
+        placeholder="Nom, adresse, ou code copro (S247) pour le conseil syndical…"
       />
       <ChampPersonnes champ="cc" label="Cc" personnes={cc} onChange={setCc} onDeplacer={deplacer} placeholder="Nom ou adresse…" />
       {phraseBinome ? <p className="-mt-2 text-meta text-ink-3">{phraseBinome}</p> : null}
@@ -482,6 +615,21 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
               <X strokeWidth={1.5} className="w-3.5 h-3.5" />
             </button>
           </span>
+        </div>
+      ) : null}
+      {separePossible ? (
+        <div className="-mt-1 flex flex-col gap-1 pl-8">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <Choix type="checkbox" checked={separe} onChange={(e) => setSepare(e.target.checked)} label="Envoyer séparément à chaque destinataire" />
+            <span className="text-meta text-ink-3">
+              {envoisPrets ? `${envoisPrets.length} ${brouillonPossible && !envoiDirect ? "brouillons" : "mails"}, chacun ne voit que lui` : "chacun ne verra que lui"}
+            </span>
+          </div>
+          {decoupe && !decoupe.ok ? (
+            <p className="text-meta text-err-700" role="status">
+              {decoupe.motif}
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -518,7 +666,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         )}
         {copro && (
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" onClick={ajouterConseil} disabled={!conseil?.membres.length} title={conseil ? TITRE_SOURCE_CONSEIL[conseil.source] : "Ajoute tous les membres du conseil syndical en « À »"}>
+            <Button type="button" size="sm" onClick={() => ajouterConseil()} disabled={!conseil?.membres.length} title={conseil ? TITRE_SOURCE_CONSEIL[conseil.source] : "Ajoute tous les membres du conseil syndical en « À »"}>
               <Users strokeWidth={1.5} />
               {conseil === null ? "Conseil syndical…" : `Conseil syndical (${conseil.membres.length})`}
             </Button>
@@ -563,7 +711,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
           </Select>
         </Field>
         <Field label="Objet" htmlFor="comp-objet">
-          <Input id="comp-objet" value={objet} onChange={(e) => setObjet(e.target.value)} placeholder="Objet du message" />
+          <Input id="comp-objet" ref={champObjet} value={objet} onChange={(e) => setObjet(e.target.value)} placeholder="Objet du message" />
         </Field>
       </div>
       {pilote ? (
@@ -655,7 +803,17 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         ) : null}
         {/* type="button" : le compositeur a vécu dans le <form> « Actualiser » (27/10/2026) ; aucun de ses boutons ne soumet. */}
         <Button type="button" variant="primary" disabled={!pretAEnvoyer || envoiEnCours || chargement} loading={envoiEnCours} onClick={() => void creerBrouillon()}>
-          {!brouillonPossible ? "Vérifier l'aperçu" : envoiDirect ? (envoiEnCours ? "Envoi…" : "Envoyer") : "Créer le brouillon"}
+          {!brouillonPossible
+            ? "Vérifier l'aperçu"
+            : envoiDirect
+              ? envoiEnCours
+                ? "Envoi…"
+                : envoisPrets
+                  ? `Envoyer ${envoisPrets.length} mails`
+                  : "Envoyer"
+              : envoisPrets
+                ? `Créer ${envoisPrets.length} brouillons`
+                : "Créer le brouillon"}
         </Button>
       </div>
     </div>
@@ -690,8 +848,12 @@ function ChoixCopro({ actif, onClick, children }: { actif: boolean; onClick: () 
   );
 }
 
+/** Une proposition en tête de liste qui n'est pas une personne (« Conseil syndical · S247 … »). */
+export type RaccourciChamp = { cle: string; libelle: string; detail?: string; icone: "conseil" | "copro"; onChoisir: () => void };
+
 /** Un champ À ou Cc : on tape un nom, l'annuaire propose les personnes ; une adresse tapée passe aussi.
- *  Partagé avec le transfert d'un mail (REA-350) : même annuaire, même saisie. */
+ *  Partagé avec le transfert d'un mail (REA-350) : même annuaire, même saisie. Les collègues
+ *  arrivent en tête (badge « Collègue »), une fiche cliente à leur nom est marquée « Client ». */
 export function ChampPersonnes({
   champ,
   label,
@@ -699,6 +861,7 @@ export function ChampPersonnes({
   onChange,
   onDeplacer,
   onChoisie,
+  raccourcis,
   placeholder,
 }: {
   champ: string;
@@ -707,6 +870,8 @@ export function ChampPersonnes({
   onChange: (l: Personne[]) => void;
   onDeplacer: (depuis: string, cle: string) => void;
   onChoisie?: (d: DestinataireTrouve) => void;
+  /** Propositions tirées de la saisie elle-même (code copro), affichées avant les personnes. */
+  raccourcis?: (saisie: string) => RaccourciChamp[];
   placeholder: string;
 }) {
   const [saisie, setSaisie] = useState("");
@@ -718,6 +883,15 @@ export function ChampPersonnes({
   const chercher = q.length >= 3 && !q.includes("@");
   const [refusee, setRefusee] = useState("");
   const resultats = chercher && trouves?.q === q ? trouves.liste : null;
+  // Échap ferme aussi les raccourcis, pour CETTE saisie.
+  const [masque, setMasque] = useState<string | null>(null);
+  const propositions = q && masque !== q ? (raccourcis?.(q) ?? []) : [];
+  const listeOuverte = Boolean(resultats || propositions.length);
+  function choisirRaccourci(r: RaccourciChamp) {
+    setSaisie("");
+    setTrouves(null);
+    r.onChoisir();
+  }
 
   useEffect(() => {
     if (!chercher) return;
@@ -787,21 +961,25 @@ export function ChampPersonnes({
           value={saisie}
           onChange={(e) => {
             setSaisie(e.target.value);
+            setMasque(null);
             setRefusee("");
           }}
           // Liste de suggestions ou message d'erreur ouvert : Échap le ferme, pas la fenêtre.
-          data-echap-local={resultats || refusee ? "" : undefined}
+          data-echap-local={listeOuverte || refusee ? "" : undefined}
           onKeyDown={(e) => {
-            if (e.key === "Escape" && (resultats || refusee)) {
+            if (e.key === "Escape" && (listeOuverte || refusee)) {
               e.preventDefault();
               e.stopPropagation();
               setTrouves(null);
+              setMasque(q);
               setRefusee("");
               return;
             }
             if (e.key === "Enter" || e.key === "," || e.key === ";") {
               e.preventDefault();
-              if (resultats?.length === 1) {
+              // Un code copro tapé puis Entrée : le premier raccourci (le conseil syndical).
+              if (e.key === "Enter" && propositions[0]) choisirRaccourci(propositions[0]);
+              else if (resultats?.length === 1) {
                 const d = resultats[0]!;
                 ajouter({ cle: d.cle, nom: d.nom, emails: d.emails });
                 onChoisie?.(d);
@@ -814,15 +992,35 @@ export function ChampPersonnes({
           className="flex-1 min-w-[160px] h-6 bg-transparent text-body text-ink outline-none placeholder:text-ink-3"
         />
       </div>
-      {refusee && !resultats && (
+      {refusee && !listeOuverte && (
         <p role="alert" className="absolute left-8 top-full mt-1 z-20 rounded-md bg-err-50 px-2 py-1 text-meta text-err-700">
           « {refusee} » n&apos;est pas une adresse valide : ni accent ni espace dans une adresse.
         </p>
       )}
-      {resultats && (
+      {listeOuverte && (
         <ul className="absolute left-8 right-0 top-full mt-1 z-20 max-h-72 overflow-y-auto rounded-lg border border-line bg-surface shadow-2 py-1">
-          {resultats.length === 0 && <li className="px-3 py-2 text-meta text-ink-3">Personne de ce nom dans l&apos;annuaire Crypto.</li>}
-          {resultats.map((d) => (
+          {propositions.map((r) => (
+            <li key={r.cle}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => choisirRaccourci(r)}
+                className="w-full text-left px-3 py-1.5 hover:bg-surface-2 flex items-start gap-2"
+              >
+                {r.icone === "conseil" ? (
+                  <Users strokeWidth={1.5} className="w-4 h-4 mt-0.5 shrink-0 text-ink-3" />
+                ) : (
+                  <Building2 strokeWidth={1.5} className="w-4 h-4 mt-0.5 shrink-0 text-ink-3" />
+                )}
+                <span className="min-w-0">
+                  <span className="block text-body text-ink font-medium">{r.libelle}</span>
+                  {r.detail ? <span className="block text-meta text-ink-3">{r.detail}</span> : null}
+                </span>
+              </button>
+            </li>
+          ))}
+          {resultats?.length === 0 && !propositions.length && <li className="px-3 py-2 text-meta text-ink-3">Personne de ce nom dans l&apos;annuaire Crypto.</li>}
+          {(resultats ?? []).map((d) => (
             <li key={d.cle}>
               <button
                 type="button"
@@ -834,6 +1032,12 @@ export function ChampPersonnes({
                 className="w-full text-left px-3 py-1.5 hover:bg-surface-2"
               >
                 <span className="text-body text-ink">{d.nom || d.emails[0]}</span>
+                {d.genre ? (
+                  <>
+                    {" "}
+                    <BadgeDestinataire genre={d.genre} />
+                  </>
+                ) : null}
                 {d.casquette ? <span className="text-meta text-ink-3"> · {d.casquette}</span> : null}
                 <span className="block text-meta text-ink-3 truncate">{d.emails.join(" ; ")}</span>
                 {d.copros.length > 0 && (

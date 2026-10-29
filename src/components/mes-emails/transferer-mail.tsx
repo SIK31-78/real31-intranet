@@ -3,7 +3,8 @@
 // « Transférer » un mail de l'écran E-mails à un collègue ou à l'extérieur (REA-350,
 // 16/10/2026, en pilote). Les destinataires se cherchent dans le même annuaire que
 // « Envoyer un e-mail » ; les pièces jointes d'origine partent avec (createForward de
-// Graph), depuis la boîte qui détient le mail.
+// Graph), depuis la boîte qui détient le mail. Les collègues passent en tête de la liste ;
+// l'adresse personnelle d'un collègue se fait confirmer (décision 14, incident Elsa du 29/10/2026).
 
 import { useEffect, useRef, useState } from "react";
 import { Forward, Paperclip } from "lucide-react";
@@ -15,7 +16,8 @@ import { useConfirm } from "@/components/ui/confirm";
 import { adresseMailValide, resumeDestinataires } from "@/lib/domain/mes-emails-composition";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { transfererMailAction } from "@/app/mes-emails/actions";
-import { ChampPersonnes, LigneExpediteur, adresses, type Personne } from "./compositeur";
+import { alertesAdressePersonnelle } from "@/lib/domain/destinataires-collegues";
+import { ChampPersonnes, LigneExpediteur, adresses, useCollegues, type Personne } from "./compositeur";
 import { useAlerteSortie } from "./alerte-sortie";
 import { BoutonReformuler } from "./bouton-reformuler";
 
@@ -88,6 +90,7 @@ function FenetreTransfert({
   const [corps, setCorps] = useState("");
   const [enCours, setEnCours] = useState(false);
   const confirmer = useConfirm();
+  const collegues = useCollegues();
   // Un clic sur « Transférer » = on tape le destinataire (comme Outlook) : le curseur va
   // dans « À », pas sur la croix de la fenêtre. Cet effet passe après celui de la fenêtre
   // (enfant), qui pose le focus sur le premier élément focusable.
@@ -131,6 +134,18 @@ function FenetreTransfert({
     if (adresses(a).length === 0) {
       toast.err("Ajoute au moins un destinataire en « À ».");
       return;
+    }
+    // Elsa transférée à sa fiche de copropriétaire au lieu de sa fiche salariée : on le dit.
+    const avertissement = alertesAdressePersonnelle([...a, ...cc], collegues).join(" ");
+    if (avertissement) {
+      const ok = await confirmer({
+        titre: "Transférer à l'adresse personnelle d'un collègue ?",
+        message: "Un destinataire porte le nom d'un collègue, mais l'adresse choisie n'est pas son adresse REAL31.",
+        avertissement,
+        confirmer: "Transférer quand même",
+        annuler: "Corriger",
+      });
+      if (!ok) return;
     }
     setEnCours(true);
     try {
