@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import { getMesEmails } from "@/lib/services/mes-emails/get-mes-emails";
 import { getGestionnaireCourant, mailModuleActifPour, incarnationEnCours } from "@/lib/auth/session";
 import { estSuperAdmin } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
 import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
-import { COOKIE_PLACE_INTERNES } from "@/components/mes-emails/preference-liste";
-import { placeInternesValide } from "@/lib/domain/mes-emails-liste";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import { agenceDesModeles, modelesMailPour } from "@/lib/services/mes-emails/modeles-mail";
 import { facturesEstaleConfigurees } from "@/lib/services/mes-emails/transmettre-facture";
@@ -47,7 +44,6 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
   // Transférer, place des collègues : REA-340, 341, 345, 350, 351) sont ouvertes à tous.
   // Pour un prochain essai, remettre `estSuperAdmin(g.email)` ici et dans les actions.
   const pilote = true;
-  const placeInternes = pilote ? placeInternesValide((await cookies()).get(COOKIE_PLACE_INTERNES)?.value) : "meles";
   // Boîtes partagées, boîte d'envoi et agence : celles de l'agence de la personne (config
   // MAIL_TRI_BOITES, 27/10/2026) ; un super-admin voit toutes les boîtes triées.
   const superAdmin = estSuperAdmin(g.email);
@@ -97,7 +93,6 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
           modeles={modeles}
           pilote={pilote}
           reformulation={reformulation}
-          placeInternesInitiale={placeInternes}
         />
       </Page>
     </AppShell>

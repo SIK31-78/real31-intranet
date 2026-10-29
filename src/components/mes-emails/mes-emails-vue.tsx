@@ -77,17 +77,8 @@ import {
 import { rechercherDestinatairesAction } from "@/app/mes-emails/composer/actions";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
-import { ecrirePlaceInternes } from "./preference-liste";
 import { estMailInterne } from "@/lib/domain/tri-emails";
-import {
-  LIBELLE_PLACE_INTERNES,
-  PLACES_INTERNES,
-  placeInternesValide,
-  regrouperInternes,
-  traitesAuChargement,
-  chiffreATraiter,
-  type PlaceInternes,
-} from "@/lib/domain/mes-emails-liste";
+import { traitesAuChargement, chiffreATraiter } from "@/lib/domain/mes-emails-liste";
 import { publierChiffre } from "./chiffre-a-traiter";
 import { VisionneusePj, type ApercuPj } from "./visionneuse-pj";
 import { deposerFichier } from "./deposer-fichier";
@@ -172,12 +163,9 @@ export function MesEmailsVue({
   modeles,
   pilote = false,
   reformulation = false,
-  placeInternesInitiale = "meles",
 }: {
   /** « Reformuler » proposé dans la réponse et le transfert (ADR-051). */
   reformulation?: boolean;
-  /** Préférence lue dans le cookie par la page (REA-351). */
-  placeInternesInitiale?: PlaceInternes;
   data: MesEmails;
   /** Super-admin : voit les nouveautés de l'écran avant tout le monde (cf. page.tsx). */
   pilote?: boolean;
@@ -281,13 +269,6 @@ export function MesEmailsVue({
   const [changer, setChanger] = useState(false);
   const [ouverts, setOuverts] = useState<Set<string>>(new Set());
   const [recherche, setRecherche] = useState("");
-  // Collègues en haut ou en bas de la liste (REA-351, pilote). Retenu dans un cookie :
-  // préférence de lecture, pas un état partagé.
-  const [placeInternes, setPlaceInternes] = useState<PlaceInternes>(placeInternesInitiale);
-  function choisirPlaceInternes(v: PlaceInternes) {
-    setPlaceInternes(v);
-    ecrirePlaceInternes(v);
-  }
   // Recherche dans TOUS les échanges (ex-écran Échanges) : null = on regarde la boîte.
   const [fouille, setFouille] = useState<Fouille | null>(null);
   function lancerFouille() {
@@ -584,15 +565,13 @@ export function MesEmailsVue({
 
   const q = recherche.trim().toLowerCase();
   // « À traiter » = ce qui n'est ni archivé ni marqué traité (seule vue de la liste, REA-422).
-  const visibles = regrouperInternes(
-    mailsTries.filter(
-      (m) =>
-        !partis.has(m.id) &&
-        !classes.has(m.id) &&
-        (q === "" || `${m.objet} ${m.de} ${m.coproCode} ${m.coproNom}`.toLowerCase().includes(q)),
-    ),
-    pilote ? placeInternes : "meles",
-    (m) => m.boite ?? boiteActive,
+  // Ordre chronologique, collègues mêlés aux autres (le choix « en haut / en bas » est retiré
+  // le 29/10/2026 ; un ancien cookie real31_emails_internes n'est plus lu et expirera seul).
+  const visibles = mailsTries.filter(
+    (m) =>
+      !partis.has(m.id) &&
+      !classes.has(m.id) &&
+      (q === "" || `${m.objet} ${m.de} ${m.coproCode} ${m.coproNom}`.toLowerCase().includes(q)),
   );
 
   const selection = visibles.find((m) => m.id === selId) ?? visibles[0];
@@ -1020,22 +999,6 @@ export function MesEmailsVue({
               ...(pilote ? [{ value: "envoyes" as const, label: "Envoyés", title: "Les 30 derniers mails partis de cette boîte" }] : []),
             ]}
           />
-          {pilote && vue !== "envoyes" ? (
-            <Select
-              largeur="auto"
-              value={placeInternes}
-              onChange={(e) => choisirPlaceInternes(placeInternesValide(e.target.value))}
-              aria-label="Place des mails des collègues dans la liste"
-              title="Mails des collègues (adresse @real31.fr) regroupés en haut ou en bas de la liste"
-              className="h-7 text-meta"
-            >
-              {PLACES_INTERNES.map((p) => (
-                <option key={p} value={p}>
-                  {LIBELLE_PLACE_INTERNES[p]}
-                </option>
-              ))}
-            </Select>
-          ) : null}
         </div>
         )}
       </div>
