@@ -78,7 +78,7 @@ import { rechercherDestinatairesAction } from "@/app/mes-emails/composer/actions
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
 import { estMailInterne } from "@/lib/domain/tri-emails";
-import { traitesAuChargement, chiffreATraiter } from "@/lib/domain/mes-emails-liste";
+import { traitesAuChargement, chiffreATraiter, marqueLu, type OuvertureMail } from "@/lib/domain/mes-emails-liste";
 import { publierChiffre } from "./chiffre-a-traiter";
 import { VisionneusePj, type ApercuPj } from "./visionneuse-pj";
 import { deposerFichier } from "./deposer-fichier";
@@ -498,6 +498,7 @@ export function MesEmailsVue({
   // Ouvre l'editeur de reponse. « Répondre » = l'expediteur seul ; « Répondre à tous » =
   // l'expediteur en À, les autres en Cc (comme Outlook).
   const repondre = (m: MailEntrant, tous: boolean) => {
+    marquerLu(m, "reponse");
     const d = defautDestinataires(m);
     setDestParMail((p) => new Map(p).set(m.id, tous ? d : { to: d.to, cc: [], cci: [] }));
     setComposeParMail((p) => new Set(p).add(m.id));
@@ -576,11 +577,11 @@ export function MesEmailsVue({
 
   const selection = visibles.find((m) => m.id === selId) ?? visibles[0];
 
-  // Le mail affiché est marqué lu et ses pièces jointes chargées, qu'il ait été cliqué ou
-  // affiché d'office (le premier de la liste à l'arrivée, après un changement de boîte, de vue
-  // ou de recherche). Jusqu'au 27/10/2026 seul le clic le faisait : le premier mail disait
-  // « Pièces jointes indisponibles » et « Transférer » n'en joignait aucune (bug B1). Une
-  // seule fois par mail : le reste de l'état de la vue peut changer sans rejouer les appels.
+  // Les pièces jointes du mail affiché se chargent, qu'il ait été cliqué ou affiché d'office
+  // (le premier de la liste à l'arrivée, après un changement de boîte, de vue ou de recherche) :
+  // jusqu'au 27/10/2026 seul le clic le faisait, et le premier mail disait « Pièces jointes
+  // indisponibles » (bug B1). Le marquage « lu », lui, n'a lieu qu'à l'ouverture VRAIE (clic,
+  // réponse : décision 2 du 29/10/2026, cf. marquerLu). Une seule fois par mail.
   const selectionId = selection?.id ?? "";
   const dejaAffiches = useRef(new Set<string>());
   useEffect(() => {
@@ -590,11 +591,6 @@ export function MesEmailsVue({
     dejaAffiches.current.add(selectionId);
     // Les mises a jour d'etat partent apres le rendu (microtache) : React refuse un setState
     // synchrone dans un effet (rendus en cascade).
-    if (!lus.has(selectionId)) {
-      queueMicrotask(() => setLus((prev) => new Set(prev).add(selectionId)));
-      // Lu aussi dans Outlook (REA-422) : la boîte qui détient le mail.
-      void marquerLuAction(selectionId, m.coproCode, m.boite ?? boiteActive);
-    }
     if (m.attachments.length > 0) {
       queueMicrotask(() => setPjParMail((p) => new Map(p).set(selectionId, null)));
       const copro = coprosChoisies.get(selectionId)?.code ?? m.coproCode;
@@ -602,7 +598,7 @@ export function MesEmailsVue({
         setPjParMail((prev) => new Map(prev).set(selectionId, pjs)),
       );
     }
-  }, [selectionId, data.mails, lus, coprosChoisies, boiteActive]);
+  }, [selectionId, data.mails, coprosChoisies, boiteActive]);
 
   // La copro CHOISIE du mail affiché (sélecteur), pas celle d'origine : les dossiers intranet
   // et le contexte ESTALE la suivent. Avant le 27/10/2026 les dossiers étaient chargés sous la
@@ -722,9 +718,18 @@ export function MesEmailsVue({
     }
   }
 
-  // Ouvrir un mail d'un clic : la sélection change ; le marquage « lu » et les pièces jointes
-  // suivent la sélection (effet plus haut), que le mail ait été cliqué ou affiché d'office.
-  function ouvrir(id: string) {
+  // Marqué lu (dans l'intranet et dans Outlook, REA-422) seulement quand on l'ouvre vraiment :
+  // clic sur sa ligne, ou Répondre / Transférer. Jamais quand il est affiché d'office.
+  function marquerLu(m: MailEntrant, ouverture: OuvertureMail) {
+    if (!marqueLu(ouverture, lus.has(m.id))) return;
+    setLus((p) => new Set(p).add(m.id));
+    void marquerLuAction(m.id, m.coproCode, m.boite ?? boiteActive);
+  }
+  // Afficher un mail : la sélection change, les pièces jointes suivent (effet plus haut).
+  // `ouverture` = « clic » depuis la liste (marqué lu), « affichage » quand l'écran enchaîne.
+  function ouvrir(id: string, ouverture: OuvertureMail = "affichage") {
+    const m = data.mails.find((x) => x.id === id);
+    if (m) marquerLu(m, ouverture);
     setSelId(id);
     setChanger(false);
     setOuverts(new Set());
@@ -1061,7 +1066,7 @@ export function MesEmailsVue({
                   actif={m.id === selection?.id}
                   lu={lus.has(m.id)}
                   reponse={reponseDe(m)}
-                  onClick={() => ouvrir(m.id)}
+                  onClick={() => ouvrir(m.id, "clic")}
                 />
               ))}
               {visibles.length === 0 && (
@@ -1231,7 +1236,10 @@ export function MesEmailsVue({
                 passerAuSuivant(selection);
               }}
               onConclure={() => marquerTraite(selection)}
-              onTransfere={() => noterReponse(selection.id, "transfere")}
+              onTransfere={() => {
+                marquerLu(selection, "reponse");
+                noterReponse(selection.id, "transfere");
+              }}
               {...(supprimable(selection)
                 ? { onSupprimer: () => void supprimerMail(selection), suppressionEnCours }
                 : {})}
