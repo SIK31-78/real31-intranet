@@ -94,6 +94,7 @@ import { NB_MAX_FICHIERS, TAILLE_MAX_FICHIER, TAILLE_MAX_TOTALE, typePieceJointe
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { EnvoyesVue } from "./envoyes-vue";
 import { TransfererMail } from "./transferer-mail";
+import { ecrireDansLaReponse } from "./focus-reponse";
 import { EditeurRiche } from "./editeur-riche";
 import { BoutonReformuler } from "./bouton-reformuler";
 import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
@@ -1868,6 +1869,23 @@ function AnalysePane({
   // Fichiers glissés sur l'éditeur de réponse : joints comme avec « Ajouter une pièce jointe ».
   const depotPj = useDepotFichiers((l) => onAjouterFichiers(l));
 
+  // Un clic sur « Répondre » = on écrit (comme Outlook) : la réponse s'ouvre en haut du
+  // volet, remonte à l'écran et le curseur se pose au début du texte, pas dans l'objet.
+  // Seulement après ce clic : un brouillon déjà enregistré, rouvert en changeant de mail,
+  // ne vole pas le focus.
+  const reponseRef = useRef<HTMLDivElement>(null);
+  const corpsReponseRef = useRef<HTMLDivElement>(null);
+  const focusReponseDemande = useRef(false);
+  const repondreEtEcrire = (tous: boolean) => {
+    focusReponseDemande.current = true;
+    onRepondre(tous);
+  };
+  useEffect(() => {
+    if (!compose || !focusReponseDemande.current) return;
+    focusReponseDemande.current = false;
+    if (reponseRef.current && corpsReponseRef.current) ecrireDansLaReponse(reponseRef.current, corpsReponseRef.current);
+  }, [compose]);
+
   return (
     <Card className="overflow-hidden">
       {/* En-tête : objet, qui, quand -- puis UNE barre d'actions. */}
@@ -1877,11 +1895,11 @@ function AnalysePane({
           {statut !== "nouveau" ? <StatutBadge statut={statut} /> : null}
           {!(brouillon || compose) && (
             <div className="flex items-center gap-2 shrink-0">
-              <Button variant="doux" onClick={() => onRepondre(false)}>
+              <Button variant="doux" onClick={() => repondreEtEcrire(false)}>
                 <Reply strokeWidth={1.75} />
                 Répondre
               </Button>
-              <Button onClick={() => onRepondre(true)}>
+              <Button onClick={() => repondreEtEcrire(true)}>
                 <ReplyAll strokeWidth={1.75} />
                 Répondre à tous
               </Button>
@@ -1968,84 +1986,10 @@ function AnalysePane({
         ) : null}
       </div>
 
-      {/* Le mail */}
-      <div className="px-5 py-4">
-        <div className="text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[340px] overflow-auto">
-          <TexteAvecLiens texte={m.corps} />
-        </div>
-        <ImagesMail key={`img-${m.id}`} emailId={m.id} coproCode={coproCode} boite={boiteDuMail} onApercu={onApercu} />
-        <HistoriqueMail key={`historique-${m.id}`} emailId={m.id} boite={boiteDuMail} />
-          {m.attachments.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              {piecesJointes === null ? (
-                <span className="inline-flex items-center gap-1 h-6 px-2 rounded border border-line bg-surface text-meta text-ink-3">
-                  <Paperclip strokeWidth={1.5} className="w-3 h-3" />
-                  Chargement des pièces jointes…
-                </span>
-              ) : piecesJointes.length === 0 ? (
-                <span className="text-meta text-ink-3 italic">Pièces jointes indisponibles</span>
-              ) : (
-                piecesJointes.map((pj) => (
-                  <span
-                    key={pj.id}
-                    title={formatTaille(pj.taille)}
-                    className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded border border-line bg-surface text-meta text-ink-2"
-                  >
-                    <Paperclip strokeWidth={1.5} className="w-3 h-3 text-ink-3 shrink-0" />
-                    <button
-                      type="button"
-                      onClick={() => onApercu(pj)}
-                      title="Aperçu"
-                      className="truncate max-w-[200px] hover:underline"
-                    >
-                      {pj.nom}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onTelecharger(pj)}
-                      title="Télécharger"
-                      className="text-ink-3 hover:text-ink"
-                    >
-                      <Download strokeWidth={1.5} className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))
-              )}
-            </div>
-          )}
-          {m.attachments.length > 0 && adresseFactures && onTransmettreFacture && (
-            <TransmettreFacture destinataire={adresseFactures} coproChoisie={Boolean(coproCode)} onTransmettre={onTransmettreFacture} />
-          )}
-          {(statut === "repondu" || m.reponseOutlook === "repondu") && <ReponseEnvoyee key={`reponse-${m.id}`} emailId={m.id} boite={boiteDuMail} />}
-      </div>
-
-      <div className="px-5 pb-4 flex flex-col gap-3">
-        {changer && !coproCode && (
-          <div className="rounded-md border border-dashed border-line px-3 py-2 text-meta text-ink-3">
-            Lier un <strong>dossier de suivi intranet</strong> nécessite une copropriété : choisis-la dans le
-            sélecteur ci-dessus.
-            {classementOutlook ? (
-              <>
-                {" "}
-                Pour simplement <strong>ranger</strong> ce mail dans Outlook, le sélecteur «&nbsp;Archiver dans…&nbsp;» est
-                en bas - aucune copropriété requise.
-              </>
-            ) : null}
-          </div>
-        )}
-
-        {changer && coproCode && (
-          <ChoixDossier
-            dossiers={dossiersReels}
-            objet={m.objet}
-            typeSuggere={typeSuggere}
-            onRattacher={onRattacherDossier}
-            onCreer={onCreerDossier}
-          />
-        )}
-
-        {/* Réponse : seulement quand on l'a ouverte. */}
-        {(brouillon || compose) && (
+      {/* Réponse : EN HAUT, au-dessus du mail d'origine, comme dans Outlook (retour des
+          collègues du 29/10/2026 : ouverte en bas, sous un long mail, on ne la voyait pas). */}
+      {(brouillon || compose) && (
+        <div ref={reponseRef} className="px-5 pt-4 scroll-mt-4">
           <div
             {...depotPj.zone}
             className={"rounded-lg border p-4 transition-colors " + (depotPj.survol ? "border-green-600 bg-green-50/30" : "border-line")}
@@ -2140,11 +2084,13 @@ function AnalysePane({
                 </span>
               ))}
             </div>
-            {pilote ? (
-              <EditeurRiche html={brouillonHtml} onChange={onEditBrouillonHtml} onBlur={onBlurBrouillon} label="Texte de la réponse" />
-            ) : (
-              <Textarea value={brouillon} onChange={(e) => onEditBrouillon(e.target.value)} onBlur={onBlurBrouillon} rows={7} className="resize-y" />
-            )}
+            <div ref={corpsReponseRef}>
+              {pilote ? (
+                <EditeurRiche html={brouillonHtml} onChange={onEditBrouillonHtml} onBlur={onBlurBrouillon} label="Texte de la réponse" />
+              ) : (
+                <Textarea value={brouillon} onChange={(e) => onEditBrouillon(e.target.value)} onBlur={onBlurBrouillon} rows={7} className="resize-y" aria-label="Texte de la réponse" />
+              )}
+            </div>
             {reformulation ? (
               <div className="mt-1.5 flex justify-end">
                 <BoutonReformuler key={m.id} texte={brouillon} nature="reponse" objet={sujet} desactive={envoiEnCours} {...reformulation} />
@@ -2177,6 +2123,84 @@ function AnalysePane({
               ) : null}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Le mail */}
+      <div className="px-5 py-4">
+        {brouillon || compose ? <p className="text-meta text-ink-3 mb-1.5">Message d&apos;origine</p> : null}
+        <div className="text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[340px] overflow-auto">
+          <TexteAvecLiens texte={m.corps} />
+        </div>
+        <ImagesMail key={`img-${m.id}`} emailId={m.id} coproCode={coproCode} boite={boiteDuMail} onApercu={onApercu} />
+        <HistoriqueMail key={`historique-${m.id}`} emailId={m.id} boite={boiteDuMail} />
+          {m.attachments.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {piecesJointes === null ? (
+                <span className="inline-flex items-center gap-1 h-6 px-2 rounded border border-line bg-surface text-meta text-ink-3">
+                  <Paperclip strokeWidth={1.5} className="w-3 h-3" />
+                  Chargement des pièces jointes…
+                </span>
+              ) : piecesJointes.length === 0 ? (
+                <span className="text-meta text-ink-3 italic">Pièces jointes indisponibles</span>
+              ) : (
+                piecesJointes.map((pj) => (
+                  <span
+                    key={pj.id}
+                    title={formatTaille(pj.taille)}
+                    className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded border border-line bg-surface text-meta text-ink-2"
+                  >
+                    <Paperclip strokeWidth={1.5} className="w-3 h-3 text-ink-3 shrink-0" />
+                    <button
+                      type="button"
+                      onClick={() => onApercu(pj)}
+                      title="Aperçu"
+                      className="truncate max-w-[200px] hover:underline"
+                    >
+                      {pj.nom}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onTelecharger(pj)}
+                      title="Télécharger"
+                      className="text-ink-3 hover:text-ink"
+                    >
+                      <Download strokeWidth={1.5} className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+          )}
+          {m.attachments.length > 0 && adresseFactures && onTransmettreFacture && (
+            <TransmettreFacture destinataire={adresseFactures} coproChoisie={Boolean(coproCode)} onTransmettre={onTransmettreFacture} />
+          )}
+          {(statut === "repondu" || m.reponseOutlook === "repondu") && <ReponseEnvoyee key={`reponse-${m.id}`} emailId={m.id} boite={boiteDuMail} />}
+      </div>
+
+      <div className="px-5 pb-4 flex flex-col gap-3">
+        {changer && !coproCode && (
+          <div className="rounded-md border border-dashed border-line px-3 py-2 text-meta text-ink-3">
+            Lier un <strong>dossier de suivi intranet</strong> nécessite une copropriété : choisis-la dans le
+            sélecteur ci-dessus.
+            {classementOutlook ? (
+              <>
+                {" "}
+                Pour simplement <strong>ranger</strong> ce mail dans Outlook, le sélecteur «&nbsp;Archiver dans…&nbsp;» est
+                en bas - aucune copropriété requise.
+              </>
+            ) : null}
+          </div>
+        )}
+
+        {changer && coproCode && (
+          <ChoixDossier
+            dossiers={dossiersReels}
+            objet={m.objet}
+            typeSuggere={typeSuggere}
+            onRattacher={onRattacherDossier}
+            onCreer={onCreerDossier}
+          />
         )}
 
         {/* La copropriété choisie, vue d'ESTALE : repliée, chargée à l'ouverture. Rien sans
