@@ -2175,9 +2175,10 @@ function AnalysePane({
       </div>
 
       {/* Réponse : EN HAUT, au-dessus du mail d'origine, comme dans Outlook (retour des
-          collègues du 29/10/2026 : ouverte en bas, sous un long mail, on ne la voyait pas). */}
+          collègues du 29/10/2026 : ouverte en bas, sous un long mail, on ne la voyait pas).
+          scroll-mt-16 : remontée sous la barre d'actions collée, pas dessous. */}
       {(brouillon || compose) && (
-        <div ref={reponseRef} className="px-5 pt-4 scroll-mt-4">
+        <div ref={reponseRef} className="px-5 pt-4 scroll-mt-16">
           <div
             {...depotPj.zone}
             className={"rounded-lg border p-4 transition-colors " + (depotPj.survol ? "border-green-600 bg-green-50/30" : "border-line")}
