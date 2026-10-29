@@ -71,10 +71,13 @@ export function proxy(req: NextRequest) {
 //     l'exclut donc explicitement. La securite de la fiche est portee EN PROPRE (token + code,
 //     anti-enumeration, rate-limit) et non par ce gate. En SSO (prod) le middleware laisse deja
 //     tout passer (l'auth se fait par page) ; l'exclusion garde le comportement identique.
+//   - de quoi installer l'application (PWA) : /manifest.webmanifest, /icon.png, /apple-icon.png
+//     et /icons/** (public/icons). Le navigateur les telecharge SANS les identifiants Basic :
+//     derriere le gate, l'installation echouerait. Rien de sensible (un nom et des logos).
 // Chaque exclusion est ancree sur une frontiere de segment : « /fiches-internes » ou
 // « /api/v1bis » restent derriere le gate (test : src/proxy.test.ts).
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico$|api/v1(?:/|$)|fiche(?:/|$)|api/fiche(?:/|$)|monitoring(?:/|$)).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico$|manifest\\.webmanifest$|icon\\.png$|apple-icon\\.png$|icons/|api/v1(?:/|$)|fiche(?:/|$)|api/fiche(?:/|$)|monitoring(?:/|$)).*)",
   ],
 };

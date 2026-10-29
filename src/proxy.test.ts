@@ -10,12 +10,12 @@ const RE = new RegExp(`^/${motif.slice("/(".length, -")".length)}$`);
 
 describe("matcher du proxy", () => {
   it("laisse passer les surfaces qui portent leur propre securite", () => {
-    for (const p of ["/fiche/abc123", "/fiche", "/api/fiche/x", "/api/v1/copros", "/api/v1", "/monitoring", "/monitoring/x", "/_next/static/a.js", "/_next/image", "/favicon.ico"]) {
+    for (const p of ["/fiche/abc123", "/fiche", "/api/fiche/x", "/api/v1/copros", "/api/v1", "/monitoring", "/monitoring/x", "/_next/static/a.js", "/_next/image", "/favicon.ico", "/manifest.webmanifest", "/icon.png", "/apple-icon.png", "/icons/icon-192.png"]) {
       expect(RE.test(p), p).toBe(false);
     }
   });
   it("garde tout le reste, y compris les voisins de nom", () => {
-    for (const p of ["/", "/accueil", "/fiches-internes", "/api/v1bis/x", "/monitoring-admin", "/api/fichesx", "/favicon.icon"]) {
+    for (const p of ["/", "/accueil", "/fiches-internes", "/api/v1bis/x", "/monitoring-admin", "/api/fichesx", "/favicon.icon", "/manifest.webmanifest.bak", "/iconsx/a.png", "/apple-icon.png.map"]) {
       expect(RE.test(p), p).toBe(true);
     }
   });
