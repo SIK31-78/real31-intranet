@@ -7,7 +7,11 @@
 // syndicN (la boîte passée au provider). Le brouillon peut être rattaché à un dossier : son
 // internetMessageId survit à l'envoi, « Ouvrir le mail » depuis le dossier le retrouve.
 // Plusieurs boîtes (V2 du 27/10/2026) : la boîte d'envoi et les copros proposées sont celles
-// de la boîte triée de l'agence de la personne (boiteDeComposition), plus une constante.
+// de la boîte triée de l'agence de la personne, plus une constante.
+// « De » au choix (29/10/2026) : les boîtes partagées de la personne (son agence ; toutes pour
+// un comptable ou un super-admin) et sa boîte perso (expediteursDeComposition, règle dans
+// domain/expediteur-composition). Les copros proposées couvrent toutes ces boîtes partagées,
+// chacune marquée de la sienne. La boîte perso envoie comme une réponse (sans MAIL_ENVOI).
 
 import {
   getContactsCoproProvider,
@@ -17,8 +21,16 @@ import {
   getMailOutboundProvider,
   getReferentielTriProvider,
 } from "@/lib/adapters/router";
-import { BOITE_ECHANTILLON, boitesTri, envoiMailPour, mailModuleActif, type BoiteTriConfig } from "@/lib/domain/mail-gate";
-import { boiteDe } from "@/lib/services/tri-emails/acces";
+import { BOITE_ECHANTILLON, boitesTri, envoiMailPour, mailModuleActif } from "@/lib/domain/mail-gate";
+import { codeAgence } from "@/lib/services/agences/resoudre-agence";
+import { roleComptable } from "@/lib/domain/gestionnaire";
+import {
+  MOTIF_CCI_DEPUIS_PERSO,
+  expediteursComposition,
+  touteLaCoproPossibleDepuis,
+  type BoitePartagee,
+  type ExpediteurPropose,
+} from "@/lib/domain/expediteur-composition";
 import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { destinatairesConseilSyndical } from "@/lib/services/coproprietes/destinataires-conseil";
 import { binomeEnCopie } from "@/lib/services/coproprietes/assistante-de-copro";
@@ -35,44 +47,70 @@ import { rattacherEmailAuDossier } from "@/lib/services/dossiers/rattacher-email
 import { DUREE_JETON_MS, scellerJeton, type JetonNeuf } from "./jeton-envoi";
 import { brouillonNeufDe } from "./depot-piece-jointe";
 
-export type { CoproChoisissable, ContactsComposition };
+export type { CoproChoisissable, ContactsComposition, ExpediteurPropose };
 
 /**
- * La boîte triée de la personne pour composer : celle de son agence ; un super-admin sans
- * boîte d'agence prend la première de la config (`superAdmin` vient de l'appelant, auth).
+ * La boîte d'où part le mail : une boîte partagée (une BoiteTriConfig convient) ou la boîte
+ * perso (`personnelle`). « echantillon » en dev : aperçu possible, jamais de brouillon.
  */
-export async function boiteDeComposition(g: Pick<Gestionnaire, "agencyId">, superAdmin: boolean): Promise<BoiteTriConfig | null> {
-  return (await boiteDe(g)) ?? (superAdmin ? (boitesTri()[0] ?? null) : null);
+export type Expediteur = { boite: string; personnelle?: boolean };
+
+/**
+ * Les boîtes proposées dans « De » et celle de l'ouverture (la boîte de son agence, comme
+ * avant). `superAdmin` et `sansBoitePerso` (incarnation) viennent de l'appelant (auth). Le
+ * serveur rejoue ce calcul à l'envoi : c'est la seule liste qui vaille.
+ */
+export async function expediteursDeComposition(
+  g: Pick<Gestionnaire, "agencyId" | "email" | "role">,
+  droits: { superAdmin: boolean; sansBoitePerso: boolean },
+): Promise<{ expediteurs: ExpediteurPropose[]; parDefaut: string | null }> {
+  const agence = await codeAgence(g.agencyId).catch(() => undefined);
+  const { expediteurs, parDefaut } = expediteursComposition({
+    agence,
+    superAdmin: droits.superAdmin,
+    comptable: roleComptable(g.role),
+    boites: boitesTri(),
+    perso: droits.sansBoitePerso ? null : g.email,
+  });
+  return { expediteurs: expediteurs.map((e) => ({ ...e, brouillon: brouillonPossible(e), envoi: envoiDirectComposition(e) })), parDefaut };
+}
+
+/** L'adresse d'où part le mail, ou null (aucune boîte). */
+export function boiteEnvoi(e: Expediteur | null | undefined): string | null {
+  return e?.boite ?? null;
 }
 
 /**
- * La boîte partagée d'où part le mail : celle de l'agence de la personne. null si son agence
- * n'a pas de boîte ; "echantillon" en dev (aperçu possible, jamais de brouillon).
+ * Les copros des boîtes partagées proposées (leurs agences), chacune marquée de SA boîte :
+ * choisir une copro règle « De » sur elle. Une copro vue par deux boîtes garde la première.
  */
-export function boiteEnvoi(config: BoiteTriConfig | null): string | null {
-  return config?.boite ?? null;
-}
-
-export async function listerCoprosComposition(config: BoiteTriConfig | null): Promise<CoproChoisissable[]> {
-  const ref = await getReferentielTriProvider(config?.agences ?? []).charger();
-  // Les copros inactives (gardees pour reconnaitre le courrier entrant) ne recoivent plus de mail.
-  return ref.copros
-    .filter((c) => !c.inactive)
-    .map((c) => ({ reference: c.reference, nom: c.nom, adresse: c.adresse, gestionnaire: c.gestionnaire?.nomComplet ?? null }))
-    .sort((a, b) => a.reference.localeCompare(b.reference, "fr"));
+export async function listerCoprosComposition(boites: readonly BoitePartagee[]): Promise<CoproChoisissable[]> {
+  const parBoite = await Promise.all(boites.map(async (b) => ({ boite: b.boite, ref: await getReferentielTriProvider(b.agences).charger() })));
+  const vues = new Set<string>();
+  const out: CoproChoisissable[] = [];
+  for (const { boite, ref } of parBoite) {
+    // Les copros inactives (gardees pour reconnaitre le courrier entrant) ne recoivent plus de mail.
+    for (const c of ref.copros) {
+      const cle = cleDeReference(c.reference) ?? c.reference;
+      if (c.inactive || vues.has(cle)) continue;
+      vues.add(cle);
+      out.push({ reference: c.reference, nom: c.nom, adresse: c.adresse, gestionnaire: c.gestionnaire?.nomComplet ?? null, boite });
+    }
+  }
+  return out.sort((a, b) => a.reference.localeCompare(b.reference, "fr"));
 }
 
 /**
  * Chercher un destinataire par son nom (ou son adresse) : la personne, toutes ses adresses et
  * ses copros, pour choisir à laquelle rattacher le mail (ou aucune : c'est parfois perso).
  */
-export async function rechercherDestinataires(texte: string, config: BoiteTriConfig | null): Promise<DestinataireTrouve[]> {
+export async function rechercherDestinataires(texte: string, boites: readonly BoitePartagee[]): Promise<DestinataireTrouve[]> {
   const [identites, copros, collegues] = await Promise.all([
     getContactsCoproProvider().rechercherIdentites(texte),
-    listerCoprosComposition(config).catch(() => [] as CoproChoisissable[]),
+    listerCoprosComposition(boites).catch(() => [] as CoproChoisissable[]),
     listerCollegues(),
   ]);
-  // Les copros des agences de la boîte seulement : un copropriétaire d'une autre agence ne
+  // Les copros des agences des boîtes proposées seulement : un copropriétaire d'une autre agence ne
   // sort pas. Une fiche sans copro (artisan, notaire) reste proposée.
   const parCle = new Map(copros.map((c) => [cleDeReference(c.reference) ?? c.reference, c]));
   const out: DestinataireTrouve[] = [];
@@ -214,14 +252,18 @@ export interface ResultatBrouillon {
   mails?: number;
 }
 
-/** Le bouton du compositeur ENVOIE-t-il (MAIL_ENVOI=on ET `envoi` de la boîte) ou crée-t-il un brouillon ? */
-export function envoiDirectComposition(config: BoiteTriConfig | null): boolean {
-  return brouillonPossible(config) && envoiMailPour(boiteEnvoi(config));
+/**
+ * Le bouton du compositeur ENVOIE-t-il ou crée-t-il un brouillon ? Boîte partagée : MAIL_ENVOI=on
+ * ET `envoi` de la boîte (ADR-047). Boîte perso : il envoie, comme une réponse ou un transfert
+ * depuis « Ma boîte » (MAIL_ENVOI ne garde que les boîtes partagées).
+ */
+export function envoiDirectComposition(e: Expediteur | null): boolean {
+  return brouillonPossible(e) && (Boolean(e?.personnelle) || envoiMailPour(boiteEnvoi(e)));
 }
 
-/** Un brouillon peut-il être créé (Graph branché et vraie boîte partagée configurée) ? */
-export function brouillonPossible(config: BoiteTriConfig | null): boolean {
-  const boite = boiteEnvoi(config);
+/** Un brouillon peut-il être créé (Graph branché et vraie boîte) ? */
+export function brouillonPossible(e: Expediteur | null): boolean {
+  const boite = boiteEnvoi(e);
   return mailModuleActif() && Boolean(boite) && boite !== BOITE_ECHANTILLON;
 }
 
@@ -246,18 +288,23 @@ export interface PreparationComposition {
 }
 
 /**
- * Crée le(s) brouillon(s) NEUF(S) dans la boîte partagée, sans rien envoyer. Le mode (envoi ou
- * brouillon) est décidé ICI, garde d'envoi comprise (MAIL_ENVOI et `envoi` de la boîte), et
- * scellé dans le jeton : la finalisation ne peut pas l'élargir. Un échec en route supprime les
+ * Crée le(s) brouillon(s) NEUF(S) dans la boîte d'envoi (partagée ou perso, déjà contrôlée par
+ * l'appelant), sans rien envoyer. Le mode (envoi ou brouillon) est décidé ICI, garde d'envoi
+ * comprise (MAIL_ENVOI et `envoi` de la boîte partagée), et scellé dans le jeton avec la boîte :
+ * la finalisation ne peut ni l'élargir ni changer de boîte. Un échec en route supprime les
  * brouillons déjà créés (pas d'orphelin dans la boîte).
  */
 export async function preparerComposition(
   d: DemandeBrouillon,
   g: Gestionnaire,
-  config: BoiteTriConfig | null,
+  expediteur: Expediteur | null,
 ): Promise<PreparationComposition> {
-  const boite = boiteEnvoi(config);
-  if (!brouillonPossible(config) || !boite) {
+  const boite = boiteEnvoi(expediteur);
+  // Toute la copropriété ne part jamais d'une boîte perso (domain/expediteur-composition).
+  if (d.cci?.length && expediteur && !touteLaCoproPossibleDepuis({ personnelle: Boolean(expediteur.personnelle) })) {
+    throw new Error(MOTIF_CCI_DEPUIS_PERSO);
+  }
+  if (!brouillonPossible(expediteur) || !boite) {
     return { simulation: true, boite };
   }
   // Signitic ne passe pas sur un brouillon créé par l'app : on pose la signature nous-mêmes.
@@ -270,7 +317,7 @@ export async function preparerComposition(
   const lots: { a: string[]; cci: string[] }[] = d.envois?.length
     ? d.envois.map((x) => ({ a: x, cci: [] }))
     : (d.cci?.length ? enLots(d.cci) : [[]]).map((cci) => ({ a, cci }));
-  const mode = envoiMailPour(boite) ? "envoyer" : "brouillon";
+  const mode = envoiDirectComposition(expediteur) ? "envoyer" : "brouillon";
   const crees: { id: string; webLink?: string; internetMessageId?: string }[] = [];
   try {
     for (const { a, cci } of lots) {

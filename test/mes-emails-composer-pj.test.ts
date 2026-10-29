@@ -12,11 +12,12 @@ const etat = vi.hoisted(() => ({
   /** Le PUT de la tranche n° k (0, 1…) échoue. */
   trancheEnEchec: null as number | null,
   rattachements: [] as unknown[][],
+  incarnation: false,
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 vi.mock("@/lib/auth/session", () => ({
-  incarnationEnCours: async () => false,
+  incarnationEnCours: async () => etat.incarnation,
   getGestionnaireCourant: async () => etat.session,
   mailModuleActifPour: () => true,
 }));
@@ -33,6 +34,7 @@ vi.mock("@/lib/adapters/router", async (original) => ({
   getAgenceRepository: () => ({
     listerAgences: async () => [
       { id: "ag-hls", code: "HLS" },
+      { id: "ag-lgc", code: "LGC" },
       { id: "ag-ml", code: "ML" },
     ],
   }),
@@ -102,6 +104,7 @@ beforeEach(() => {
   etat.graph = [];
   etat.trancheEnEchec = null;
   etat.rattachements = [];
+  etat.incarnation = false;
   reseau();
 });
 afterEach(() => {
@@ -173,8 +176,16 @@ describe("limites et gardes", () => {
     expect(etat.graph).toEqual([]);
   });
 
-  it("agence sans boîte partagée : aperçu seulement, rien n'est écrit dans une boîte", async () => {
+  it("agence sans boîte partagée : la boîte perso, seule proposée (29/10/2026)", async () => {
     etat.session = { ...sophie, id: "u9", email: "marc@real31.fr", agencyId: "ag-ml" };
+    const prep = await preparerCompositionAction(mail());
+    expect(prep.ok && prep.donnees).toMatchObject({ simulation: false, boite: "marc@real31.fr", envoi: true });
+    expect(etat.graph).toEqual([`POST https://graph/users/${encodeURIComponent("marc@real31.fr")}/messages`]);
+  });
+
+  it("aucune boîte du tout (incarnation, agence sans boîte) : aperçu seulement, rien n'est écrit", async () => {
+    etat.session = { ...sophie, id: "u9", email: "marc@real31.fr", agencyId: "ag-ml" };
+    etat.incarnation = true;
     const prep = await preparerCompositionAction(mail());
     expect(prep).toEqual({ ok: true, donnees: { simulation: true, boite: null } });
     expect(etat.graph).toEqual([]);
@@ -204,6 +215,62 @@ describe("limites et gardes", () => {
       exp: Date.now() + 60_000,
     });
     expect((await finaliserCompositionAction({ jetons: [reponse] })).ok).toBe(false);
+    expect(etat.graph).toEqual([]);
+  });
+});
+
+describe("« De » choisi (29/10/2026) : le serveur ne croit pas le navigateur", () => {
+  const SYNDIC2 = "syndic2@real31.fr";
+  const elsa = { id: "u5", nomComplet: "Elsa P", initiales: "EP", email: "elsa@real31.fr", agencyId: "ag-lgc", role: "COMPTABLE" };
+  const nicolas = { id: "u6", nomComplet: "Nicolas G", initiales: "NG", email: "nicolas@real31.fr", agencyId: "ag-lgc", role: "GESTIONNAIRE" };
+  beforeEach(() => {
+    vi.stubEnv(
+      "MAIL_TRI_BOITES",
+      JSON.stringify([
+        { boite: SYNDIC2, agences: ["LGC", "ASN"], ecriture: false, automatique: false, envoi: false },
+        { boite: SYNDIC4, agences: ["HLS"], ecriture: false, automatique: false, envoi: false },
+      ]),
+    );
+  });
+
+  it("une comptable de La Garenne écrit depuis syndic4 (copro de Houilles) : brouillon dans syndic4", async () => {
+    etat.session = elsa;
+    const prep = await preparerCompositionAction(mail({ expediteur: SYNDIC4 }));
+    expect(prep.ok && prep.donnees).toMatchObject({ simulation: false, boite: SYNDIC4, envoi: false });
+    expect(etat.graph).toEqual(["POST /messages"]);
+  });
+
+  it("sans « De » : la boîte de son agence, comme avant", async () => {
+    etat.session = nicolas;
+    const prep = await preparerCompositionAction(mail());
+    expect(prep.ok && prep.donnees).toMatchObject({ boite: SYNDIC2 });
+  });
+
+  it("un gestionnaire de La Garenne ne peut pas écrire depuis syndic4, ni depuis l'adresse d'un collègue", async () => {
+    etat.session = nicolas;
+    expect(await preparerCompositionAction(mail({ expediteur: SYNDIC4 }))).toEqual({ ok: false, erreur: "Boîte non autorisée." });
+    expect(await preparerCompositionAction(mail({ expediteur: "sophie@real31.fr" }))).toEqual({ ok: false, erreur: "Boîte non autorisée." });
+    expect(etat.graph).toEqual([]);
+  });
+
+  it("sa boîte perso : le mail part de chez lui (l'envoi direct ne dépend pas de MAIL_ENVOI)", async () => {
+    etat.session = nicolas;
+    vi.stubEnv("MAIL_ENVOI", "");
+    const prep = await preparerCompositionAction(mail({ expediteur: "Nicolas@real31.fr" }));
+    expect(prep.ok && prep.donnees).toMatchObject({ simulation: false, boite: "nicolas@real31.fr", envoi: true });
+  });
+
+  it("en incarnation, la boîte perso de la personne incarnée est refusée", async () => {
+    etat.session = nicolas;
+    etat.incarnation = true;
+    expect(await preparerCompositionAction(mail({ expediteur: "nicolas@real31.fr" }))).toEqual({ ok: false, erreur: "Boîte non autorisée." });
+    expect(etat.graph).toEqual([]);
+  });
+
+  it("toute la copropriété depuis la boîte perso : refusé, avec la raison", async () => {
+    etat.session = nicolas;
+    const r = await preparerCompositionAction(mail({ a: [], cci: ["c1@exemple.fr"], expediteur: "nicolas@real31.fr" }));
+    expect(r).toEqual({ ok: false, erreur: expect.stringContaining("boîte partagée") });
     expect(etat.graph).toEqual([]);
   });
 });

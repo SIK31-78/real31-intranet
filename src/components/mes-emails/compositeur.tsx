@@ -16,6 +16,10 @@
 // la boîte partagée est ouvert (MAIL_ENVOI=on) ; sinon il crée un BROUILLON, relu puis
 // envoyé depuis Outlook (ADR-047). Fichiers et destinataires se glissent-déposent. Les
 // fichiers (25 Mo) sont déposés par tranches sur le brouillon déjà créé, comme une réponse.
+// « De » au choix (29/10/2026) quand la personne a plusieurs boîtes (ses boîtes partagées, sa
+// boîte perso) : choisir une copro règle la boîte sur celle de la copro, et la ligne « De » le
+// dit (règle dans domain/expediteur-composition). Depuis la boîte perso, le mail part comme une
+// réponse ; « Toute la copropriété » n'en part pas.
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { Building2, Users, X } from "lucide-react";
@@ -72,6 +76,13 @@ import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
 import { conseilEncoreDestinataire, phraseCopieBinome } from "@/lib/domain/copie-binome";
 import { useAlerteSortie } from "./alerte-sortie";
 import { SignatureRepliee } from "./signature-repliee";
+import {
+  MOTIF_CCI_DEPUIS_PERSO,
+  expediteurApresCopro,
+  touteLaCoproPossibleDepuis,
+  type EtatExpediteur,
+  type ExpediteurPropose,
+} from "@/lib/domain/expediteur-composition";
 
 type DossierAffiche = { id: string; titre: string; type: TypeDossier };
 
@@ -85,11 +96,13 @@ type Props = {
   copros: CoproChoisissable[];
   gestionnaireNom: string;
   agence: string;
-  /** Graph branché + vraie boîte partagée : le bouton crée un brouillon (sinon aperçu). */
-  brouillonPossible: boolean;
-  /** Le bouton envoie pour de vrai (MAIL_ENVOI=on) au lieu de créer un brouillon. */
-  envoiDirect?: boolean;
-  boite: string | null;
+  /**
+   * Les boîtes du « De », calculées côté serveur (le serveur les recontrôle à l'envoi), chacune
+   * avec ce qu'elle permet : brouillon (sinon aperçu) et envoi direct (sinon brouillon Outlook).
+   */
+  expediteurs: ExpediteurPropose[];
+  /** La boîte de l'ouverture : celle de l'agence de la personne. */
+  expediteurParDefaut: string | null;
   /** Signature du gestionnaire (Signitic), posée sous le message. */
   signatureHtml?: string | null;
   /** Brouillon créé : la fenêtre qui contient le compositeur peut se fermer. */
@@ -184,9 +197,15 @@ export function BadgeDestinataire({ genre }: { genre: DestinataireTrouve["genre"
   return null;
 }
 
-export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible, envoiDirect = false, boite, signatureHtml, onTermine, modeles, pilote = false, reformulation = false, onSaisie }: Props) {
+export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expediteurParDefaut, signatureHtml, onTermine, modeles, pilote = false, reformulation = false, onSaisie }: Props) {
   const toast = useToast();
   const confirmer = useConfirm();
+  // Le « De » : la boîte de l'ouverture, puis celle de la copro choisie, ou celle choisie à la main.
+  const [etatDe, setEtatDe] = useState<EtatExpediteur>({ boite: expediteurParDefaut ?? expediteurs[0]?.boite ?? "", manuel: false });
+  const expediteur = expediteurs.find((e) => e.boite === etatDe.boite) ?? null;
+  const boite = expediteur?.boite ?? null;
+  const brouillonPossible = expediteur?.brouillon ?? false;
+  const envoiDirect = expediteur?.envoi ?? false;
   const [a, setA] = useState<Personne[]>([]);
   const [cc, setCc] = useState<Personne[]>([]);
   // Les immeubles proposés : ceux des personnes choisies.
@@ -241,6 +260,10 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   function choisirCopro(ref: string, ensuite?: NatureRaccourciCopro) {
     const nouvelle = copros.find((x) => x.reference.toUpperCase() === ref.trim().toUpperCase()) ?? proposees.find((x) => x.reference === ref) ?? null;
     setObjet((o) => remplacerPrefixeCopro(o, copro, nouvelle));
+    // La boîte suit la copro (copro de Houilles -> syndic4), sauf choix à la main qui la couvre
+    // encore, ou boîte perso choisie à la main.
+    const de = expediteurApresCopro(etatDe, nouvelle?.boite, expediteurs);
+    if (de.change) setEtatDe({ boite: de.boite, manuel: de.manuel });
     const modele = modeles.find((x) => x.id === modeleId);
     if (modele && corps === corpsDuModele.current) remplirModele(modele, nouvelle);
     setRefCopro(ref);
@@ -434,14 +457,18 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     onTermine?.();
   }
 
-  const cci = cciCopro ? (touteCopro ?? []) : [];
+  // Toute la copropriété ne part pas de la boîte perso : la pastille reste, l'envoi attend une
+  // boîte partagée dans « De » (domain/expediteur-composition).
+  const cciDepuisPerso = Boolean(cciCopro && expediteur && !touteLaCoproPossibleDepuis(expediteur));
+  const cci = cciCopro && !cciDepuisPerso ? (touteCopro ?? []) : [];
+  const nbCciCopro = cciCopro ? (touteCopro?.length ?? 0) : 0;
   // Envoi séparé : proposé dès deux personnes en « À » ; la découpe (et ses refus) vient du domaine.
   const separePossible = a.filter((p) => p.emails.length).length >= 2;
   const decoupe = separe && separePossible ? envoisSepares(a.map((p) => p.emails), adresses(cc), cci) : null;
   const envoisPrets = decoupe?.ok ? decoupe.envois : null;
   // L'objet doit dire de quoi parle le mail : le préfixe copro seul ne suffit pas (incident du 28/10/2026).
   const aUnSujet = Boolean(sujetDeLObjet(objet, copro));
-  const pretAEnvoyer = Boolean(aUnSujet && (adresses(a).length || cci.length) && corps.trim() && (!decoupe || decoupe.ok));
+  const pretAEnvoyer = Boolean(aUnSujet && (adresses(a).length || cci.length) && corps.trim() && (!decoupe || decoupe.ok) && !cciDepuisPerso);
   // Tout est prêt sauf l'objet, réduit à la copro : on dit pourquoi le bouton reste grisé.
   const objetReduitACopro = Boolean(copro && !aUnSujet && (adresses(a).length || cci.length) && corps.trim());
   const adressesInvalides = [...adresses(a), ...adresses(cc)].filter((e) => !adresseMailValide(e));
@@ -453,6 +480,10 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     }
     if (objetReduitACopro) {
       toast.err(MESSAGE_OBJET_REDUIT);
+      return;
+    }
+    if (cciDepuisPerso) {
+      toast.err(MOTIF_CCI_DEPUIS_PERSO);
       return;
     }
     if (!pretAEnvoyer) {
@@ -539,6 +570,8 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         ...(dossierId ? { dossierId } : {}),
         ...(envoisPrets ? { envois: envoisPrets } : {}),
         fichiers: fichiers.map(({ nom, taille }) => ({ nom, taille })),
+        // Le « De » choisi : le serveur le recontrôle contre les boîtes de la personne.
+        ...(boite ? { expediteur: boite } : {}),
       });
       if (!prep.ok) {
         setEnvoiEnCours(false);
@@ -613,7 +646,19 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
       {...depot.zone}
       className={"flex flex-col gap-4 rounded-lg transition-shadow " + (depot.survol ? "ring-2 ring-green-600 ring-offset-4" : "")}
     >
-      {boite && brouillonPossible ? <LigneExpediteur boite={boite} /> : null}
+      <ChampDeComposition
+        expediteurs={expediteurs}
+        valeur={boite}
+        brouillonPossible={brouillonPossible}
+        coproDeLaBoite={!etatDe.manuel && boite !== expediteurParDefaut && copro?.boite === boite ? copro.reference : null}
+        onChange={(v) => setEtatDe({ boite: v, manuel: true })}
+        desactive={envoiEnCours}
+      />
+      {cciDepuisPerso ? (
+        <p className="-mt-2 text-meta text-err-700" role="status">
+          {MOTIF_CCI_DEPUIS_PERSO}
+        </p>
+      ) : null}
       <ChampPersonnes
         champ="a"
         label="À"
@@ -637,11 +682,16 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         />
       ) : null}
       {phraseBinome ? <p className="-mt-2 text-meta text-ink-3">{phraseBinome}</p> : null}
-      {cci.length > 0 && copro ? (
+      {nbCciCopro > 0 && copro ? (
         <div className="flex items-center gap-2">
           <span className="w-6 shrink-0 text-body text-ink-3">Cci</span>
-          <span className="inline-flex items-center gap-1 h-7 pl-2.5 pr-1 rounded-md bg-green-50 text-green-700 border border-green-500/30 text-body">
-            Tous les copropriétaires de {copro.reference} ({cci.length} adresses, aucune visible des autres)
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 h-7 pl-2.5 pr-1 rounded-md border text-body",
+              cciDepuisPerso ? "bg-err-50 text-err-700 border-err-700/30" : "bg-green-50 text-green-700 border-green-500/30",
+            )}
+          >
+            Tous les copropriétaires de {copro.reference} ({nbCciCopro} adresses, aucune visible des autres)
             <button type="button" onClick={() => setCciCopro(false)} aria-label="Retirer la copie cachée à toute la copropriété" className="hover:text-err-700">
               <X strokeWidth={1.5} className="w-3.5 h-3.5" />
             </button>
@@ -708,11 +758,13 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
               variant={cciCopro ? "doux" : "secondary"}
               aria-pressed={cciCopro}
               onClick={() => setCciCopro((v) => !v)}
-              disabled={!touteCopro?.length}
+              disabled={!touteCopro?.length || (Boolean(expediteur?.personnelle) && !cciCopro)}
               title={
                 touteCopro && !touteCopro.length
                   ? "Aucune adresse de copropriétaire connue (copro ESTALE : passer par le mailing ESTALE)"
-                  : "Tous les copropriétaires, en copie cachée"
+                  : expediteur?.personnelle
+                    ? MOTIF_CCI_DEPUIS_PERSO
+                    : "Tous les copropriétaires, en copie cachée"
               }
             >
               <Building2 strokeWidth={1.5} />
@@ -838,6 +890,58 @@ export function LigneExpediteur({ boite, className }: { boite: string; className
     <p className={cn("text-meta text-ink-3", className)}>
       De : <span className="font-medium text-ink-2">{boite}</span>
     </p>
+  );
+}
+
+/**
+ * Le « De » du nouveau mail (29/10/2026). Une seule boîte : la ligne de texte d'avant. Plusieurs :
+ * un choix compact ; quand la copro vient de régler la boîte d'elle-même, le choix se teinte et
+ * le dit (« boîte de S247 »), sans toast.
+ */
+function ChampDeComposition({
+  expediteurs,
+  valeur,
+  brouillonPossible,
+  coproDeLaBoite,
+  onChange,
+  desactive,
+}: {
+  expediteurs: ExpediteurPropose[];
+  valeur: string | null;
+  brouillonPossible: boolean;
+  /** La copro dont la boîte a été choisie automatiquement, ou null (boîte de l'ouverture, ou choix à la main). */
+  coproDeLaBoite: string | null;
+  onChange: (boite: string) => void;
+  desactive: boolean;
+}) {
+  if (!valeur) return null;
+  if (expediteurs.length < 2) return brouillonPossible ? <LigneExpediteur boite={valeur} /> : null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <label htmlFor="comp-de" className="text-meta text-ink-3">
+        De :
+      </label>
+      <Select
+        id="comp-de"
+        taille="sm"
+        largeur="auto"
+        value={valeur}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={desactive}
+        className={cn("max-w-full", coproDeLaBoite ? "border-info-500/40 bg-info-50 text-info-700" : null)}
+      >
+        {expediteurs.map((e) => (
+          <option key={e.boite} value={e.boite}>
+            {e.personnelle ? `${e.boite} (ma boîte)` : e.boite}
+          </option>
+        ))}
+      </Select>
+      {coproDeLaBoite ? (
+        <span className="text-meta text-info-700" role="status">
+          boîte de la copropriété {coproDeLaBoite}
+        </span>
+      ) : null}
+    </div>
   );
 }
 

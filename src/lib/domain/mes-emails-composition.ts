@@ -40,6 +40,8 @@ export interface CoproComposition {
 /** Une copro proposée dans le compositeur : la copro + son gestionnaire (pour affichage). */
 export interface CoproChoisissable extends CoproComposition {
   gestionnaire: string | null;
+  /** La boîte partagée dont dépend la copro (celle de son agence) : « De » la suit (29/10/2026). */
+  boite?: string;
 }
 
 /**

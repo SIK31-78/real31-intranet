@@ -13,13 +13,13 @@ import { useConfirm } from "@/components/ui/confirm";
 import { Compositeur } from "./compositeur";
 import { listerCoprosCompositionAction } from "@/app/mes-emails/composer/actions";
 import type { CoproChoisissable, ModeleMail } from "@/lib/domain/mes-emails-composition";
+import type { ExpediteurPropose } from "@/lib/domain/expediteur-composition";
 
 export function EnvoyerEmail({
   gestionnaireNom,
   agence,
-  brouillonPossible,
-  envoiDirect = false,
-  boite,
+  expediteurs,
+  expediteurParDefaut,
   signatureHtml,
   modeles,
   pilote = false,
@@ -31,9 +31,9 @@ export function EnvoyerEmail({
   reformulation?: boolean;
   gestionnaireNom: string;
   agence: string;
-  brouillonPossible: boolean;
-  envoiDirect?: boolean;
-  boite: string | null;
+  /** Les boîtes du « De » (calculées côté serveur) et celle de l'ouverture. */
+  expediteurs: ExpediteurPropose[];
+  expediteurParDefaut: string | null;
   signatureHtml: string | null;
   modeles: ModeleMail[];
 }) {
@@ -93,9 +93,8 @@ export function EnvoyerEmail({
                 copros={copros}
                 gestionnaireNom={gestionnaireNom}
                 agence={agence}
-                brouillonPossible={brouillonPossible}
-                envoiDirect={envoiDirect}
-                boite={boite}
+                expediteurs={expediteurs}
+                expediteurParDefaut={expediteurParDefaut}
                 signatureHtml={signatureHtml}
                 modeles={modeles}
                 pilote={pilote}

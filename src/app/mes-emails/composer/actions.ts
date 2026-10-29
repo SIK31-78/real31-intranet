@@ -7,14 +7,15 @@
 // la boîte le permet, sinon brouillon dans Outlook) ou abandonner (brouillon supprimé).
 
 import { z } from "zod";
-import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
+import { getGestionnaireCourant, incarnationEnCours, mailModuleActifPour } from "@/lib/auth/session";
 import { estSuperAdmin } from "@/lib/auth/roles";
 import { echec, echecDepuis, type Res } from "@/lib/actions/resultat";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
+import { MOTIF_CCI_DEPUIS_PERSO, expediteurAutorise, touteLaCoproPossibleDepuis } from "@/lib/domain/expediteur-composition";
 import {
   abandonnerComposition,
-  boiteDeComposition,
   brouillonPossible,
+  expediteursDeComposition,
   finaliserComposition,
   preparerComposition,
   listerContactsComposition,
@@ -50,14 +51,22 @@ async function gestionnaire(): Promise<Gestionnaire | null> {
   return g && mailModuleActifPour(g.email) ? g : null;
 }
 
-/** La boîte triée de l'agence de la personne (27/10/2026) : boîte d'envoi et copros proposées. */
-const boiteDe = (g: Gestionnaire) => boiteDeComposition(g, estSuperAdmin(g.email));
+/**
+ * Les boîtes du « De » (29/10/2026) : celles de la personne, calculées ici côté serveur à chaque
+ * appel (son agence ; toutes pour un comptable ou un super-admin ; sa boîte perso hors
+ * incarnation). La boîte reçue du navigateur n'est crue que si elle y figure.
+ */
+const expediteursDe = async (g: Gestionnaire) =>
+  expediteursDeComposition(g, { superAdmin: estSuperAdmin(g.email), sansBoitePerso: await incarnationEnCours() });
+
+/** Les boîtes partagées proposées : leurs agences bornent les copros et l'annuaire. */
+const partageesDe = async (g: Gestionnaire) => (await expediteursDe(g)).expediteurs.filter((e) => !e.personnelle);
 
 export async function listerCoprosCompositionAction(): Promise<Res<CoproChoisissable[]>> {
   const g = await gestionnaire();
   if (!g) return echec(INDISPONIBLE);
   try {
-    return { ok: true, donnees: await listerCoprosComposition(await boiteDe(g)) };
+    return { ok: true, donnees: await listerCoprosComposition(await partageesDe(g)) };
   } catch (e) {
     return echecDepuis(e, CTX);
   }
@@ -69,7 +78,7 @@ export async function rechercherDestinatairesAction(input: unknown): Promise<Res
   const d = z.object({ texte: z.string().trim().min(3).max(100) }).safeParse(input);
   if (!d.success) return { ok: true, donnees: [] };
   try {
-    return { ok: true, donnees: await rechercherDestinataires(d.data.texte, await boiteDe(g)) };
+    return { ok: true, donnees: await rechercherDestinataires(d.data.texte, await partageesDe(g)) };
   } catch (e) {
     return echecDepuis(e, CTX);
   }
@@ -160,6 +169,8 @@ export async function preparerCompositionAction(input: unknown): Promise<Res<Pre
       corpsHtml: z.string().optional(),
       // Envoi séparé (décision 10) : un mail par personne, ses adresses ensemble.
       envois: z.array(z.array(z.string().max(320).regex(ADRESSE_MAIL)).min(1).max(10)).max(ENVOIS_SEPARES_MAX + 1).optional(),
+      // Le « De » choisi (29/10/2026) : contrôlé contre les boîtes de la personne, jamais cru tel quel.
+      expediteur: z.string().trim().max(320).optional(),
     })
     .refine((v) => v.a.length > 0 || v.cci.length > 0)
     .safeParse(input);
@@ -178,10 +189,16 @@ export async function preparerCompositionAction(input: unknown): Promise<Res<Pre
   const riche = corpsMisEnForme(true, d.data.corpsHtml);
   if (riche === "refuse") return echec("La mise en forme est en essai : elle n'est pas encore ouverte.");
   try {
-    const config = await boiteDe(g);
-    // La boîte d'envoi doit être une boîte visible de la personne (son agence, toutes pour un
-    // super-admin), comme le « De : » d'une réponse. Aperçu sans boîte : rien à garder.
-    if (config && brouillonPossible(config) && !(await boiteCible(g, config.boite))) return echec("Boîte non autorisée.");
+    // La boîte d'envoi : celle demandée, si elle est parmi les boîtes de la personne (même calcul
+    // que l'écran) ; absente, celle de l'ouverture. Une adresse hors liste est refusée, et la
+    // boîte perso est toujours l'adresse de la personne connectée (jamais en incarnation).
+    const { expediteurs } = await expediteursDe(g);
+    const expediteur = expediteurAutorise(expediteurs, d.data.expediteur);
+    if (d.data.expediteur && !expediteur) return echec("Boîte non autorisée.");
+    // Double garde, comme le « De : » d'une réponse : une boîte visible de la personne. Aperçu
+    // sans boîte : rien à garder.
+    if (expediteur && brouillonPossible(expediteur) && !(await boiteCible(g, expediteur.boite))) return echec("Boîte non autorisée.");
+    if (d.data.cci.length && expediteur && !touteLaCoproPossibleDepuis(expediteur)) return echec(MOTIF_CCI_DEPUIS_PERSO);
     const { objet, cc, cci, dossierId } = d.data;
     const a = envois ? envois.flat() : d.data.a;
     const corps = riche ? riche.corps : d.data.corps;
@@ -199,7 +216,7 @@ export async function preparerCompositionAction(input: unknown): Promise<Res<Pre
           ...(envois ? { envois } : {}),
         },
         g,
-        config,
+        expediteur,
       ),
     };
   } catch (e) {

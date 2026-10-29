@@ -13,7 +13,7 @@ import { BoutonRafraichir } from "./bouton-rafraichir";
 import { Page } from "@/components/ui/page";
 import { EnvoyerEmail } from "@/components/mes-emails/envoyer-email";
 import { ChiffreTitre } from "@/components/mes-emails/chiffre-a-traiter";
-import { boiteDeComposition, boiteEnvoi, brouillonPossible, envoiDirectComposition } from "@/lib/services/mes-emails/composer-mail";
+import { expediteursDeComposition } from "@/lib/services/mes-emails/composer-mail";
 import { reformulationDisponible } from "@/lib/services/ia/reformuler-mail";
 import { equipeDeLEcran } from "@/lib/services/mes-emails/equipe-ecran";
 
@@ -45,12 +45,16 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
   // Transférer, place des collègues : REA-340, 341, 345, 350, 351) sont ouvertes à tous.
   // Pour un prochain essai, remettre `estSuperAdmin(g.email)` ici et dans les actions.
   const pilote = true;
-  // Boîtes partagées, boîte d'envoi et agence : celles de l'agence de la personne (config
-  // MAIL_TRI_BOITES, 27/10/2026) ; un super-admin voit toutes les boîtes triées.
+  // Boîtes partagées, boîtes d'envoi et agence : celles de l'agence de la personne (config
+  // MAIL_TRI_BOITES, 27/10/2026) ; un super-admin voit toutes les boîtes triées. « De » du
+  // nouveau mail (29/10/2026) : ces boîtes, celles d'un comptable, et la boîte perso hors incarnation.
   const superAdmin = estSuperAdmin(g.email);
-  const [boite, agencePersonne] = await Promise.all([boiteDeComposition(g, superAdmin), agenceDesModeles(g.agencyId)]);
-  const agence = agencePersonne ?? boite?.agences[0] ?? "";
   const incarnation = await incarnationEnCours();
+  const [envoi, agencePersonne] = await Promise.all([
+    expediteursDeComposition(g, { superAdmin, sansBoitePerso: incarnation }),
+    agenceDesModeles(g.agencyId),
+  ]);
+  const agence = agencePersonne ?? envoi.expediteurs.find((e) => e.boite === envoi.parDefaut)?.agences[0] ?? "";
   const [data, signatureHtml, modeles] = await Promise.all([
     getMesEmails(g, maxPerso, { superAdmin, sansBoitePerso: incarnation }),
     getSignatureGestionnaire(g),
@@ -77,9 +81,8 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
           <EnvoyerEmail
             gestionnaireNom={g.nomComplet}
             agence={agence}
-            brouillonPossible={brouillonPossible(boite)}
-            envoiDirect={envoiDirectComposition(boite)}
-            boite={boiteEnvoi(boite)}
+            expediteurs={envoi.expediteurs}
+            expediteurParDefaut={envoi.parDefaut}
             signatureHtml={signatureHtml}
             modeles={modeles}
             pilote={pilote}

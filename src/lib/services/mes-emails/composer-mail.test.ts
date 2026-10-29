@@ -60,8 +60,18 @@ vi.mock("@/lib/adapters/router", () => ({
       ];
     },
   }),
-  getReferentielTriProvider: () => ({
+  // Houilles (HLS) a ses copros, et une S247 en double pour vérifier le dédoublonnage.
+  getReferentielTriProvider: (agences: readonly string[]) => ({
     async charger() {
+      if (agences.includes("HLS")) {
+        return {
+          copros: [
+            { reference: "S300", nom: "Le Moulin", adresse: "", gestionnaire: null },
+            { reference: "S0247", nom: "Doublon", adresse: "", gestionnaire: null },
+            { reference: "S301", nom: "Fermée", adresse: "", gestionnaire: null, inactive: true },
+          ],
+        };
+      }
       return { copros: [{ reference: "S247", nom: "Les Tilleuls", adresse: "", gestionnaire: null }] };
     },
   }),
@@ -91,7 +101,10 @@ vi.mock("@/lib/adapters/router", () => ({
   }),
 }));
 
-const { listerContactsComposition, preparerComposition, rechercherDestinataires } = await import("./composer-mail");
+const { listerContactsComposition, listerCoprosComposition, preparerComposition, rechercherDestinataires } = await import("./composer-mail");
+
+const syndic2 = { boite: "syndic2@real31.fr", agences: ["LGC", "ASN"] };
+const syndic4 = { boite: "syndic4@real31.fr", agences: ["HLS"] };
 
 describe("listerContactsComposition", () => {
   beforeEach(() => {
@@ -175,7 +188,7 @@ describe("listerContactsComposition", () => {
 describe("rechercherDestinataires : collègues d'abord (décision 14)", () => {
   it("propose le collègue en tête et marque la fiche cliente du même nom", async () => {
     etat.identites = [{ cle: "crypto:9", nom: "PEIXOTO Elsa", emails: ["elsa.p@gmail.com"], copros: [{ reference: "S247", qualite: "coproprietaire" }] }];
-    const l = await rechercherDestinataires("elsa", null);
+    const l = await rechercherDestinataires("elsa", [syndic2]);
     expect(l.map((d) => [d.nom, d.genre, d.emails[0]])).toEqual([
       ["Elsa PEIXOTO", "collegue", "elsa.peixoto@real31.fr"],
       ["PEIXOTO Elsa", "client", "elsa.p@gmail.com"],
@@ -205,5 +218,42 @@ describe("preparerComposition : envoi séparé (décision 10)", () => {
   it("sans envoi séparé : un seul brouillon à tous", async () => {
     await preparerComposition({ objet: "x", corps: "y", a: ["a@x.fr", "b@y.fr"], cc: [] }, g, config);
     expect(etat.brouillons.map((b) => b.a)).toEqual([["a@x.fr", "b@y.fr"]]);
+  });
+});
+
+describe("« De » au choix (29/10/2026)", () => {
+  const g = { id: "g1", nomComplet: "Moi", initiales: "MO", email: "moi@real31.fr" };
+  beforeEach(() => {
+    etat.brouillons = [];
+  });
+
+  it("les copros de toutes les boîtes proposées, chacune marquée de sa boîte, sans doublon ni inactive", async () => {
+    const l = await listerCoprosComposition([syndic2, syndic4]);
+    expect(l.map((c) => [c.reference, c.boite])).toEqual([
+      ["S247", "syndic2@real31.fr"],
+      ["S300", "syndic4@real31.fr"],
+    ]);
+    expect(await listerCoprosComposition([])).toEqual([]);
+  });
+
+  it("depuis la boîte perso : le brouillon est créé dans la boîte perso et part (comme une réponse)", async () => {
+    const r = await preparerComposition({ objet: "x", corps: "y", a: ["a@x.fr"], cc: [] }, g, { boite: "moi@real31.fr", personnelle: true });
+    expect(etat.brouillons.map((b) => b.boite)).toEqual(["moi@real31.fr"]);
+    expect(r).toMatchObject({ simulation: false, boite: "moi@real31.fr", envoi: true });
+    // Le jeton scelle la boîte réellement utilisée et le mode.
+    expect(JSON.parse(r.jetons![0]!)).toMatchObject({ nature: "neuf", boite: "moi@real31.fr", mode: "envoyer" });
+  });
+
+  it("depuis une boîte partagée dont l'envoi est coupé : brouillon Outlook, boîte scellée", async () => {
+    const r = await preparerComposition({ objet: "x", corps: "y", a: ["a@x.fr"], cc: [] }, g, syndic4 as never);
+    expect(etat.brouillons.map((b) => b.boite)).toEqual(["syndic4@real31.fr"]);
+    expect(JSON.parse(r.jetons![0]!)).toMatchObject({ boite: "syndic4@real31.fr", mode: "brouillon" });
+  });
+
+  it("toute la copropriété ne part pas de la boîte perso", async () => {
+    await expect(
+      preparerComposition({ objet: "x", corps: "y", a: [], cc: [], cci: ["c1@x.fr"] }, g, { boite: "moi@real31.fr", personnelle: true }),
+    ).rejects.toThrow("boîte partagée");
+    expect(etat.brouillons).toEqual([]);
   });
 });
