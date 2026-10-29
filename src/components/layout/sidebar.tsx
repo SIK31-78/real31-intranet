@@ -1,7 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
 import Link from "next/link";
 import {
-  BellRing, Bot, Briefcase, Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, MailCheck, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ShieldAlert, ShieldCheck, Signature, Sparkles, Users, Vote,
+  BellRing, Bot, Briefcase, Gauge, Building2, Calculator, ChevronDown, ClipboardList, Database, Euro, ExternalLink, FileSignature, FolderOpen, Globe, Handshake, Home, Inbox, MailCheck, Key, KeyRound, Landmark, LayoutDashboard, Megaphone, MessageSquare, PackageMinus, PackagePlus, PhoneCall, Receipt, ShieldAlert, ShieldCheck, Signature, Sparkles, Users, Vote,
   FilePen,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -53,6 +53,7 @@ export type NavKey =
   | "cles"
   // Hub IA du groupe : un lien vers une autre application, pas un ecran de l'intranet.
   | "hub-ia"
+  | "pilotage"
   // L'ERP des equipes vente, location et accueil (REA-346) : lien externe lui aussi.
   | "erp"
   // Ecrans "atterrissage" sans entree de menu propre (ODJ, Supervision AG) : ne
@@ -124,6 +125,9 @@ const GROUPES: { titre: string; items: Item[] }[] = [
       { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
       { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
       // Le hub des outils d'IA du groupe (demande Sekou, 13/10/2026).
+      // Pilotage : déclarer ses heures supplémentaires et piloter l'activité syndic (Sekou,
+      // 29/10/2026). Pour tout le monde, comme le HUB IA.
+      { key: "pilotage", label: "Pilotage", href: "https://pilotage.real31.app/", icon: Gauge, externe: true },
       { key: "hub-ia", label: "HUB IA", href: "https://ia.real31.app/", icon: Bot, externe: true },
     ],
   },
@@ -158,6 +162,8 @@ const NAV_COMPTABLE: Item[] = [
   { key: "reprise", label: "Reprise de copropriété", href: "/reprise-copro", icon: PackagePlus },
   { key: "coffre", label: "Coffre-fort", href: "/coffre", icon: KeyRound },
   { key: "nouveautes", label: "Nouveautés", href: "/nouveautes", icon: Sparkles },
+  // Pilotage (heures supplémentaires, activité syndic) : pour tout le monde (Sekou, 29/10/2026).
+  { key: "pilotage", label: "Pilotage", href: "https://pilotage.real31.app/", icon: Gauge, externe: true },
   // HUB IA pour tout le monde, comptables compris (Sekou, 23/10/2026).
   { key: "hub-ia", label: "HUB IA", href: "https://ia.real31.app/", icon: Bot, externe: true },
 ];
@@ -179,6 +185,8 @@ const NAV_HORS_SYNDIC: Item[] = [
   // l'accueil : il leur manquait un accès depuis l'intranet (REA-346, 16/10/2026). Dans
   // cette nav et pas dans « Nos applications », que voit aussi le syndic qui ne s'en sert pas.
   { key: "erp", label: "ERP", href: "https://erp.real31.app", icon: Briefcase, externe: true },
+  // Pilotage (heures supplémentaires, activité syndic) : pour tout le monde (Sekou, 29/10/2026).
+  { key: "pilotage", label: "Pilotage", href: "https://pilotage.real31.app/", icon: Gauge, externe: true },
   // HUB IA pour tout le monde, vente, location et accueil compris (Sekou, 23/10/2026).
   { key: "hub-ia", label: "HUB IA", href: "https://ia.real31.app/", icon: Bot, externe: true },
 ];
