@@ -18,12 +18,13 @@
 // fichiers (25 Mo) sont déposés par tranches sur le brouillon déjà créé, comme une réponse.
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
-import { Building2, Paperclip, Users, X } from "lucide-react";
-import { Button, classesBouton } from "@/components/ui/button";
+import { Building2, Users, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Choix, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { Callout } from "@/components/ui/callout";
 import { useToast } from "@/components/ui/toast";
+import { cn } from "@/lib/cn";
 import { useConfirm } from "@/components/ui/confirm";
 import {
   adresseMailValide,
@@ -64,7 +65,8 @@ import { NB_MAX_FICHIERS, TAILLE_MAX_FICHIER, TAILLE_MAX_TOTALE } from "@/lib/do
 import { deposerFichier } from "./deposer-fichier";
 import { TYPE_DOSSIER_LABEL, type TypeDossier } from "@/lib/domain/dossier";
 import { pastilleGlissable, useDepotDestinataire, useDepotFichiers } from "./glisser-deposer";
-import { EditeurRiche } from "./editeur-riche";
+import { BoutonJoindre, EditeurRiche, LigneSousChamp } from "./editeur-riche";
+import { LiensCopie, useLignesCopie } from "./lignes-copie";
 import { BoutonReformuler } from "./bouton-reformuler";
 import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
 import { conseilEncoreDestinataire, phraseCopieBinome } from "@/lib/domain/copie-binome";
@@ -224,6 +226,8 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   // Envoi séparé (décision 10) : un mail par personne en « À », chacun ne voit que lui.
   const [separe, setSepare] = useState(false);
   const champObjet = useRef<HTMLInputElement>(null);
+  // « Cc » replié tant qu'il est vide (29/10/2026) ; le binôme en copie l'ouvre de lui-même.
+  const lignesCopie = useLignesCopie({ cc: cc.length });
   // Les destinataires au moment présent, pour ce qui arrive après un chargement (raccourci copro).
   const etat = useRef({ a, cc });
   useEffect(() => {
@@ -588,6 +592,22 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
     });
   }
 
+  const joindre = <BoutonJoindre onFichiers={ajouterFichiers} desactive={envoiEnCours} />;
+  const reformuler = reformulation ? (
+    <BoutonReformuler
+      texte={corps}
+      nature="nouveau"
+      objet={objet}
+      desactive={envoiEnCours}
+      capturer={() => ({ corps, corpsHtml })}
+      appliquer={majCorpsTexte}
+      restaurer={(avant) => {
+        setCorps(avant.corps);
+        setCorpsHtml(avant.corpsHtml);
+      }}
+    />
+  ) : null;
+
   return (
     <div
       {...depot.zone}
@@ -603,8 +623,19 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         onChoisie={personneChoisie}
         raccourcis={raccourcisPour}
         placeholder="Nom, adresse, ou code copro (S247) pour le conseil syndical…"
+        suffixe={lignesCopie.visible("cc") ? null : <LiensCopie lignes={["cc"]} onOuvrir={lignesCopie.ouvrir} />}
       />
-      <ChampPersonnes champ="cc" label="Cc" personnes={cc} onChange={setCc} onDeplacer={deplacer} placeholder="Nom ou adresse…" />
+      {lignesCopie.visible("cc") ? (
+        <ChampPersonnes
+          champ="cc"
+          label="Cc"
+          personnes={cc}
+          onChange={setCc}
+          onDeplacer={deplacer}
+          placeholder="Nom ou adresse…"
+          autoFocus={lignesCopie.focus === "cc"}
+        />
+      ) : null}
       {phraseBinome ? <p className="-mt-2 text-meta text-ink-3">{phraseBinome}</p> : null}
       {cci.length > 0 && copro ? (
         <div className="flex items-center gap-2">
@@ -714,70 +745,50 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
           <Input id="comp-objet" ref={champObjet} value={objet} onChange={(e) => setObjet(e.target.value)} placeholder="Objet du message" />
         </Field>
       </div>
-      {pilote ? (
-        <EditeurRiche
-          html={corpsHtml}
-          onChange={(h) => {
-            setCorpsHtml(h);
-            setCorps(htmlVersTexte(h));
-          }}
-          placeholder="Votre message…"
-          label="Message"
-          hauteur="min-h-56"
-        />
-      ) : (
-        <Textarea value={corps} onChange={(e) => setCorps(e.target.value)} rows={10} placeholder="Votre message…" aria-label="Message" />
-      )}
-
-      <div className="flex flex-wrap items-center gap-1.5">
-        <label className={classesBouton({ size: "sm" })}>
-          <Paperclip strokeWidth={1.5} />
-          Ajouter une pièce jointe
-          <input
-            type="file"
-            multiple
-            className="sr-only"
-            onChange={(e) => {
-              ajouterFichiers(e.target.files);
-              e.target.value = "";
+      {/* Le trombone et « Reformuler » dans la barre de l'éditeur (ou sous la zone de texte),
+          les fichiers en pastilles dessous ; le glisser-déposer reste sur toute la fenêtre. */}
+      <div className="flex flex-col gap-1.5">
+        {pilote ? (
+          <EditeurRiche
+            html={corpsHtml}
+            onChange={(h) => {
+              setCorpsHtml(h);
+              setCorps(htmlVersTexte(h));
             }}
+            placeholder="Votre message…"
+            label="Message"
+            hauteur="min-h-56"
+            outils={joindre}
+            aDroite={reformuler}
           />
-        </label>
-        {fichiers.length === 0 ? <span className="text-meta text-ink-3">ou glissez les fichiers ici</span> : null}
-        {fichiers.map((f, i) => (
-          <span key={`${f.nom}-${i}`} className="relative inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full border border-line text-meta text-ink-2 overflow-hidden">
-            {f.progres !== undefined ? (
-              // Dépôt en cours sur le brouillon : la pastille se remplit, tranche par tranche.
-              <span aria-hidden="true" className="absolute inset-y-0 left-0 bg-green-50 transition-[width]" style={{ width: `${Math.round(f.progres * 100)}%` }} />
-            ) : null}
-            <span className="relative truncate max-w-[200px]">{f.nom}</span>
-            <span className="relative text-ink-3">{f.progres !== undefined ? `${Math.round(f.progres * 100)} %` : formatTaille(f.taille)}</span>
-            <button
-              type="button"
-              onClick={() => setFichiers((l) => l.filter((_, k) => k !== i))}
-              disabled={envoiEnCours}
-              aria-label={`Retirer ${f.nom}`}
-              className="relative text-ink-3 hover:text-err-700"
-            >
-              <X strokeWidth={1.5} className="w-3 h-3" />
-            </button>
-          </span>
-        ))}
-        {reformulation ? (
-          <span className="ml-auto">
-            <BoutonReformuler
-              texte={corps}
-              nature="nouveau"
-              objet={objet}
-              desactive={envoiEnCours}
-              capturer={() => ({ corps, corpsHtml })}
-              appliquer={majCorpsTexte}
-              restaurer={(avant) => {
-                setCorps(avant.corps);
-                setCorpsHtml(avant.corpsHtml);
-              }}
-            />
-          </span>
+        ) : (
+          <div>
+            <Textarea value={corps} onChange={(e) => setCorps(e.target.value)} rows={10} placeholder="Votre message…" aria-label="Message" />
+            <LigneSousChamp outils={joindre} aDroite={reformuler} />
+          </div>
+        )}
+        {fichiers.length ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {fichiers.map((f, i) => (
+              <span key={`${f.nom}-${i}`} className="relative inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full border border-line text-meta text-ink-2 overflow-hidden">
+                {f.progres !== undefined ? (
+                  // Dépôt en cours sur le brouillon : la pastille se remplit, tranche par tranche.
+                  <span aria-hidden="true" className="absolute inset-y-0 left-0 bg-green-50 transition-[width]" style={{ width: `${Math.round(f.progres * 100)}%` }} />
+                ) : null}
+                <span className="relative truncate max-w-[200px]">{f.nom}</span>
+                <span className="relative text-ink-3">{f.progres !== undefined ? `${Math.round(f.progres * 100)} %` : formatTaille(f.taille)}</span>
+                <button
+                  type="button"
+                  onClick={() => setFichiers((l) => l.filter((_, k) => k !== i))}
+                  disabled={envoiEnCours}
+                  aria-label={`Retirer ${f.nom}`}
+                  className="relative text-ink-3 hover:text-err-700"
+                >
+                  <X strokeWidth={1.5} className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
         ) : null}
       </div>
 
@@ -820,15 +831,13 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
   );
 }
 
-/** La boîte d'où part le mail, bien visible : une boîte partagée engage tout le cabinet. */
-export function LigneExpediteur({ boite }: { boite: string }) {
+/** La boîte d'où part le mail, quand il n'y a qu'elle : une ligne de texte, sans cadre
+ *  (29/10/2026, « écran trop chargé ») ; l'adresse reste lisible en entier. */
+export function LigneExpediteur({ boite, className }: { boite: string; className?: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="w-6 shrink-0 text-body text-ink-3">De</span>
-      <span className="inline-flex items-center h-7 px-2.5 rounded-md bg-info-50 text-info-700 border border-info-500/30 text-body font-medium">
-        {boite}
-      </span>
-    </div>
+    <p className={cn("text-meta text-ink-3", className)}>
+      De : <span className="font-medium text-ink-2">{boite}</span>
+    </p>
   );
 }
 
@@ -863,6 +872,8 @@ export function ChampPersonnes({
   onChoisie,
   raccourcis,
   placeholder,
+  suffixe,
+  autoFocus = false,
 }: {
   champ: string;
   label: string;
@@ -873,6 +884,10 @@ export function ChampPersonnes({
   /** Propositions tirées de la saisie elle-même (code copro), affichées avant les personnes. */
   raccourcis?: (saisie: string) => RaccourciChamp[];
   placeholder: string;
+  /** Au bout de la ligne (« Cc » pour ouvrir la copie). */
+  suffixe?: ReactNode;
+  /** Le curseur s'y pose à l'apparition (ligne ouverte d'un clic sur son lien). */
+  autoFocus?: boolean;
 }) {
   const [saisie, setSaisie] = useState("");
   const depot = useDepotDestinataire(champ, onDeplacer);
@@ -958,6 +973,7 @@ export function ChampPersonnes({
         ))}
         <input
           ref={champSaisie}
+          autoFocus={autoFocus}
           value={saisie}
           onChange={(e) => {
             setSaisie(e.target.value);
@@ -992,6 +1008,7 @@ export function ChampPersonnes({
           className="flex-1 min-w-[160px] h-6 bg-transparent text-body text-ink outline-none placeholder:text-ink-3"
         />
       </div>
+      {suffixe}
       {refusee && !listeOuverte && (
         <p role="alert" className="absolute left-8 top-full mt-1 z-20 rounded-md bg-err-50 px-2 py-1 text-meta text-err-700">
           « {refusee} » n&apos;est pas une adresse valide : ni accent ni espace dans une adresse.

@@ -103,7 +103,9 @@ import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { EnvoyesVue } from "./envoyes-vue";
 import { TransfererMail } from "./transferer-mail";
 import { ecrireDansLaReponse } from "./focus-reponse";
-import { EditeurRiche } from "./editeur-riche";
+import { BoutonJoindre, EditeurRiche, LigneSousChamp } from "./editeur-riche";
+import { LigneExpediteur } from "./compositeur";
+import { LiensCopie, useLignesCopie, type LigneCopie } from "./lignes-copie";
 import { SignatureRepliee } from "./signature-repliee";
 import { BoutonReformuler } from "./bouton-reformuler";
 import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
@@ -1726,7 +1728,7 @@ function LienBrouillonOutlook({ href }: { href: string }) {
  * le fil reste unifie sur la boite partagee (decision Sekou 6). Choisir une autre boite
  * est possible mais Graph ne sait alors plus repondre DANS le fil : on l'ecrit sous le
  * champ, avant l'envoi, plutot que de laisser la surprise arriver apres.
- * Masque s'il n'y a qu'une boite : il n'y a rien a choisir.
+ * Une seule boite : une simple ligne de texte « De : … » (29/10/2026), rien a choisir.
  */
 function ChampDe({
   boites,
@@ -1746,15 +1748,13 @@ function ChampDe({
   const teinte = partagee
     ? "bg-info-50 text-info-700 border-info-500/40 font-semibold"
     : "bg-green-50 text-green-700 border-green-500/40 font-semibold";
+  if (boites.length < 2) return <LigneExpediteur boite={valeur} className="mb-2" />;
   return (
     <div className="mb-2 rounded-md border border-line px-2.5 py-2">
       <div className="flex items-center gap-2">
         <label htmlFor="champ-de" className="w-7 shrink-0 text-meta font-medium text-ink-3">
           De
         </label>
-        {boites.length < 2 ? (
-          <span className={`inline-flex items-center h-7 px-2 rounded border text-meta ${teinte}`}>{valeur}</span>
-        ) : (
         <select
           id="champ-de"
           value={valeur}
@@ -1768,7 +1768,6 @@ function ChampDe({
             </option>
           ))}
         </select>
-        )}
       </div>
       {horsFil && (
         // Le message d'origine est cité sous la signature depuis REA-302 ; ce sont les pièces
@@ -1792,11 +1791,26 @@ function ChampsDestinataires({
   onChange: (champ: keyof Destinataires, v: string[]) => void;
   onDeplacer: (depuis: keyof Destinataires, vers: keyof Destinataires, adresse: string) => void;
 }) {
+  // Cc et Cci repliés tant qu'ils sont vides (29/10/2026) ; Répondre à tous ou un brouillon
+  // rouvert les ouvrent d'eux-mêmes.
+  const lignes = useLignesCopie({ cc: valeur.cc.length, cci: valeur.cci.length });
+  const repliees = (["cc", "cci"] as LigneCopie[]).filter((l) => !lignes.visible(l));
   return (
     <div className="flex flex-col gap-1 mb-2 rounded-md border border-line px-2.5 py-2">
-      <LigneDest label="À" champ="to" valeurs={valeur.to} onChange={onChange} onDeplacer={onDeplacer} />
-      <LigneDest label="Cc" champ="cc" valeurs={valeur.cc} onChange={onChange} onDeplacer={onDeplacer} />
-      <LigneDest label="Cci" champ="cci" valeurs={valeur.cci} onChange={onChange} onDeplacer={onDeplacer} />
+      <LigneDest
+        label="À"
+        champ="to"
+        valeurs={valeur.to}
+        onChange={onChange}
+        onDeplacer={onDeplacer}
+        suffixe={<LiensCopie lignes={repliees} onOuvrir={lignes.ouvrir} />}
+      />
+      {lignes.visible("cc") ? (
+        <LigneDest label="Cc" champ="cc" valeurs={valeur.cc} onChange={onChange} onDeplacer={onDeplacer} autoFocus={lignes.focus === "cc"} />
+      ) : null}
+      {lignes.visible("cci") ? (
+        <LigneDest label="Cci" champ="cci" valeurs={valeur.cci} onChange={onChange} onDeplacer={onDeplacer} autoFocus={lignes.focus === "cci"} />
+      ) : null}
     </div>
   );
 }
@@ -1810,12 +1824,18 @@ function LigneDest({
   valeurs,
   onChange,
   onDeplacer,
+  suffixe,
+  autoFocus = false,
 }: {
   label: string;
   champ: keyof Destinataires;
   valeurs: string[];
   onChange: (champ: keyof Destinataires, v: string[]) => void;
   onDeplacer: (depuis: keyof Destinataires, vers: keyof Destinataires, adresse: string) => void;
+  /** Au bout de la ligne (« Cc  Cci » pour ouvrir les copies). */
+  suffixe?: React.ReactNode;
+  /** Le curseur s'y pose à l'apparition (ligne ouverte d'un clic sur son lien). */
+  autoFocus?: boolean;
 }) {
   const [saisie, setSaisie] = useState("");
   const depot = useDepotDestinataire(champ, (depuis, adresse) => onDeplacer(depuis as keyof Destinataires, champ, adresse));
@@ -1873,6 +1893,7 @@ function LigneDest({
           </span>
         ))}
         <input
+          autoFocus={autoFocus}
           value={saisie}
           onChange={(ev) => setSaisie(ev.target.value)}
           onKeyDown={(ev) => {
@@ -1893,6 +1914,7 @@ function LigneDest({
           className="flex-1 min-w-[120px] h-6 bg-transparent text-meta text-ink outline-none placeholder:text-ink-3"
         />
       </div>
+      {suffixe}
       {resultats && (
         <ul className="absolute left-9 right-0 top-full mt-1 z-20 max-h-72 overflow-y-auto rounded-lg border border-line bg-surface shadow-2 py-1">
           {resultats.length === 0 && <li className="px-3 py-2 text-meta text-ink-3">Personne de ce nom dans l&apos;annuaire Crypto.</li>}
@@ -2246,8 +2268,12 @@ function AnalysePane({
   /** « De côté », « Jusqu'au jeudi 30 oct. », « Revenu d'attente » : à côté de l'objet. */
   mentionAttente?: string | null;
 }) {
-  // Fichiers glissés sur l'éditeur de réponse : joints comme avec « Ajouter une pièce jointe ».
+  // Fichiers glissés sur l'éditeur de réponse : joints comme avec le trombone.
   const depotPj = useDepotFichiers((l) => onAjouterFichiers(l));
+  const joindre = <BoutonJoindre onFichiers={onAjouterFichiers} desactive={envoiEnCours} />;
+  const reformuler = reformulation ? (
+    <BoutonReformuler key={m.id} texte={brouillon} nature="reponse" objet={sujet} desactive={envoiEnCours} {...reformulation} />
+  ) : null;
 
   // Un clic sur « Répondre » = on écrit (comme Outlook) : la réponse s'ouvre en haut du
   // volet, remonte à l'écran et le curseur se pose au début du texte, pas dans l'objet.
@@ -2512,22 +2538,29 @@ function AnalysePane({
           >
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="text-meta text-ink-3">Réponse</span>
-              <div className="flex items-center gap-2">
+              {/* Modèle et brouillon Outlook : en retrait sur la ligne du titre (29/10/2026). */}
+              <div className="flex items-center gap-1">
                 <Select
                   largeur="auto"
+                  taille="sm"
                   value={modele}
                   onChange={(e) => onModele(e.target.value)}
                   aria-label="Modèle de réponse"
-                  className="max-w-[240px]"
+                  className="max-w-[200px]"
                 >
-                  <option value="">Modèle…</option>
+                  <option value="">Modèle</option>
                   {modeles.map((x) => (
                     <option key={x.id} value={x.id}>
                       {x.titre}
                     </option>
                   ))}
                 </Select>
-                <Button size="sm" onClick={onCreerBrouillon}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onCreerBrouillon}
+                  title="Brouillon Outlook : crée la réponse en brouillon dans Outlook, à relire et envoyer là-bas"
+                >
                   <FilePlus2 strokeWidth={1.5} />
                   Brouillon Outlook
                 </Button>
@@ -2539,12 +2572,32 @@ function AnalysePane({
               valeur={expediteur}
               onChange={onMajExpediteur}
             />
-            <ChampsDestinataires valeur={destinataires} onChange={onMajDestinataires} onDeplacer={onDeplacerDestinataire} />
+            <ChampsDestinataires key={m.id} valeur={destinataires} onChange={onMajDestinataires} onDeplacer={onDeplacerDestinataire} />
             <Input value={sujet} onChange={(e) => onMajSujet(e.target.value)} placeholder="Sujet" aria-label="Sujet de la réponse" className="mb-2" />
-            {piecesJointes && piecesJointes.length > 0 ? (
-              <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                <span className="text-meta text-ink-3">Joindre&nbsp;:</span>
-                {piecesJointes.map((pj) => {
+            {/* Le trombone et « Reformuler » dans la barre de l'éditeur (ou sous la zone de texte) ;
+                les pièces, proposées et ajoutées, en pastilles dessous. Le glisser-déposer reste
+                sur tout le cadre de la réponse. */}
+            <div ref={corpsReponseRef}>
+              {pilote ? (
+                <EditeurRiche
+                  html={brouillonHtml}
+                  onChange={onEditBrouillonHtml}
+                  onBlur={onBlurBrouillon}
+                  label="Texte de la réponse"
+                  outils={joindre}
+                  aDroite={reformuler}
+                />
+              ) : (
+                <>
+                  <Textarea value={brouillon} onChange={(e) => onEditBrouillon(e.target.value)} onBlur={onBlurBrouillon} rows={7} className="resize-y" aria-label="Texte de la réponse" />
+                  <LigneSousChamp outils={joindre} aDroite={reformuler} />
+                </>
+              )}
+            </div>
+            {(piecesJointes && piecesJointes.length > 0) || fichiers.length > 0 ? (
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {piecesJointes && piecesJointes.length > 0 ? <span className="text-meta text-ink-3">Joindre&nbsp;:</span> : null}
+                {(piecesJointes ?? []).map((pj) => {
                   const jointe = pjJointes.has(pj.id);
                   return (
                     <button
@@ -2563,53 +2616,25 @@ function AnalysePane({
                     </button>
                   );
                 })}
-              </div>
-            ) : null}
-            <div className="mb-2 flex flex-wrap items-center gap-1.5">
-              <label className={classesBouton({ size: "sm" })}>
-                <Paperclip strokeWidth={1.5} />
-                Ajouter une pièce jointe
-                <input
-                  type="file"
-                  multiple
-                  className="sr-only"
-                  onChange={(e) => {
-                    onAjouterFichiers(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-              {fichiers.length === 0 ? <span className="text-meta text-ink-3">ou glissez les fichiers ici</span> : null}
-              {fichiers.map((f, i) => (
-                <span key={`${f.nom}-${i}`} className="relative inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full border border-line text-meta text-ink-2 overflow-hidden">
-                  {f.progres !== undefined ? (
-                    // Dépôt en cours sur le brouillon (REA-421) : la pastille se remplit, tranche par tranche.
-                    <span
-                      aria-hidden="true"
-                      className="absolute inset-y-0 left-0 bg-green-50 transition-[width]"
-                      style={{ width: `${Math.round(f.progres * 100)}%` }}
-                    />
-                  ) : null}
-                  <span className="relative truncate max-w-[180px]">{f.nom}</span>
-                  <span className="relative text-ink-3">
-                    {f.progres !== undefined ? `${Math.round(f.progres * 100)} %` : formatTaille(f.taille)}
+                {fichiers.map((f, i) => (
+                  <span key={`${f.nom}-${i}`} className="relative inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full border border-line text-meta text-ink-2 overflow-hidden">
+                    {f.progres !== undefined ? (
+                      // Dépôt en cours sur le brouillon (REA-421) : la pastille se remplit, tranche par tranche.
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-y-0 left-0 bg-green-50 transition-[width]"
+                        style={{ width: `${Math.round(f.progres * 100)}%` }}
+                      />
+                    ) : null}
+                    <span className="relative truncate max-w-[180px]">{f.nom}</span>
+                    <span className="relative text-ink-3">
+                      {f.progres !== undefined ? `${Math.round(f.progres * 100)} %` : formatTaille(f.taille)}
+                    </span>
+                    <button type="button" onClick={() => onRetirerFichier(i)} aria-label={`Retirer ${f.nom}`} className="text-ink-3 hover:text-err-700">
+                      <X strokeWidth={1.5} className="w-3 h-3" />
+                    </button>
                   </span>
-                  <button type="button" onClick={() => onRetirerFichier(i)} aria-label={`Retirer ${f.nom}`} className="text-ink-3 hover:text-err-700">
-                    <X strokeWidth={1.5} className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-            <div ref={corpsReponseRef}>
-              {pilote ? (
-                <EditeurRiche html={brouillonHtml} onChange={onEditBrouillonHtml} onBlur={onBlurBrouillon} label="Texte de la réponse" />
-              ) : (
-                <Textarea value={brouillon} onChange={(e) => onEditBrouillon(e.target.value)} onBlur={onBlurBrouillon} rows={7} className="resize-y" aria-label="Texte de la réponse" />
-              )}
-            </div>
-            {reformulation ? (
-              <div className="mt-1.5 flex justify-end">
-                <BoutonReformuler key={m.id} texte={brouillon} nature="reponse" objet={sujet} desactive={envoiEnCours} {...reformulation} />
+                ))}
               </div>
             ) : null}
             {signatureHtml ? <SignatureRepliee html={signatureHtml} hauteur={110} libelle="Signature ajoutée à l’envoi" /> : null}

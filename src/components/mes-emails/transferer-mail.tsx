@@ -20,6 +20,8 @@ import { alertesAdressePersonnelle } from "@/lib/domain/destinataires-collegues"
 import { ChampPersonnes, LigneExpediteur, adresses, useCollegues, type Personne } from "./compositeur";
 import { useAlerteSortie } from "./alerte-sortie";
 import { BoutonReformuler } from "./bouton-reformuler";
+import { LigneSousChamp } from "./editeur-riche";
+import { LiensCopie, useLignesCopie } from "./lignes-copie";
 
 export function TransfererMail({
   emailId,
@@ -94,6 +96,8 @@ function FenetreTransfert({
   const [enCours, setEnCours] = useState(false);
   const confirmer = useConfirm();
   const collegues = useCollegues();
+  // « Cc » replié tant qu'il est vide (29/10/2026) : un lien au bout de « À » l'ouvre.
+  const lignesCopie = useLignesCopie({ cc: cc.length });
   // Un clic sur « Transférer » = on tape le destinataire (comme Outlook) : le curseur va
   // dans « À », pas sur la croix de la fenêtre. Cet effet passe après celui de la fenêtre
   // (enfant), qui pose le focus sur le premier élément focusable.
@@ -181,26 +185,49 @@ function FenetreTransfert({
             </p>
           ) : null}
           <div ref={champA}>
-            <ChampPersonnes champ="a" label="À" personnes={a} onChange={setA} onDeplacer={deplacer} placeholder="Nom du collègue ou de la personne (ou une adresse)…" />
+            <ChampPersonnes
+              champ="a"
+              label="À"
+              personnes={a}
+              onChange={setA}
+              onDeplacer={deplacer}
+              placeholder="Nom du collègue ou de la personne (ou une adresse)…"
+              suffixe={lignesCopie.visible("cc") ? null : <LiensCopie lignes={["cc"]} onOuvrir={lignesCopie.ouvrir} />}
+            />
           </div>
-          <ChampPersonnes champ="cc" label="Cc" personnes={cc} onChange={setCc} onDeplacer={deplacer} placeholder="Nom ou adresse…" />
+          {lignesCopie.visible("cc") ? (
+            <ChampPersonnes
+              champ="cc"
+              label="Cc"
+              personnes={cc}
+              onChange={setCc}
+              onDeplacer={deplacer}
+              placeholder="Nom ou adresse…"
+              autoFocus={lignesCopie.focus === "cc"}
+            />
+          ) : null}
           <p className="text-body text-ink-2">
             <span className="text-ink-3">Objet : </span>TR: {objet}
           </p>
-          <Textarea value={corps} onChange={(e) => setCorps(e.target.value)} rows={6} placeholder="Un mot pour accompagner le transfert (facultatif)…" aria-label="Message du transfert" />
-          {reformulation ? (
-            <div className="flex justify-end">
-              <BoutonReformuler
-                texte={corps}
-                nature="transfert"
-                objet={`TR: ${objet}`}
-                desactive={enCours}
-                capturer={() => corps}
-                appliquer={setCorps}
-                restaurer={setCorps}
-              />
-            </div>
-          ) : null}
+          {/* Pas de trombone : le transfert part avec les pièces d'origine (createForward), sans ajout. */}
+          <div>
+            <Textarea value={corps} onChange={(e) => setCorps(e.target.value)} rows={6} placeholder="Un mot pour accompagner le transfert (facultatif)…" aria-label="Message du transfert" />
+            <LigneSousChamp
+              aDroite={
+                reformulation ? (
+                  <BoutonReformuler
+                    texte={corps}
+                    nature="transfert"
+                    objet={`TR: ${objet}`}
+                    desactive={enCours}
+                    capturer={() => corps}
+                    appliquer={setCorps}
+                    restaurer={setCorps}
+                  />
+                ) : null
+              }
+            />
+          </div>
           <div className="flex flex-wrap items-center gap-1.5 text-meta text-ink-3">
             <Paperclip strokeWidth={1.5} className="w-3.5 h-3.5" />
             {piecesJointes === null
