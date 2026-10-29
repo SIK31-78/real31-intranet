@@ -3,9 +3,11 @@ import {
   adresseMailValide,
   adressesTouteLaCopro,
   conseilPourComposition,
+  coproDuCode,
   ENVOIS_SEPARES_MAX,
   envoisSepares,
   phraseEnvoisSepares,
+  raccourcisCopro,
   controleTouteLaCopro,
   enLots,
   sansPolitesseEnDouble,
@@ -296,6 +298,33 @@ describe("conseilPourComposition (20/10/2026)", () => {
   it("aucune adresse exploitable : source « aucune », saisie à la main", () => {
     expect(conseilPourComposition({ source: "crypto", emails: ["pas-une-adresse"] }, contacts)).toEqual({ source: "aucune", membres: [] });
     expect(conseilPourComposition({ source: "aucune", emails: [] }, contacts)).toEqual({ source: "aucune", membres: [] });
+  });
+});
+
+describe("raccourcis copro dans « À » (décision 11)", () => {
+  const copros = [
+    { reference: "S247", nom: "Les Tilleuls", adresse: "1 rue A" },
+    { reference: "S0300", nom: "Le Parc", adresse: "" },
+    { reference: "SE012", nom: "Commerce", adresse: "" },
+  ];
+  it("reconnaît le code, sans casse ni zéro de tête", () => {
+    expect(coproDuCode("S247", copros)?.reference).toBe("S247");
+    expect(coproDuCode("s247", copros)?.reference).toBe("S247");
+    expect(coproDuCode("S0247", copros)?.reference).toBe("S247");
+    expect(coproDuCode(" s 300 ", copros)?.reference).toBe("S0300");
+    expect(coproDuCode("se12", copros)).toBeNull(); // SE suivi de 3 ou 4 chiffres seulement
+    expect(coproDuCode("SE012", copros)?.reference).toBe("SE012");
+  });
+  it("ne propose rien pour un code inconnu ou un nom", () => {
+    expect(raccourcisCopro("S999", copros)).toEqual([]);
+    expect(raccourcisCopro("Tilleuls", copros)).toEqual([]);
+    expect(raccourcisCopro("S24", copros)).toEqual([]);
+  });
+  it("propose le conseil syndical puis toute la copropriété", () => {
+    expect(raccourcisCopro("s0247", copros).map((r) => [r.nature, r.libelle])).toEqual([
+      ["conseil", "Conseil syndical · S247 Les Tilleuls"],
+      ["toute", "Toute la copropriété · S247 Les Tilleuls"],
+    ]);
   });
 });
 

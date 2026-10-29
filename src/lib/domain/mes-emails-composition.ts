@@ -4,6 +4,8 @@
 // Modèles d'événement = gabarits simples {{variable}}. Domaine PUR : aucune dépendance,
 // aucun réseau -> testable tel quel. L'envoi réel vit ailleurs (gaté par envoiMailActif()).
 
+import { cleDeReference } from "./tri-emails";
+
 /** Un contact d'une copro (copropriétaire, conseil syndical, locataire, pro…), issu de l'annuaire. */
 export interface ContactCopro {
   email: string;
@@ -454,6 +456,40 @@ export function resumeDestinataires(noms: readonly string[]): string {
   if (l.length <= 2) return l.join(" et ");
   const reste = l.length - 2;
   return `${l.slice(0, 2).join(", ")} et ${reste} autre${reste > 1 ? "s" : ""}`;
+}
+
+// --- Conseil syndical en trois clics (décision 11, 29/10/2026) --------------------------------
+// Taper le code d'une copro dans « À » (« S247 », « s247 », « S0247 ») propose directement
+// « Conseil syndical · S247 Nom » et « Toute la copropriété · S247 Nom ». Avant : « autre
+// copropriété… », le code, la liste, puis le bouton (8 clics). La comparaison passe par la clé
+// de référence du tri (« S0247 » = « S247 ») : on ne propose que des copros qui existent.
+
+/** Ce que fait un raccourci : le conseil syndical en « À », ou toute la copropriété en Cci. */
+export type NatureRaccourciCopro = "conseil" | "toute";
+
+export interface RaccourciCopro<C extends CoproComposition = CoproComposition> {
+  nature: NatureRaccourciCopro;
+  copro: C;
+  /** « Conseil syndical · S247 Résidence X », tel qu'affiché dans la liste. */
+  libelle: string;
+}
+
+/** La copro dont la saisie est le code (tolérant à la casse, aux espaces et aux zéros de tête). */
+export function coproDuCode<C extends CoproComposition>(saisie: string, copros: readonly C[]): C | null {
+  const cle = cleDeReference(saisie.replace(/\s+/g, ""));
+  if (!cle) return null;
+  return copros.find((c) => cleDeReference(c.reference) === cle) ?? null;
+}
+
+/** Les deux raccourcis d'une saisie qui est un code de copro connu ; [] sinon. */
+export function raccourcisCopro<C extends CoproComposition>(saisie: string, copros: readonly C[]): RaccourciCopro<C>[] {
+  const copro = coproDuCode(saisie, copros);
+  if (!copro) return [];
+  const nom = prefixeObjetCopro(copro, false).replace(" · ", " ");
+  return [
+    { nature: "conseil", copro, libelle: `Conseil syndical · ${nom}` },
+    { nature: "toute", copro, libelle: `Toute la copropriété · ${nom}` },
+  ];
 }
 
 // --- Envoi séparé à chaque destinataire (décision 10, 29/10/2026) -----------------------------
