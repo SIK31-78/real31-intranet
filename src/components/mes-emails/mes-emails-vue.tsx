@@ -15,6 +15,7 @@ import {
   FileText,
   CalendarCheck,
   ChevronRight,
+  ChevronDown,
   Download,
   X,
   Send,
@@ -29,6 +30,7 @@ import {
 } from "lucide-react";
 import type {
   ContexteCopro,
+  Correspondant,
   DossierBoite,
   MailEntrant,
   MesEmails,
@@ -88,6 +90,7 @@ import { EnvoyesVue } from "./envoyes-vue";
 import { TransfererMail } from "./transferer-mail";
 import { ecrireDansLaReponse } from "./focus-reponse";
 import { EditeurRiche } from "./editeur-riche";
+import { SignatureRepliee } from "./signature-repliee";
 import { BoutonReformuler } from "./bouton-reformuler";
 import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
 import { rechercherEchangesAction } from "@/app/echanges/actions";
@@ -1336,10 +1339,11 @@ function LigneMail({
               <Badge ton="brand">Pour {m.pour}</Badge>
             </span>
           ) : null}
-          {/* Un collègue du cabinet, pas un client : simple repère, ton neutre (pas une alerte, REA-408). */}
+          {/* Un collègue du cabinet, pas un client : simple repère, ton neutre (pas une alerte, REA-408).
+              « Collègue » et plus « Interne » (29/10/2026) : « interne » désignera la note interne. */}
           {estMailInterne(m.expediteurEmail, m.boite ?? "") ? (
             <span className={"shrink-0" + (reponse ? "" : " ml-auto")}>
-              <Badge ton="neutral">Interne</Badge>
+              <Badge ton="neutral">Collègue</Badge>
             </span>
           ) : null}
           {reponse ? (
@@ -2208,17 +2212,7 @@ function AnalysePane({
                 <BoutonReformuler key={m.id} texte={brouillon} nature="reponse" objet={sujet} desactive={envoiEnCours} {...reformulation} />
               </div>
             ) : null}
-            {signatureHtml ? (
-              <div className="mt-2">
-                <span className="text-meta text-ink-3">Signature (ajoutée à l’envoi)</span>
-                <iframe
-                  title="Signature"
-                  sandbox=""
-                  srcDoc={signatureHtml}
-                  className="mt-1 w-full h-[110px] rounded-md border border-line bg-white"
-                />
-              </div>
-            ) : null}
+            {signatureHtml ? <SignatureRepliee html={signatureHtml} hauteur={110} libelle="Signature ajoutée à l’envoi" /> : null}
             <div className="mt-2.5 flex flex-wrap items-center gap-3">
               {/* « Envoyer et marquer traité » par défaut (décision 4, 29/10/2026) : la plupart
                   des réponses terminent le mail. Ma boîte : « Envoyer et archiver », quand le
@@ -2256,7 +2250,9 @@ function AnalysePane({
       {/* Le mail */}
       <div className="px-5 py-4">
         {brouillon || compose ? <p className="text-meta text-ink-3 mb-1.5">Message d&apos;origine</p> : null}
-        <div className="text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[340px] overflow-auto">
+        {/* Le texte en entier : seule la page défile (plus de cadre de 340 px qui défilait dans
+            la page, ressenti « pas fluide », 29/10/2026) ; la barre d'actions reste en haut. */}
+        <div className="text-body text-ink-2 whitespace-pre-wrap leading-relaxed">
           <TexteAvecLiens texte={m.corps} />
         </div>
         <ImagesMail key={`img-${m.id}`} emailId={m.id} coproCode={coproCode} boite={boiteDuMail} onApercu={onApercu} />
@@ -2463,10 +2459,15 @@ function ContexteCoproContenu({ ctx }: { ctx: ContexteCopro | null | undefined }
   );
 }
 
-/** L'en-tête comme dans Outlook : De, À, Cc, Répondre à, date et heure. Rien n'est tronqué. */
+/**
+ * L'en-tête comme dans Outlook : une ligne « De · à X, +N · date » (29/10/2026 ; avant, cinq
+ * lignes et toutes les adresses d'un envoi groupé avant le texte). Un clic déplie le détail :
+ * De, À, Cc, Répondre à (seulement s'il diffère de l'expéditeur), date et heure, sans troncature.
+ */
 function EnTeteMail({ m }: { m: MailEntrant }) {
-  const a = m.destinatairesDetail ?? m.destinataires.map((adresse) => ({ adresse }));
-  const cc = m.copieDetail ?? m.copie.map((adresse) => ({ adresse }));
+  const [deplie, setDeplie] = useState(false);
+  const a: Correspondant[] = m.destinatairesDetail ?? m.destinataires.map((adresse) => ({ adresse }));
+  const cc: Correspondant[] = m.copieDetail ?? m.copie.map((adresse) => ({ adresse }));
   const heure = m.recuLe
     ? new Date(m.recuLe).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" })
     : null;
@@ -2477,6 +2478,9 @@ function EnTeteMail({ m }: { m: MailEntrant }) {
     ...(m.repondreA?.length ? ([["Répondre à", m.repondreA.map(libelleCorrespondant).join(" ; ")]] as [string, string][]) : []),
     ["Date", `${formatDateLongue(m.date)}${heure ? ` à ${heure}` : ""}`],
   ];
+  const premier = a[0] ? a[0].nom?.trim() || a[0].adresse : "-";
+  const autres = a.length - 1 + cc.length;
+  const quand = `${formatDateLongue(m.date)}${heure ? ` à ${heure}` : ""}`;
   return (
     <>
       {/* Délégation de portefeuille : on répond pour le titulaire (27/10/2026). */}
@@ -2485,7 +2489,25 @@ function EnTeteMail({ m }: { m: MailEntrant }) {
           <Badge ton="brand">Pour {m.pour}</Badge>
         </div>
       ) : null}
-      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-meta">
+      <button
+        type="button"
+        onClick={() => setDeplie((d) => !d)}
+        aria-expanded={deplie}
+        title={deplie ? "Replier l'en-tête" : "Voir toutes les adresses"}
+        className="mt-1.5 w-full flex items-center gap-1.5 text-left text-meta text-ink-3 hover:text-ink-2"
+      >
+        <span className="min-w-0 truncate">
+          <span className="text-ink font-medium">{libelleCorrespondant({ adresse: m.expediteurEmail, nom: m.de })}</span>
+          {" · à "}
+          {premier}
+          {autres > 0 ? `, +${autres}` : ""}
+          {" · "}
+          {quand}
+        </span>
+        <ChevronDown strokeWidth={1.5} className={`w-3.5 h-3.5 shrink-0 transition-transform ${deplie ? "rotate-180" : ""}`} />
+      </button>
+      {deplie ? (
+      <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-meta">
         {lignes.map(([label, valeur]) => (
           <Fragment key={label}>
             <dt className="text-ink-3">{label}</dt>
@@ -2493,6 +2515,7 @@ function EnTeteMail({ m }: { m: MailEntrant }) {
           </Fragment>
         ))}
       </dl>
+      ) : null}
     </>
   );
 }

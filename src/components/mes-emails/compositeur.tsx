@@ -56,6 +56,7 @@ import { BoutonReformuler } from "./bouton-reformuler";
 import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
 import { conseilEncoreDestinataire, phraseCopieBinome } from "@/lib/domain/copie-binome";
 import { useAlerteSortie } from "./alerte-sortie";
+import { SignatureRepliee } from "./signature-repliee";
 
 type DossierAffiche = { id: string; titre: string; type: TypeDossier };
 
@@ -632,12 +633,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, brouillonPossible
         ) : null}
       </div>
 
-      {signatureHtml ? (
-        <div>
-          <span className="text-meta text-ink-3">Signature (ajoutée au mail)</span>
-          <iframe title="Signature" sandbox="" srcDoc={signatureHtml} className="mt-1 w-full h-[170px] rounded-md border border-line bg-white" />
-        </div>
-      ) : null}
+      {signatureHtml ? <SignatureRepliee html={signatureHtml} hauteur={170} libelle="Signature ajoutée au mail" /> : null}
 
       {!brouillonPossible && (
         <Callout ton="warn">Aperçu seulement : la boîte partagée n&apos;est pas branchée ici, rien ne partira.</Callout>

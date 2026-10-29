@@ -44,7 +44,7 @@ export function HistoriqueMail({ emailId, boite }: { emailId: string; boite: str
           ) : messages.length === 0 ? (
             <p className="text-meta text-ink-3">Ce mail ne cite aucun message précédent.</p>
           ) : (
-            <ol className="flex flex-col gap-2 max-h-[480px] overflow-auto">
+            <ol className="flex flex-col gap-2">
               {messages.map((msg, i) => (
                 <li key={i}>
                   <CarteMessage msg={msg} />

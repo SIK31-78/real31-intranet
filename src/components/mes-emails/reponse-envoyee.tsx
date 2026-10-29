@@ -60,7 +60,7 @@ export function ReponseEnvoyee({ emailId, boite }: { emailId: string; boite: str
                     </a>
                   ) : null}
                 </p>
-                <div className="mt-1 text-body text-ink-2 whitespace-pre-wrap leading-relaxed max-h-[240px] overflow-auto">
+                <div className="mt-1 text-body text-ink-2 whitespace-pre-wrap leading-relaxed">
                   {r.corps ? <TexteAvecLiens texte={r.corps} /> : <span className="italic text-ink-3">(réponse sans texte)</span>}
                 </div>
                 {r.historique ? <HistoriqueCite texte={r.historique} /> : null}
@@ -88,7 +88,7 @@ function HistoriqueCite({ texte }: { texte: string }) {
         {ouvert ? "Masquer l’historique" : "Afficher l’historique"}
       </button>
       {ouvert ? (
-        <div className="mt-1 text-meta text-ink-3 whitespace-pre-wrap leading-relaxed max-h-[240px] overflow-auto border-l-2 border-line pl-3">
+        <div className="mt-1 text-meta text-ink-3 whitespace-pre-wrap leading-relaxed border-l-2 border-line pl-3">
           <TexteAvecLiens texte={texte} />
         </div>
       ) : null}
