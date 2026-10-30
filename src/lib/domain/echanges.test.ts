@@ -222,6 +222,11 @@ describe("envoyés d'une boîte partagée, filtrés au binôme", () => {
       const l = [avecObjet("1", "S062 - devis n° S9999"), avecObjet("2", "S100 - suite", "c-a")];
       expect(envoyesDuBinome(l, p, 30).map((e) => e.id)).toEqual(["1", "2"]);
     });
+
+    it("un envoyé sans objet ne casse rien : seule sa conversation compte", () => {
+      const sansObjet = (id: string, conversationId?: string) => ({ ...envoye(id, conversationId), objet: undefined as unknown as string });
+      expect(envoyesDuBinome([sansObjet("1"), sansObjet("2", "c-a")], p, 30).map((e) => e.id)).toEqual(["2"]);
+    });
   });
 });
 

@@ -198,7 +198,8 @@ export interface PerimetreEnvoyes {
  */
 export function envoyeDuBinome(e: Pick<EchangeTrouve, "conversationId" | "objet">, p: PerimetreEnvoyes): boolean {
   if (e.conversationId !== undefined && p.conversations.has(e.conversationId)) return true;
-  const refs = referencesCitees(e.objet);
+  // Un envoyé sans objet (Graph peut le rendre absent) ne cite aucune copro.
+  const refs = e.objet ? referencesCitees(e.objet) : [];
   return refs.some((r) => p.references.has(r)) && !refs.some((r) => p.referencesAutres.has(r));
 }
 
