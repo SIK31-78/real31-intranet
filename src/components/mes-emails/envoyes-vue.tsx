@@ -4,6 +4,8 @@
 // mails partis de la boîte affichée, en lecture seule. Objet, destinataires, date, aperçu
 // dans la liste ; le texte complet à l'ouverture. On ne répond ni ne transfère d'ici : le
 // suivi d'un envoyé se fait depuis le mail reçu, ou dans Outlook.
+// Boîte partagée (30/10/2026) : les envoyés des 14 derniers jours de mes conversations et de
+// mes copropriétés (référence dans l'objet), 30 au plus.
 // « Relancer si pas de réponse » (ADR-053, décision 9, 29/10/2026) : le même menu que « En
 // attente » (sans « De côté ») ; à la date, s'il n'y a pas eu de réponse dans le fil, l'envoi
 // réapparaît en tête de « À traiter » (« Relance : pas de réponse depuis le … »).
@@ -65,7 +67,7 @@ export function EnvoyesVue({
       <Card className="px-6 py-16 text-center">
         <Send strokeWidth={1.25} className="w-8 h-8 text-ink-3 mx-auto" />
         <p className="text-body font-medium text-ink mt-3">Aucun mail envoyé</p>
-        {partagee ? <p className="text-meta text-ink-3 mt-1">Seuls les envoyés de {boite} liés à vos mails apparaissent ici.</p> : null}
+        {partagee ? <p className="text-meta text-ink-3 mt-1">Seuls les envoyés de {boite} de vos conversations et de vos copropriétés, sur les 14 derniers jours, apparaissent ici.</p> : null}
       </Card>
     );
   }
@@ -77,7 +79,7 @@ export function EnvoyesVue({
         <Card className="overflow-hidden">
           <p className="px-3.5 py-2 border-b border-line text-meta text-ink-3">
             {partagee
-              ? `Les ${envoyes.length} derniers envoyés de ${boite} liés à vos mails`
+              ? `Les ${envoyes.length} derniers envoyés de ${boite} : vos conversations et vos copropriétés, 14 derniers jours`
               : `Les ${envoyes.length} derniers mails partis de ${boite}`}
           </p>
           <ul className="divide-y divide-line max-h-[calc(100vh-260px)] overflow-auto">
