@@ -43,6 +43,34 @@ describe("GraphRechercheMail.envoyes", () => {
     expect(l[0]).toMatchObject({ id: "g1", objet: "RE: Fuite", a: ["client@x.fr"], date: "2026-10-16T07:59:58Z", apercu: "Bonjour" });
   });
 
+  it("boîte partagée : les envoyés depuis une date, page après page, bornés au plafond (30/10/2026)", async () => {
+    const urls: string[] = [];
+    const page = (n: number, suite?: string) => ({
+      value: Array.from({ length: n }, (_, i) => ({ id: `g${urls.length}-${i}`, subject: "S062 - devis", receivedDateTime: "2026-10-20T08:00:00Z" })),
+      ...(suite ? { "@odata.nextLink": suite } : {}),
+    });
+    vi.stubGlobal("fetch", async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify(urls.length === 1 ? page(250, "https://graph/suite1") : page(250, "https://graph/suite2")), { status: 200 });
+    });
+    const l = await new GraphRechercheMail().envoyes({ boite: "syndic2@real31.fr", max: 400, depuis: "2026-10-16T10:00:00.000Z" });
+    expect(urls[0]).toContain("$orderby=sentDateTime%20desc&$filter=sentDateTime%20ge%202026-10-16T10%3A00%3A00Z&$top=250");
+    expect(urls).toEqual([urls[0], "https://graph/suite1"]);
+    expect(l).toHaveLength(400);
+  });
+
+  it("le plafond de sécurité : 1 000 envoyés au plus, même si on en demande plus", async () => {
+    let appels = 0;
+    vi.stubGlobal("fetch", async () => {
+      appels++;
+      const value = Array.from({ length: 250 }, (_, i) => ({ id: `g${appels}-${i}`, subject: "x", receivedDateTime: "2026-10-20T08:00:00Z" }));
+      return new Response(JSON.stringify({ value, "@odata.nextLink": "https://graph/suite" }), { status: 200 });
+    });
+    const l = await new GraphRechercheMail().envoyes({ boite: "syndic2@real31.fr", max: 5000, depuis: "2026-10-16T00:00:00Z" });
+    expect(appels).toBe(4);
+    expect(l).toHaveLength(1000);
+  });
+
   it("une boîte refusée par Graph est dite illisible", async () => {
     vi.stubGlobal("fetch", async () => new Response("{}", { status: 403 }));
     await expect(new GraphRechercheMail().envoyes({ boite: "x@real31.fr", max: 30 })).rejects.toBeInstanceOf(BoiteNonLisible);

@@ -47,9 +47,10 @@ export class EchantillonRechercheMail implements RechercheMailProvider {
     return e ? { ...e, boite: p.boite } : null;
   }
 
-  async envoyes(p: { boite: string; max: number }): Promise<EchangeTrouve[]> {
-    // Les échanges partis de la boîte elle-même (vue « Envoyés » de l'écran E-mails).
+  async envoyes(p: { boite: string; max: number; depuis?: string }): Promise<EchangeTrouve[]> {
+    // Les échanges partis de la boîte elle-même (vue « Envoyés » de l'écran E-mails), dans la fenêtre demandée.
     return ECHANTILLON.filter((e) => e.deAdresse === p.boite || e.objet.startsWith("RE:"))
+      .filter((e) => !p.depuis || e.date >= p.depuis)
       .map((e) => ({ ...e, boite: p.boite }))
       .slice(0, p.max);
   }

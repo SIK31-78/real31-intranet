@@ -24,6 +24,10 @@ type GraphMessage = {
 
 const SELECT =
   "id,internetMessageId,conversationId,subject,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,bodyPreview,webLink";
+/** Plafond de sécurité des envoyés lus en une fois (fenêtre de 14 jours d'une boîte partagée, 30/10/2026). */
+const ENVOYES_MAX = 1000;
+/** Taille d'une page d'envoyés : 1 000 messages en 4 appels au plus. */
+const ENVOYES_PAR_PAGE = 250;
 const adresses = (l?: Adresse[]) => (l ?? []).map((d) => d.emailAddress?.address ?? "").filter(Boolean);
 
 function versEchange(boite: string, m: GraphMessage): EchangeTrouve {
@@ -74,15 +78,17 @@ export class GraphRechercheMail implements RechercheMailProvider {
     return out.slice(0, p.max);
   }
 
-  async envoyes(p: { boite: string; max: number }): Promise<EchangeTrouve[]> {
+  async envoyes(p: { boite: string; max: number; depuis?: string }): Promise<EchangeTrouve[]> {
     const tk = await jetonGraph();
     // Le dossier par son nom connu (sentitems), trié par date d'envoi : l'écran n'en montre
-    // que les derniers (REA-341, 16/10/2026). Au-delà de 50 (boîte partagée filtrée au
-    // binôme, REA-408), on suit les pages, borné à 200.
-    const max = Math.min(Math.max(Math.trunc(p.max), 1), 200);
+    // que les derniers (REA-341, 16/10/2026). Boîte partagée filtrée au binôme (REA-408) :
+    // depuis le 30/10/2026, une fenêtre de dates (`depuis`, filtre sur le champ du tri, ce
+    // que Graph accepte) ; on suit les pages, borné à ENVOYES_MAX messages.
+    const max = Math.min(Math.max(Math.trunc(p.max), 1), ENVOYES_MAX);
+    const filtre = p.depuis ? `&$filter=${encodeURIComponent(`sentDateTime ge ${new Date(p.depuis).toISOString().replace(/\.\d{3}Z$/, "Z")}`)}` : "";
     let url =
       `${GRAPH}/users/${encodeURIComponent(p.boite)}/mailFolders/sentitems/messages` +
-      `?$orderby=${encodeURIComponent("sentDateTime desc")}&$top=${Math.min(max, 50)}&$select=${SELECT},sentDateTime`;
+      `?$orderby=${encodeURIComponent("sentDateTime desc")}${filtre}&$top=${Math.min(max, ENVOYES_PAR_PAGE)}&$select=${SELECT},sentDateTime`;
     const out: EchangeTrouve[] = [];
     while (url && out.length < max) {
       const r = await graphFetch(url, { headers: { Authorization: `Bearer ${tk}` } });
