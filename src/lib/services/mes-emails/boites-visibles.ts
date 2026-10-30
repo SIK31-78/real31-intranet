@@ -29,8 +29,9 @@ import { construireBoites, regrouperPartagees, type BoiteMail } from "@/lib/doma
 import { roleComptable } from "@/lib/domain/gestionnaire";
 import { boitesTri, type BoiteTriConfig } from "@/lib/domain/mail-gate";
 import { avecBoitesPersoDeleguees, nomCourtTitulaire } from "@/lib/domain/mail-delegation";
-import { clesDossiersDe, clesDossiersLus, DOSSIERS_HORS_BINOME, type EntreeJournalTri } from "@/lib/domain/tri-emails";
-import { getTriRepository } from "@/lib/adapters/router";
+import { clesDossiersDe, clesDossiersLus, DOSSIERS_HORS_BINOME, portefeuilleDesDossiers, type BinomesTri, type EntreeJournalTri } from "@/lib/domain/tri-emails";
+import type { PerimetreEnvoyes } from "@/lib/domain/echanges";
+import { getReferentielTriProvider, getTriRepository } from "@/lib/adapters/router";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { titulairesDelegants } from "./delegations-mail";
 
@@ -162,16 +163,37 @@ export async function conversationsDistribuees(g: Personne, boite: string): Prom
 }
 
 /**
- * Les rangements recents de cette boite vers les dossiers de mes binomes (« Comptabilité »
- * pour un comptable, 28/10/2026), les plus recents d'abord. Filtres en base par cle de dossier (27/10/2026) : relire tout le journal puis
- * filtrer ici dependait de son plafond de lignes, et les mails les plus anciens d'un binome
- * disparaissaient de « Mes e-mails » des que la boite etait active.
+ * Ce qu'un binome voit des « Envoyés » d'une boite partagee (REA-408, complete le 30/10/2026) :
+ * les conversations distribuees, et le portefeuille de mes binomes (titulaires delegants
+ * compris, comme la distribution) parmi les copros de la boite. Un comptable n'a pas de
+ * portefeuille (dossier « Comptabilité ») : conversations seulement, sans lire le referentiel.
+ * Referentiel illisible : conversations seulement (on montre moins, jamais plus).
  */
-const rangementsDeMesBinomes = cache(
-  async (email: string, userId: string, comptable: boolean, boite: string): Promise<{ lignes: EntreeJournalTri[]; pourDeCle: Map<string, string> }> => {
-    if (!email) return { lignes: [], pourDeCle: new Map() };
-    const repo = getTriRepository();
-    const [binomes, titulaires] = await Promise.all([repo.binomes(), userId ? titulairesDelegants(userId) : []]);
+export async function perimetreEnvoyes(g: Personne, boite: string): Promise<PerimetreEnvoyes> {
+  const [conversations, portefeuille] = await Promise.all([conversationsDistribuees(g, boite), portefeuilleDansLaBoite(g, boite)]);
+  return { conversations, references: portefeuille.miennes, referencesAutres: portefeuille.autres };
+}
+
+async function portefeuilleDansLaBoite(g: Personne, boite: string): Promise<{ miennes: Set<string>; autres: Set<string> }> {
+  const vide = { miennes: new Set<string>(), autres: new Set<string>() };
+  const [email, userId, comptable] = cleDe(g);
+  const config = boitesTri().find((b) => b.boite === boite.trim().toLowerCase());
+  if (!email || comptable || !config) return vide;
+  try {
+    const [{ binomes, cles }, ref] = await Promise.all([dossiersDeMesBinomes(email, userId, comptable), getReferentielTriProvider(config.agences).charger()]);
+    return portefeuilleDesDossiers(ref.copros, binomes, cles);
+  } catch {
+    return vide;
+  }
+}
+
+/**
+ * Les dossiers de mes binomes (« Comptabilité » pour un comptable, 28/10/2026) et ceux des
+ * titulaires qui m'ont confie leur portefeuille, lus une fois par requete.
+ */
+const dossiersDeMesBinomes = cache(
+  async (email: string, userId: string, comptable: boolean): Promise<{ binomes: BinomesTri; cles: Set<string>; pourDeCle: Map<string, string> }> => {
+    const [binomes, titulaires] = await Promise.all([getTriRepository().binomes(), userId ? titulairesDelegants(userId) : []]);
     const miennes = clesDossiersLus({ email, comptable }, binomes);
     // Les dossiers des titulaires qui ne sont pas deja les miens : le badge « Pour Fanny S. ».
     const pourDeCle = new Map<string, string>();
@@ -180,7 +202,21 @@ const rangementsDeMesBinomes = cache(
         if (!miennes.has(cle) && !pourDeCle.has(cle)) pourDeCle.set(cle, nomCourtTitulaire(t.nomComplet) || t.email);
       }
     }
+    return { binomes, cles: new Set([...miennes, ...pourDeCle.keys()]), pourDeCle };
+  },
+);
+
+/**
+ * Les rangements recents de cette boite vers les dossiers de mes binomes (« Comptabilité »
+ * pour un comptable, 28/10/2026), les plus recents d'abord. Filtres en base par cle de dossier (27/10/2026) : relire tout le journal puis
+ * filtrer ici dependait de son plafond de lignes, et les mails les plus anciens d'un binome
+ * disparaissaient de « Mes e-mails » des que la boite etait active.
+ */
+const rangementsDeMesBinomes = cache(
+  async (email: string, userId: string, comptable: boolean, boite: string): Promise<{ lignes: EntreeJournalTri[]; pourDeCle: Map<string, string> }> => {
+    if (!email) return { lignes: [], pourDeCle: new Map() };
+    const { cles, pourDeCle } = await dossiersDeMesBinomes(email, userId, comptable);
     const depuis = new Date(Date.now() - FENETRE_JOURS * 86_400_000).toISOString();
-    return { lignes: await repo.journalPourCles(boite, depuis, [...miennes, ...pourDeCle.keys()]), pourDeCle };
+    return { lignes: await getTriRepository().journalPourCles(boite, depuis, [...cles]), pourDeCle };
   },
 );

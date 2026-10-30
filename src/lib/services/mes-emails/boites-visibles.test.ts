@@ -5,13 +5,29 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/adapters/router", () => ({ getTriRepository: () => ({}) }));
+// Le dépôt du tri et le référentiel des envoyés (perimetreEnvoyes, 30/10/2026).
+const faux = vi.hoisted(() => ({
+  binomes: { binomes: [] as unknown[], parCopro: {} as Record<string, string> },
+  journal: [] as { internetMessageId: string; conversationId?: string; dossierCle: string; coproReference: string | null; faitLe: string }[],
+  copros: [] as unknown[],
+  agencesLues: [] as string[][],
+}));
+vi.mock("@/lib/adapters/router", () => ({
+  getTriRepository: () => ({
+    binomes: async () => faux.binomes,
+    journalPourCles: async (_b: string, _d: string, cles: string[]) => faux.journal.filter((e) => cles.includes(e.dossierCle)),
+  }),
+  getReferentielTriProvider: (agences: string[]) => {
+    faux.agencesLues.push(agences);
+    return { charger: async () => ({ copros: faux.copros, expediteurs: {} }) };
+  },
+}));
 vi.mock("./delegations-mail", () => ({ titulairesDelegants: async () => [] }));
 vi.mock("@/lib/services/agences/resoudre-agence", () => ({
   codeAgence: async (id: string | null | undefined) => ({ "ag-hls": "HLS", "ag-lgc": "LGC", "ag-ml": "ML" })[id ?? ""],
 }));
 
-const { boitesVisibles } = await import("./boites-visibles");
+const { boitesVisibles, perimetreEnvoyes } = await import("./boites-visibles");
 const { boiteDe, boiteTriAccessible } = await import("@/lib/services/tri-emails/acces");
 
 const S1 = "syndic1@real31.fr";
@@ -53,5 +69,46 @@ describe("tri : une boîte non triée n'a pas d'écran", () => {
   it("un super-admin qui demande ?boite=syndic1 n'obtient rien", async () => {
     expect(await boiteTriAccessible({ agencyId: "ag-hls" }, { superAdmin: true, equipeSyndic: true }, S1)).toBeNull();
     expect((await boiteTriAccessible({ agencyId: "ag-hls" }, { superAdmin: true, equipeSyndic: true }))?.boite).toBe("syndic4@real31.fr");
+  });
+});
+
+describe("perimetreEnvoyes : conversations distribuées et portefeuille du binôme (30/10/2026)", () => {
+  const membre = (email: string) => ({ nomComplet: email, email });
+  beforeEach(() => {
+    faux.binomes = {
+      binomes: [
+        { id: "a", gestionnaireEmail: "sandy@real31.fr", assistant: membre("elsa@real31.fr"), principal: true },
+        { id: "b", gestionnaireEmail: "paul@real31.fr", assistant: membre("gina@real31.fr"), principal: true },
+      ],
+      parCopro: {},
+    };
+    faux.journal = [
+      { internetMessageId: "<1>", conversationId: "c-sandy", dossierCle: "binome:sandy@real31.fr", coproReference: "S0062", faitLe: "2026-10-29T10:00:00Z" },
+      { internetMessageId: "<2>", conversationId: "c-paul", dossierCle: "binome:paul@real31.fr", coproReference: "S0100", faitLe: "2026-10-29T10:00:00Z" },
+    ];
+    faux.copros = [
+      { reference: "S0062", nom: "Foch", adresse: "", gestionnaire: membre("sandy@real31.fr"), assistant: null },
+      { reference: "S0100", nom: "Gare", adresse: "", gestionnaire: membre("paul@real31.fr"), assistant: null },
+    ];
+    faux.agencesLues = [];
+  });
+
+  it("l'assistante : ses conversations et les copros de son binôme, lues dans le référentiel de la boîte", async () => {
+    const p = await perimetreEnvoyes({ email: "elsa@real31.fr", agencyId: "ag-lgc" }, "syndic2@real31.fr");
+    expect([...p.conversations]).toEqual(["c-sandy"]);
+    expect([...p.references]).toEqual(["S62"]);
+    expect([...p.referencesAutres]).toEqual(["S100"]);
+    expect(faux.agencesLues).toEqual([["LGC", "ASN"]]);
+  });
+
+  it("un comptable : aucune copro, et le référentiel n'est pas lu", async () => {
+    const p = await perimetreEnvoyes({ email: "compta@real31.fr", agencyId: "ag-lgc", role: "COMPTABLE" }, "syndic2@real31.fr");
+    expect(p.references.size).toBe(0);
+    expect(faux.agencesLues).toEqual([]);
+  });
+
+  it("une boîte hors de la config : conversations seulement", async () => {
+    const p = await perimetreEnvoyes({ email: "elsa@real31.fr", agencyId: "ag-lgc" }, "autre@real31.fr");
+    expect(p.references.size).toBe(0);
   });
 });

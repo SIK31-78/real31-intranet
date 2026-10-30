@@ -24,7 +24,7 @@ import {
   type Cible,
 } from "@/lib/services/mes-emails/maj-etat";
 import { boiteTri, envoiMailPour } from "@/lib/domain/mail-gate";
-import { conversationsDistribuees, mailDistribue } from "@/lib/services/mes-emails/boites-visibles";
+import { mailDistribue, perimetreEnvoyes } from "@/lib/services/mes-emails/boites-visibles";
 import { boiteCible, boiteDuMail, boitePartageeDe, boitesDe, natureBoite } from "./gardes-boites";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { oublierCompteurEmails } from "@/lib/services/mes-emails/compteur-emails";
@@ -701,7 +701,8 @@ export async function mettreALaCorbeilleAction(input: unknown): Promise<Res<Resu
 
 /**
  * Les 30 derniers mails envoyés de la boîte affichée (REA-341). Lecture seule. Boîte
- * partagée : seulement ceux des conversations distribuées à mon binôme (REA-408).
+ * partagée : seulement ceux de mon binôme, sur 14 jours (REA-408 ; conversations distribuées
+ * ou copro de mon portefeuille dans l'objet, 30/10/2026).
  */
 export async function chargerEnvoyesAction(input: unknown): Promise<Res<EchangeTrouve[]>> {
   const g = await gestionnairePilote();
@@ -712,7 +713,7 @@ export async function chargerEnvoyesAction(input: unknown): Promise<Res<EchangeT
   if (!cible) return echec("Boîte non autorisée.");
   try {
     const perso = (await boitesDe(g)).find((x) => x.id === cible)?.personnelle ?? false;
-    return { ok: true, donnees: await listerEnvoyes(cible, perso ? undefined : await conversationsDistribuees(g, cible)) };
+    return { ok: true, donnees: await listerEnvoyes(cible, perso ? undefined : await perimetreEnvoyes(g, cible)) };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
   }
@@ -720,7 +721,7 @@ export async function chargerEnvoyesAction(input: unknown): Promise<Res<EchangeT
 
 /**
  * Le texte d'un mail envoyé, par son id Graph, lu dans la boîte affichée (REA-341). Boîte
- * partagée : seulement un envoyé des conversations distribuées à mon binôme, comme la liste
+ * partagée : seulement un envoyé que la liste montre à mon binôme
  * (REA-422, 27/10/2026 : avant, n'importe quel id Graph de la boîte se lisait).
  */
 export async function lireEnvoyeAction(input: unknown): Promise<Res<string>> {
@@ -732,8 +733,8 @@ export async function lireEnvoyeAction(input: unknown): Promise<Res<string>> {
   if (!cible) return echec("Boîte non autorisée.");
   try {
     const perso = (await boitesDe(g)).find((x) => x.id === cible)?.personnelle ?? false;
-    const texte = await lireEnvoye(cible, v.data.id, perso ? undefined : await conversationsDistribuees(g, cible));
-    if (texte === null) return echec("Ce mail envoyé ne fait pas partie des conversations de ton binôme.");
+    const texte = await lireEnvoye(cible, v.data.id, perso ? undefined : await perimetreEnvoyes(g, cible));
+    if (texte === null) return echec("Ce mail envoyé n'est pas dans les envoyés de ton binôme.");
     return { ok: true, donnees: texte };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
