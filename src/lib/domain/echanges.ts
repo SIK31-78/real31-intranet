@@ -11,6 +11,8 @@
 // en incarnation.
 // Ouvert d'abord à Houilles seulement : une agence sans boîte configurée n'a pas l'écran.
 
+import { referencesCitees } from "@/lib/domain/tri-emails";
+
 /** Agence (code court, ex. « HLS ») -> ses boîtes communes. */
 export type BoitesParAgence = Record<string, string[]>;
 
@@ -175,12 +177,34 @@ export interface ReponseEnvoyee {
 }
 
 /**
- * Les envoyés d'une boîte partagée qu'un binôme voit (REA-408) : ceux d'une conversation
- * dont un mail lui a été distribué par le tri. Un envoyé sans conversation connue n'est
- * à personne en particulier : il ne remonte pas. Ordre gardé, `max` au plus.
+ * Ce qu'un binôme voit des envoyés d'une boîte partagée (REA-408, complété le 30/10/2026) :
+ * les conversations dont un mail lui a été distribué par le tri, et les références des
+ * copros de son portefeuille (`references`) ; `referencesAutres` = celles des autres copros
+ * de la boîte (portefeuilleDesDossiers).
  */
-export function envoyesDuBinome(envoyes: EchangeTrouve[], conversations: ReadonlySet<string>, max: number): EchangeTrouve[] {
-  return envoyes.filter((e) => e.conversationId !== undefined && conversations.has(e.conversationId)).slice(0, max);
+export interface PerimetreEnvoyes {
+  conversations: ReadonlySet<string>;
+  references: ReadonlySet<string>;
+  referencesAutres: ReadonlySet<string>;
+}
+
+/**
+ * Un envoyé est au binôme s'il est d'une conversation distribuée, OU si son objet cite une
+ * copro de son portefeuille et aucune copro d'un autre binôme (30/10/2026 : un mail NEUF du
+ * gestionnaire, « S062 · FOCH4* - devis muret », n'est dans aucune conversation triée).
+ * referencesCitees lit tout l'objet : « RE: / TR: / Fwd: » en tête ne gênent pas, S0062 ≡ S62.
+ * Un code inconnu de la boîte est ignoré. Sans conversation ni référence (envoi en masse) :
+ * à personne en particulier, il ne remonte pas.
+ */
+export function envoyeDuBinome(e: Pick<EchangeTrouve, "conversationId" | "objet">, p: PerimetreEnvoyes): boolean {
+  if (e.conversationId !== undefined && p.conversations.has(e.conversationId)) return true;
+  const refs = referencesCitees(e.objet);
+  return refs.some((r) => p.references.has(r)) && !refs.some((r) => p.referencesAutres.has(r));
+}
+
+/** Les envoyés d'une boîte partagée que le binôme voit (envoyeDuBinome). Ordre gardé, `max` au plus. */
+export function envoyesDuBinome(envoyes: EchangeTrouve[], p: PerimetreEnvoyes, max: number): EchangeTrouve[] {
+  return envoyes.filter((e) => envoyeDuBinome(e, p)).slice(0, max);
 }
 
 // Début du message cité sous une réponse : en-tête Outlook FR/EN, séparateur, « Le … a écrit ».

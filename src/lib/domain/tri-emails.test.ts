@@ -12,6 +12,7 @@ import {
   departagerParGestionnaire,
   clesDossiersDe,
   clesDossiersLus,
+  portefeuilleDesDossiers,
   constaterRangement,
   coproDuDossier,
   coprosDansPdf,
@@ -1166,6 +1167,35 @@ describe("clesDossiersLus : un comptable lit « Comptabilité », jamais les bin
   it("les autres : leurs dossiers de binôme, comme avant", () => {
     expect(clesDossiersLus({ email: "elsa@real31.fr", comptable: false }, b)).toEqual(clesDossiersDe("elsa@real31.fr", b));
     expect(clesDossiersLus({ email: "sophie@real31.fr", comptable: false }, AUCUN_BINOME).has("comptabilite")).toBe(false);
+  });
+});
+
+describe("portefeuilleDesDossiers : les copros de mes dossiers de binôme (30/10/2026)", () => {
+  const sandy = { nomComplet: "Sandy", email: "Sandy@real31.fr" };
+  const paul = { nomComplet: "Paul", email: "paul@real31.fr" };
+  const b = {
+    binomes: [
+      { id: "p", gestionnaireEmail: "sandy@real31.fr", assistant: { nomComplet: "Elsa", email: "elsa@real31.fr" }, principal: true },
+      { id: "s", gestionnaireEmail: "sandy@real31.fr", assistant: { nomComplet: "Gina", email: "gina@real31.fr" }, principal: false },
+    ],
+    parCopro: { S0300: "s" },
+  };
+  const c = (reference: string, gestionnaire: CoproTri["gestionnaire"]): CoproTri => ({ reference, nom: reference, adresse: "", gestionnaire, assistant: null });
+  const copros = [c("S0062", sandy), c("S0300", sandy), c("S0286", paul), c("S0400", null)];
+
+  it("l'assistante du binôme principal : les copros rangées chez elle, pas celles du binôme secondaire", () => {
+    const { miennes, autres } = portefeuilleDesDossiers(copros, b, clesDossiersDe("elsa@real31.fr", b));
+    expect([...miennes]).toEqual(["S62"]);
+    expect([...autres].sort()).toEqual(["S286", "S300", "S400"]);
+  });
+  it("la gestionnaire : ses deux binômes", () => {
+    expect([...portefeuilleDesDossiers(copros, b, clesDossiersDe("sandy@real31.fr", b)).miennes].sort()).toEqual(["S300", "S62"]);
+  });
+  it("un comptable n'a aucune copro, et une référence en double n'est jamais à moi", () => {
+    expect(portefeuilleDesDossiers(copros, b, clesDossiersLus({ email: "elsa@real31.fr", comptable: true }, b)).miennes.size).toBe(0);
+    const doublon = portefeuilleDesDossiers([...copros, c("S062", paul)], b, clesDossiersDe("elsa@real31.fr", b));
+    expect(doublon.miennes.has("S62")).toBe(false);
+    expect(doublon.autres.has("S62")).toBe(true);
   });
 });
 

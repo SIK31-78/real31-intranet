@@ -1278,6 +1278,27 @@ export function clesDossiersLus(p: { email: string; comptable: boolean }, b: Bin
 }
 
 /**
+ * Le portefeuille de mes dossiers de binome (30/10/2026) : les cles de reference (S062,
+ * cleDeReference) des copros que le tri rangerait dans l'un de ces dossiers (meme calcul que
+ * destinationDe : binomeDeCopro puis cleDossierDe), et celles des AUTRES copros du referentiel
+ * (d'un autre binome, ou sans gestionnaire). Un comptable (dossier « Comptabilité ») n'a aucune
+ * copro a lui. Sert aux « Envoyés » d'une boite partagee : un mail neuf ecrit sur ma copro.
+ */
+export function portefeuilleDesDossiers(copros: CoproTri[], b: BinomesTri, cles: ReadonlySet<string>): { miennes: Set<string>; autres: Set<string> } {
+  const miennes = new Set<string>();
+  const autres = new Set<string>();
+  for (const c of copros) {
+    const ref = cleDeReference(c.reference);
+    if (!ref) continue;
+    const cle = c.gestionnaire ? cleDossierDe(minuscules(c.gestionnaire.email), binomeDeCopro(c, b)) : null;
+    (cle !== null && cles.has(cle) ? miennes : autres).add(ref);
+  }
+  // Une reference vue des deux cotes (doublon du referentiel) : prudence, elle n'est pas a moi.
+  for (const ref of autres) miennes.delete(ref);
+  return { miennes, autres };
+}
+
+/**
  * Destination d'un mail rattache a une copro. Les initiales viennent de l'intranet et
  * non d'ESTALE : le nom complet ESTALE ne donne souvent qu'un prenom (constat du 25/09).
  * L'assistant vient du binome tenu dans l'intranet ; a defaut seulement, de celui d'ESTALE.

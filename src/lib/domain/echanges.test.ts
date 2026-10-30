@@ -182,15 +182,46 @@ describe("envoyés d'une boîte partagée, filtrés au binôme", () => {
     apercu: "",
   });
 
-  it("ne garde que les conversations distribuées au binôme, dans l'ordre", () => {
-    const l = [envoye("1", "c-a"), envoye("2", "c-autre"), envoye("3"), envoye("4", "c-b"), envoye("5", "c-a")];
-    expect(envoyesDuBinome(l, new Set(["c-a", "c-b"]), 30).map((e) => e.id)).toEqual(["1", "4", "5"]);
+  const perimetre = (conversations: string[], references: string[] = [], referencesAutres: string[] = []) => ({
+    conversations: new Set(conversations),
+    references: new Set(references),
+    referencesAutres: new Set(referencesAutres),
   });
 
-  it("borne le nombre gardé et rend vide sans conversation connue", () => {
+  it("ne garde que les conversations distribuées au binôme, dans l'ordre", () => {
+    const l = [envoye("1", "c-a"), envoye("2", "c-autre"), envoye("3"), envoye("4", "c-b"), envoye("5", "c-a")];
+    expect(envoyesDuBinome(l, perimetre(["c-a", "c-b"]), 30).map((e) => e.id)).toEqual(["1", "4", "5"]);
+  });
+
+  it("borne le nombre gardé et rend vide sans conversation ni référence connue", () => {
     const l = [envoye("1", "c-a"), envoye("2", "c-a"), envoye("3", "c-a")];
-    expect(envoyesDuBinome(l, new Set(["c-a"]), 2).map((e) => e.id)).toEqual(["1", "2"]);
-    expect(envoyesDuBinome(l, new Set(), 30)).toEqual([]);
+    expect(envoyesDuBinome(l, perimetre(["c-a"]), 2).map((e) => e.id)).toEqual(["1", "2"]);
+    expect(envoyesDuBinome(l, perimetre([]), 30)).toEqual([]);
+  });
+
+  describe("un mail neuf du gestionnaire, par la référence de l'objet (30/10/2026)", () => {
+    const avecObjet = (id: string, objet: string, conversationId?: string) => ({ ...envoye(id, conversationId), objet });
+    const p = perimetre(["c-a"], ["S62", "S286"], ["S100", "S300"]);
+
+    it("l'objet cite une copro de mon portefeuille : visible, même hors conversation triée", () => {
+      const l = [
+        avecObjet("1", "S062 · FOCH4* - devis muret", "c-neuve"),
+        avecObjet("2", "S286 - 1/3 Foch - CR de visite"),
+        avecObjet("3", "RE: TR: S0062 - devis muret"),
+        avecObjet("4", "Fwd: S062 relance"),
+      ];
+      expect(envoyesDuBinome(l, p, 30).map((e) => e.id)).toEqual(["1", "2", "3", "4"]);
+    });
+
+    it("jamais la copro d'un autre binôme, ni un objet qui en cite une à côté de la mienne", () => {
+      const l = [avecObjet("1", "S100 - fuite"), avecObjet("2", "S062 et S300 - réunion commune"), avecObjet("3", "Bonne année à tous")];
+      expect(envoyesDuBinome(l, p, 30)).toEqual([]);
+    });
+
+    it("un code inconnu de la boîte ne gêne pas ; la conversation distribuée suffit toujours", () => {
+      const l = [avecObjet("1", "S062 - devis n° S9999"), avecObjet("2", "S100 - suite", "c-a")];
+      expect(envoyesDuBinome(l, p, 30).map((e) => e.id)).toEqual(["1", "2"]);
+    });
   });
 });
 
