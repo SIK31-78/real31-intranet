@@ -25,8 +25,8 @@ vi.mock("@/lib/adapters/router", async (original) => ({
   getTriRepository: () => etat.repo,
   getAgenceRepository: () => ({ listerAgences: async () => [{ id: "ag-hls", code: "HLS" }] }),
   getMesEmailsEtatRepository: () => ({
-    setLu: async (p: { gestionnaireId: string; emailId: string }) => {
-      etat.ecrits.push({ quoi: "lu", gestionnaireId: p.gestionnaireId, emailId: p.emailId });
+    setLu: async (p: { gestionnaireId: string; emailId: string; lu: boolean }) => {
+      etat.ecrits.push({ quoi: p.lu ? "lu" : "non-lu", gestionnaireId: p.gestionnaireId, emailId: p.emailId });
     },
     setStatut: async (p: { gestionnaireId: string; emailId: string; statut: string }) => {
       etat.ecrits.push({ quoi: "statut", gestionnaireId: p.gestionnaireId, emailId: p.emailId, statut: p.statut });
@@ -48,15 +48,17 @@ vi.mock("@/lib/adapters/router", async (original) => ({
     },
   }),
   getMailboxProvider: () => ({
-    marquerLu: async (p: { boite: string; internetMessageId: string }) => {
+    marquerLu: async (p: { boite: string; internetMessageId: string; lu: boolean }) => {
       if (etat.graphRefuse) throw new Error("Graph lu 403");
-      etat.graph.push({ quoi: "lu", boite: p.boite, id: p.internetMessageId });
+      etat.graph.push({ quoi: p.lu ? "lu" : "non-lu", boite: p.boite, id: p.internetMessageId });
     },
   }),
 }));
 vi.mock("@/lib/observabilite", () => ({ signalerException: () => undefined }));
 
-const { finaliserEnvoiAction, marquerLuAction, preparerEnvoiAction, transfererMailAction } = await import("@/app/mes-emails/actions");
+const { finaliserEnvoiAction, marquerLuAction, marquerNonLuAction, preparerEnvoiAction, transfererMailAction } = await import(
+  "@/app/mes-emails/actions"
+);
 
 const SYNDIC4 = "syndic4@real31.fr";
 const sophie = { id: "u1", nomComplet: "Sophie K", initiales: "SK", email: "sophie@real31.fr", agencyId: "ag-hls", role: "GESTIONNAIRE" };
@@ -113,6 +115,43 @@ describe("marquerLuAction : lu dans l'intranet ET dans Outlook", () => {
     etat.graphRefuse = true;
     await expect(marquerLuAction("<perso@x>", "", "sophie@real31.fr")).resolves.toBeUndefined();
     expect(etat.ecrits).toEqual([{ quoi: "lu", gestionnaireId: "u1", emailId: "<perso@x>" }]);
+  });
+});
+
+// « Non lu » (02/11/2026, remontée d'Océane) : les mêmes gardes que le lu, et l'échec se dit.
+describe("marquerNonLuAction : non lu dans l'intranet ET dans Outlook", () => {
+  it("boîte perso : efface le lu intranet et remet non lu dans Outlook", async () => {
+    const r = await marquerNonLuAction("<perso@x>", "", "sophie@real31.fr");
+    expect(r).toEqual({ ok: true });
+    expect(etat.ecrits).toEqual([{ quoi: "non-lu", gestionnaireId: "u1", emailId: "<perso@x>" }]);
+    expect(etat.graph).toEqual([{ quoi: "non-lu", boite: "sophie@real31.fr", id: "<perso@x>" }]);
+  });
+
+  it("boîte partagée : non lu Outlook pour un mail distribué à mon binôme", async () => {
+    const r = await marquerNonLuAction("<a-sophie@x>", "S0297", SYNDIC4);
+    expect(r.ok).toBe(true);
+    expect(etat.graph).toEqual([{ quoi: "non-lu", boite: SYNDIC4, id: "<a-sophie@x>" }]);
+  });
+
+  it("n'écrit pas dans Outlook un mail d'un autre binôme, et le dit", async () => {
+    const r = await marquerNonLuAction("<b-marc@x>", "S0297", SYNDIC4);
+    expect(r.ok).toBe(false);
+    expect(etat.graph).toEqual([]);
+  });
+
+  it("Graph refuse : échec rendu à l'écran, le lu intranet est quand même effacé", async () => {
+    etat.graphRefuse = true;
+    const r = await marquerNonLuAction("<perso@x>", "", "sophie@real31.fr");
+    expect(r).toEqual({ ok: false, erreur: "Le mail n'a pas pu être remis en non lu dans Outlook." });
+    expect(etat.ecrits).toEqual([{ quoi: "non-lu", gestionnaireId: "u1", emailId: "<perso@x>" }]);
+  });
+
+  it("non connecté : rien n'est écrit", async () => {
+    etat.session = null;
+    const r = await marquerNonLuAction("<perso@x>", "", "sophie@real31.fr");
+    expect(r.ok).toBe(false);
+    expect(etat.ecrits).toEqual([]);
+    expect(etat.graph).toEqual([]);
   });
 });
 

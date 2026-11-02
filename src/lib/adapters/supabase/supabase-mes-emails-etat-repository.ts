@@ -9,6 +9,7 @@ import type {
   MajBrouillon,
   MajCopro,
   MajDossier,
+  MajLu,
   MajRattachement,
   MajStatut,
   MesEmailsEtatRepository,
@@ -138,8 +139,10 @@ export class SupabaseMesEmailsEtatRepository implements MesEmailsEtatRepository 
       ...(p.brouillon !== undefined ? { brouillon: p.brouillon } : {}),
     });
   }
-  async setLu(p: CleEtat): Promise<void> {
-    await this.upsert(p, { lu: true });
+  async setLu(p: MajLu): Promise<void> {
+    // Seule la colonne lu : « Marquer non lu » (02/11/2026) la repasse a faux, le reste de la
+    // ligne (statut, brouillon, rattachement, dossier) ne bouge pas.
+    await this.upsert(p, { lu: p.lu });
   }
   async setBrouillon(p: MajBrouillon): Promise<void> {
     await this.upsert(p, { brouillon: p.brouillon });

@@ -46,6 +46,8 @@ export type MajBrouillon = CleEtat & { brouillon: string };
 export type MajRattachement = CleEtat & { rattachement: Rattachement };
 export type MajCopro = CleEtat & { coproNom: string };
 export type MajDossier = CleEtat & { dossierId: string; dossierNom: string };
+/** `lu: false` = « Marquer non lu » (02/11/2026) : seule la colonne lu repasse a faux. */
+export type MajLu = CleEtat & { lu: boolean };
 
 export interface MesEmailsEtatRepository {
   /** Les etats d'un gestionnaire pour CES mails (cle emailId). Borne aux mails affiches :
@@ -56,7 +58,7 @@ export interface MesEmailsEtatRepository {
   getStatutsDesMails(emailIds: string[]): Promise<StatutEcrit[]>;
   /** Valider/devalider : pose le statut + les etapes (+ le brouillon final si fourni). */
   setStatut(p: MajStatut): Promise<void>;
-  setLu(p: CleEtat): Promise<void>;
+  setLu(p: MajLu): Promise<void>;
   setBrouillon(p: MajBrouillon): Promise<void>;
   setRattachement(p: MajRattachement): Promise<void>;
   /** Rattache le mail a une copropriete a la main (coproCode de la cle = la copro). */

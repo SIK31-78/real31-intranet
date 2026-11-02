@@ -158,15 +158,36 @@ export async function editBrouillonAction(emailId: string, coproCode: string, br
  * comme s'il lisait : accepté, c'est sa boîte et le remplaçant y travaille pour lui.
  */
 export async function marquerLuAction(emailId: string, coproCode: string, boite?: string): Promise<void> {
-  if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success) return;
+  await poserLu(emailId, coproCode, boite, true);
+}
+
+/**
+ * « Non lu » (02/11/2026, remontée d'Océane) : l'inverse exact du lu, mêmes gardes. Le lu
+ * intranet repasse à faux et le mail redevient non lu dans Outlook, pour toute la boîte
+ * partagée. Contrairement au lu, l'échec se dit : si Outlook n'a pas suivi, le mail
+ * redeviendrait lu à la prochaine actualisation (lu = intranet OU Outlook).
+ */
+export async function marquerNonLuAction(emailId: string, coproCode: string, boite?: string): Promise<Res> {
+  try {
+    const outlook = await poserLu(emailId, coproCode, boite, false);
+    return outlook ? { ok: true } : echec("Le mail n'a pas pu être remis en non lu dans Outlook.");
+  } catch (e) {
+    return echecDepuis(e, "mes-emails-non-lu");
+  }
+}
+
+/** Lu ou non lu, dans l'intranet et dans Outlook. Rend true si Outlook a suivi. */
+async function poserLu(emailId: string, coproCode: string, boite: string | undefined, lu: boolean): Promise<boolean> {
+  if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success) return false;
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
-  if (!auth.ok) return;
+  if (!auth.ok) return false;
   const cible = auth.g.email ? await boiteDuMail(auth.g, boite, emailId) : null;
-  await Promise.all([
-    enregistrerLu(cibleDe(auth.g, emailId, coproCode)),
-    cible ? marquerLuDansOutlook(cible, emailId) : undefined,
+  const [, outlook] = await Promise.all([
+    enregistrerLu(cibleDe(auth.g, emailId, coproCode), lu),
+    cible ? marquerLuDansOutlook(cible, emailId, lu) : false,
   ]);
   oublierCompteurEmails(auth.g.id);
+  return outlook;
 }
 
 /** Le contexte ESTALE d'une copro, à l'ouverture du volet Contexte (plus au chargement de

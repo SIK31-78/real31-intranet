@@ -2,11 +2,11 @@
 // dev server, repart a zero au redemarrage). Pas de cloisonnement en mock.
 
 import type {
-  CleEtat,
   EtatMail,
   MajBrouillon,
   MajCopro,
   MajDossier,
+  MajLu,
   MajRattachement,
   MajStatut,
   MesEmailsEtatRepository,
@@ -39,8 +39,8 @@ export class MockMesEmailsEtatRepository implements MesEmailsEtatRepository {
       ...(p.brouillon !== undefined ? { brouillon: p.brouillon } : {}),
     });
   }
-  async setLu(p: CleEtat): Promise<void> {
-    maj(p.gestionnaireId, p.emailId, { lu: true });
+  async setLu(p: MajLu): Promise<void> {
+    maj(p.gestionnaireId, p.emailId, { lu: p.lu });
   }
   async setBrouillon(p: MajBrouillon): Promise<void> {
     maj(p.gestionnaireId, p.emailId, { brouillon: p.brouillon });
