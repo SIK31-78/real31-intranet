@@ -51,9 +51,10 @@ export interface MailOutboundProvider {
    * complet (fil, citation, corps, destinataires, PJ d'origine re-jointes), dont on rend l'id
    * Graph ; les fichiers de l'ordinateur y sont joints ensuite, un par un (ajouterPieceJointe
    * ou session d'upload) ; puis envoyerBrouillon, ou le brouillon reste dans Outlook. Un echec
-   * avant le retour supprime le brouillon.
+   * avant le retour supprime le brouillon. `internetMessageId` et `conversationId` du brouillon
+   * (02/11/2026) : ils restent ceux du mail une fois parti, de quoi poser une relance à l'envoi.
    */
-  preparerBrouillonReponse(p: ReponseMail): Promise<{ id: string; webLink?: string }>;
+  preparerBrouillonReponse(p: ReponseMail): Promise<{ id: string; webLink?: string; internetMessageId?: string; conversationId?: string }>;
 
   /** Joint un fichier au brouillon : un POST sous 3 Mo, une session d'upload au-dela. */
   ajouterPieceJointe(p: { boite: string; draftId: string; nom: string; contentType: string; octets: Uint8Array }): Promise<void>;
@@ -94,7 +95,7 @@ export interface MailOutboundProvider {
     piecesJointes?: PieceJointeMail[];
     /** Message d'origine cite sous la signature (reponse depuis une autre boite, REA-302). */
     citationHtml?: string;
-  }): Promise<{ webLink?: string; internetMessageId?: string; id?: string }>;
+  }): Promise<{ webLink?: string; internetMessageId?: string; id?: string; conversationId?: string }>;
 
   /**
    * ENVOIE un brouillon deja cree (son `id` Graph, rendu par creerBrouillonNeuf). Action

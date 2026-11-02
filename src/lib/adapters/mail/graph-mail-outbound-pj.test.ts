@@ -39,7 +39,12 @@ beforeEach(() => {
       auth: h.get("authorization"),
       ...(init?.body instanceof Uint8Array ? { octets: init.body.byteLength } : {}),
     });
-    if (url.endsWith("/createReply")) return Response.json({ id: "br1", webLink: "https://outlook/br1", body: { content: "<p>cité</p>" } }, { status: 201 });
+    if (url.endsWith("/createReply")) {
+      return Response.json(
+        { id: "br1", webLink: "https://outlook/br1", body: { content: "<p>cité</p>" }, internetMessageId: "<br1@x>", conversationId: "conv-1" },
+        { status: 201 },
+      );
+    }
     if (url.includes("/attachments/pj1?")) return Response.json({ "@odata.type": "#microsoft.graph.fileAttachment", name: "plan.pdf", contentType: "application/pdf", size: tailleOrigine + 300 });
     if (url.endsWith("/attachments/pj1/$value")) return new Response(new Uint8Array(tailleOrigine));
     if (url.endsWith("/createUploadSession")) return Response.json({ uploadUrl: "https://upload/session1" }, { status: 201 });
@@ -60,7 +65,8 @@ const resume = () => appels.map((a) => `${a.methode} ${a.url}${a.plage ? ` [${a.
 describe("pièce d'origine re-jointe à une réponse", () => {
   it("sous 3 Mo : un POST simple, lue en octets ($value) et non en base64", async () => {
     const r = await new GraphMailOutboundProvider().preparerBrouillonReponse(reponse);
-    expect(r).toEqual({ id: "br1", webLink: "https://outlook/br1" });
+    // internetMessageId et conversationId du brouillon (02/11/2026) : de quoi poser une relance à l'envoi.
+    expect(r).toEqual({ id: "br1", webLink: "https://outlook/br1", internetMessageId: "<br1@x>", conversationId: "conv-1" });
     expect(resume()).toEqual([
       "POST /messages/g1/createReply",
       "GET /messages/g1/attachments/pj1?$select=name,contentType,size",

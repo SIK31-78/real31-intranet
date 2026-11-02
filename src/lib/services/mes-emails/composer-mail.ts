@@ -46,6 +46,8 @@ import { dossiersPourRattacher } from "@/lib/services/echanges/rechercher";
 import { rattacherEmailAuDossier } from "@/lib/services/dossiers/rattacher-email";
 import { DUREE_JETON_MS, scellerJeton, type JetonNeuf } from "./jeton-envoi";
 import { brouillonNeufDe } from "./depot-piece-jointe";
+import { relancerApresEnvoi, type RelanceALEnvoi } from "./boite-equipe";
+import type { ChoixEcheance } from "@/lib/domain/boite-equipe";
 
 export type { CoproChoisissable, ContactsComposition, ExpediteurPropose };
 
@@ -250,7 +252,12 @@ export interface ResultatBrouillon {
   rattache?: boolean;
   /** Nombre de mails créés : plus d'un quand la copie cachée a été découpée en lots, ou en envoi séparé. */
   mails?: number;
+  /** La relance demandée à l'envoi (02/11/2026) : posée, ou pourquoi elle ne l'est pas. */
+  relance?: RelanceALEnvoi;
 }
+
+/** Une relance « si pas de réponse » n'a de sens que sur UN mail (ni lots de copie cachée, ni envoi séparé). */
+export const RELANCE_UN_SEUL_MAIL = "Relance non posée : elle ne vaut que pour un mail unique (pas pour toute la copropriété ni l'envoi séparé).";
 
 /**
  * Le bouton du compositeur ENVOIE-t-il ou crée-t-il un brouillon ? Boîte partagée : MAIL_ENVOI=on
@@ -318,7 +325,7 @@ export async function preparerComposition(
     ? d.envois.map((x) => ({ a: x, cci: [] }))
     : (d.cci?.length ? enLots(d.cci) : [[]]).map((cci) => ({ a, cci }));
   const mode = envoiDirectComposition(expediteur) ? "envoyer" : "brouillon";
-  const crees: { id: string; webLink?: string; internetMessageId?: string }[] = [];
+  const crees: { id: string; webLink?: string; internetMessageId?: string; conversationId?: string }[] = [];
   try {
     for (const { a, cci } of lots) {
       const cree = await outbound.creerBrouillonNeuf({
@@ -355,6 +362,7 @@ export async function preparerComposition(
       lot,
       lots: crees.length,
       ...(lot === 0 && c.internetMessageId ? { internetMessageId: c.internetMessageId } : {}),
+      ...(lot === 0 && c.conversationId ? { conversationId: c.conversationId } : {}),
       ...(lot === 0 && d.dossierId ? { dossier: { id: d.dossierId, pour, objet: d.objet } } : {}),
       exp,
     }),
@@ -404,7 +412,12 @@ async function supprimerBrouillons(boite: string, ids: string[]): Promise<void> 
  * périmètre inclus) : créer puis envoyer garde l'internetMessageId, qui survit à l'envoi.
  * null : jetons expirés, falsifiés ou d'une autre personne.
  */
-export async function finaliserComposition(jetons: string[], g: Gestionnaire): Promise<ResultatBrouillon | null> {
+export async function finaliserComposition(
+  jetons: string[],
+  g: Gestionnaire,
+  /** « Relancer si pas de réponse dans… » (02/11/2026) : posée après l'envoi réussi d'un mail unique. */
+  relance?: ChoixEcheance | { jour: string },
+): Promise<ResultatBrouillon | null> {
   const l = brouillonsDe(jetons, g.id);
   const premier = l?.[0];
   if (!l || !premier) return null;
@@ -420,7 +433,15 @@ export async function finaliserComposition(jetons: string[], g: Gestionnaire): P
   } else if (premier.dossier) {
     rattache = false; // Graph n'a pas rendu d'identifiant : on le dit plutôt que de faire semblant.
   }
-  return { simulation: false, envoye, boite: premier.boite, ...(rattache !== undefined ? { rattache } : {}), mails: l.length };
+  // Jamais sur un brouillon (rien n'est parti) ; un seul mail, sinon on le dit.
+  let suivi: RelanceALEnvoi | undefined;
+  if (relance && envoye) {
+    suivi =
+      l.length === 1
+        ? await relancerApresEnvoi(g, { boite: premier.boite, internetMessageId: premier.internetMessageId, conversationId: premier.conversationId, choix: relance })
+        : { erreur: RELANCE_UN_SEUL_MAIL };
+  }
+  return { simulation: false, envoye, boite: premier.boite, ...(rattache !== undefined ? { rattache } : {}), mails: l.length, ...(suivi ? { relance: suivi } : {}) };
 }
 
 /** Un fichier n'a pas pu être joint : les brouillons incomplets sont retirés de la boîte. */

@@ -47,6 +47,9 @@ import {
   modifierNoteMail,
   notesDuMail,
   prendreMail,
+  RELANCE_ECHEC,
+  RELANCE_SANS_IDENTIFIANT,
+  relancerApresEnvoi,
   relancerSiPasDeReponse,
   relancesDesBoites,
   reprendreMail,
@@ -177,6 +180,20 @@ describe("en attente, de côté, relance", () => {
     await expect(
       relancerSiPasDeReponse(emmanuel, { boite: BOITE, internetMessageId: "<e@x>", conversationId: "c", envoyeLe: "2026-10-28T10:00:00Z", choix: { jour: "2020-01-01" } }),
     ).rejects.toThrow(/demain/);
+  });
+
+  // 02/11/2026 : la relance choisie dans la fenêtre d'écriture, posée après l'envoi.
+  it("relance à l'envoi : posée sur les identifiants du mail parti, listée pour le binôme", async () => {
+    const r = await relancerApresEnvoi(emmanuel, { boite: BOITE, internetMessageId: "<parti@x>", conversationId: "conv-p", choix: "3-jours" });
+    expect(r).toHaveProperty("jusquAu");
+    const dans10j = new Date(Date.now() + 10 * 86_400_000);
+    const pourFanny = await relancesDesBoites([{ id: BOITE, personnelle: false }], { lecteur: fanny, maintenant: dans10j });
+    expect(pourFanny?.map((x) => [x.internetMessageId, x.conversationId])).toEqual([["<parti@x>", "conv-p"]]);
+  });
+
+  it("relance à l'envoi : sans identifiant ou en échec, une explication, jamais d'exception", async () => {
+    expect(await relancerApresEnvoi(emmanuel, { boite: BOITE, internetMessageId: "<parti@x>", choix: "demain" })).toEqual({ erreur: RELANCE_SANS_IDENTIFIANT });
+    expect(await relancerApresEnvoi(emmanuel, { boite: BOITE, internetMessageId: "<p@x>", conversationId: "c", choix: { jour: "2020-01-01" } })).toEqual({ erreur: RELANCE_ECHEC });
   });
 });
 

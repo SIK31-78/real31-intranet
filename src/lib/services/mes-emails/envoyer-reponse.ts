@@ -24,7 +24,15 @@ export interface BrouillonPrepare {
   filConserve: boolean;
   /** Mail neuf : le message d'origine a bien ete cite dessous. */
   historiqueCite?: boolean;
+  /** Identifiants du mail une fois parti (02/11/2026, relance posee a l'envoi) ; absents si Graph ne les rend pas. */
+  internetMessageId?: string;
+  conversationId?: string;
 }
+
+const idsDuMail = (d: { internetMessageId?: string; conversationId?: string }) => ({
+  ...(d.internetMessageId ? { internetMessageId: d.internetMessageId } : {}),
+  ...(d.conversationId ? { conversationId: d.conversationId } : {}),
+});
 
 export async function preparerReponseMail(p: {
   /** Boite qui DETIENT le mail d'origine. */
@@ -58,7 +66,7 @@ export async function preparerReponseMail(p: {
       ...(p.signatureHtml !== undefined ? { signatureHtml: p.signatureHtml } : {}),
       ...(p.pjIds !== undefined ? { pjIds: p.pjIds } : {}),
     });
-    return { boite: p.boiteMessage, draftId: d.id, ...(d.webLink ? { webLink: d.webLink } : {}), filConserve: true };
+    return { boite: p.boiteMessage, draftId: d.id, ...(d.webLink ? { webLink: d.webLink } : {}), ...idsDuMail(d), filConserve: true };
   }
 
   // La citation d'Outlook, lue dans la boite qui detient le mail. Si elle echoue, le mail
@@ -85,6 +93,7 @@ export async function preparerReponseMail(p: {
     boite: p.boiteEnvoi,
     draftId: d.id,
     ...(d.webLink ? { webLink: d.webLink } : {}),
+    ...idsDuMail(d),
     filConserve: false,
     historiqueCite: Boolean(citation?.citationHtml),
   };

@@ -5,7 +5,7 @@
 // verifie le cloisonnement via withGestionnaire (defense en profondeur, on ne se repose
 // pas que sur l'UI) ; (3) ecrit puis revalide. L'identite vient du serveur, jamais du client.
 
-import { attribuerAuRepondant } from "@/lib/services/mes-emails/boite-equipe";
+import { attribuerAuRepondant, relancerApresEnvoi, type RelanceALEnvoi } from "@/lib/services/mes-emails/boite-equipe";
 import { revalidatePath } from "next/cache";
 import { echec, echecDepuis, messageUtilisateur, type Res } from "@/lib/actions/resultat";
 import { z } from "zod";
@@ -96,6 +96,8 @@ const zEmails = z.array(z.string().trim().max(320)).max(50);
 const zAttachmentId = z.string().min(1).max(600).regex(/^[A-Za-z0-9_\-=+\/]+$/);
 const zIds = z.array(zAttachmentId).max(50);
 const zEtapes = z.array(z.number().int()).max(200);
+// « Relancer si pas de réponse dans… » choisi à l'envoi (02/11/2026) : les choix du menu des Envoyés.
+const zRelance = z.union([z.enum(["demain", "3-jours", "semaine"]), z.object({ jour: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/) })]);
 // Fichiers joints depuis l'ordinateur : annoncés à la préparation (nom, taille), déposés
 // ensuite par la route /mes-emails/pj/depot (REA-421, 27/10/2026).
 const zFichiers = z
@@ -537,6 +539,7 @@ export async function preparerEnvoiAction(input: unknown): Promise<{
       emailId: d.emailId,
       coproCode: d.coproCode,
       boiteMessage: cibleMessage,
+      ...(b.internetMessageId && b.conversationId ? { reponse: { internetMessageId: b.internetMessageId, conversationId: b.conversationId } } : {}),
       exp: Date.now() + DUREE_JETON_MS,
     });
     return {
@@ -552,9 +555,14 @@ export async function preparerEnvoiAction(input: unknown): Promise<{
   }
 }
 
-/** Le brouillon préparé part (mode « envoyer ») ; en mode « brouillon », rien ne bouge. */
-export async function finaliserEnvoiAction(input: unknown): Promise<{ ok: boolean; message?: string; envoye?: boolean }> {
-  const v = z.object({ jeton: z.string().min(1).max(4000) }).safeParse(input);
+/**
+ * Le brouillon préparé part (mode « envoyer ») ; en mode « brouillon », rien ne bouge. `relance`
+ * (02/11/2026) : « Relancer si pas de réponse dans… » posé après l'envoi réussi, sur la réponse
+ * partie (identifiants scellés dans le jeton à la préparation, jamais venus du navigateur), dans
+ * la boîte qui l'a expédiée. Jamais pour un brouillon : rien n'est parti.
+ */
+export async function finaliserEnvoiAction(input: unknown): Promise<{ ok: boolean; message?: string; envoye?: boolean; relance?: RelanceALEnvoi }> {
+  const v = z.object({ jeton: z.string().min(1).max(4000), relance: zRelance.optional() }).safeParse(input);
   if (!v.success) return { ok: false, message: "Données invalides." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, message: "Non connecté." };
@@ -567,8 +575,11 @@ export async function finaliserEnvoiAction(input: unknown): Promise<{ ok: boolea
     // Répondre attribue le mail à celui qui répond, s'il n'est à personne (décision 5, ADR-053).
     // Best-effort : ne lève jamais, une réponse partie ne doit pas sembler échouer.
     await attribuerAuRepondant(g, j.boiteMessage, j.emailId);
+    const relance = v.data.relance
+      ? await relancerApresEnvoi(g, { boite: j.boite, internetMessageId: j.reponse?.internetMessageId, conversationId: j.reponse?.conversationId, choix: v.data.relance })
+      : undefined;
     revalidatePath("/mes-emails");
-    return { ok: true, envoye: true };
+    return { ok: true, envoye: true, ...(relance ? { relance } : {}) };
   } catch (e) {
     return { ok: false, message: messageUtilisateur(e, "mes-emails") };
   }

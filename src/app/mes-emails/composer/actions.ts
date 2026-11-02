@@ -224,14 +224,21 @@ export async function preparerCompositionAction(input: unknown): Promise<Res<Pre
   }
 }
 
-/** Troisième temps : les fichiers sont déposés, le mail part (ou reste en brouillon) et rejoint son dossier. */
+// « Relancer si pas de réponse dans… » choisi à l'envoi (02/11/2026) : les choix du menu des Envoyés.
+const zRelance = z.union([z.enum(["demain", "3-jours", "semaine"]), z.object({ jour: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/) })]);
+
+/**
+ * Troisième temps : les fichiers sont déposés, le mail part (ou reste en brouillon) et rejoint son
+ * dossier. `relance` (02/11/2026) : posée après l'envoi réussi d'un mail unique, sur les
+ * identifiants scellés dans le jeton (jamais venus du navigateur), dans la boîte d'envoi.
+ */
 export async function finaliserCompositionAction(input: unknown): Promise<Res<ResultatBrouillon>> {
   const g = await gestionnaire();
   if (!g) return echec(INDISPONIBLE);
-  const d = zJetons.safeParse(input);
+  const d = zJetons.extend({ relance: zRelance.optional() }).safeParse(input);
   if (!d.success) return echec("Données invalides.");
   try {
-    const r = await finaliserComposition(d.data.jetons, g);
+    const r = await finaliserComposition(d.data.jetons, g, d.data.relance);
     return r ? { ok: true, donnees: r } : echec("L'envoi a expiré (15 minutes) : le mail est resté dans les brouillons d'Outlook.");
   } catch (e) {
     return echecDepuis(e, CTX);

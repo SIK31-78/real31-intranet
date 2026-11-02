@@ -293,6 +293,38 @@ export async function relancerSiPasDeReponse(
   return e.jusquAu;
 }
 
+/** Ce que devient la relance demandée à l'envoi : posée (sa date), ou pourquoi elle ne l'est pas. */
+export type RelanceALEnvoi = { jusquAu: string } | { erreur: string };
+
+export const RELANCE_SANS_IDENTIFIANT = "La relance n'a pas pu être posée (Outlook n'a pas rendu l'identifiant du mail) : posez-la depuis « Envoyés ».";
+export const RELANCE_ECHEC = "Le mail est parti, mais la relance n'a pas pu être posée : posez-la depuis « Envoyés ».";
+
+/**
+ * « Relancer si pas de réponse dans… » choisi DANS la fenêtre d'écriture (02/11/2026, demande
+ * d'Océane) : posée juste après un envoi réussi, avec l'internetMessageId et la conversation
+ * du brouillon parti (Exchange les garde à l'envoi), tirés du jeton scellé par le serveur.
+ * Jamais d'exception : le mail est parti, la relance ne doit pas faire croire le contraire.
+ */
+export async function relancerApresEnvoi(
+  acteur: Acteur,
+  p: { boite: string; internetMessageId?: string | undefined; conversationId?: string | undefined; choix: ChoixEcheance | { jour: string } },
+): Promise<RelanceALEnvoi> {
+  if (!p.internetMessageId || !p.conversationId) return { erreur: RELANCE_SANS_IDENTIFIANT };
+  try {
+    const jusquAu = await relancerSiPasDeReponse(acteur, {
+      boite: p.boite,
+      internetMessageId: p.internetMessageId,
+      conversationId: p.conversationId,
+      envoyeLe: new Date().toISOString(),
+      choix: p.choix,
+    });
+    return { jusquAu };
+  } catch (e) {
+    console.warn("[boite-equipe] relance à l'envoi non posée :", e instanceof Error ? e.message : e);
+    return { erreur: RELANCE_ECHEC };
+  }
+}
+
 /** « Reprendre » : lève l'attente, la mise de côté ou la relance. */
 export async function reprendreMail(boite: string, internetMessageId: string): Promise<void> {
   await getBoiteEquipeRepository().leverAttente(cleMail(internetMessageId, boite));

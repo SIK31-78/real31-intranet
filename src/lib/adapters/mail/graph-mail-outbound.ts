@@ -200,7 +200,9 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
   }
 
   /** Brouillon de reponse complet (fil, PJ, corps, objet, destinataires), pas envoye. */
-  private async preparerReponse(p: ReponseMail): Promise<{ u: string; h: Record<string, string>; draftId: string; webLink?: string }> {
+  private async preparerReponse(
+    p: ReponseMail,
+  ): Promise<{ u: string; h: Record<string, string>; draftId: string; webLink?: string; internetMessageId?: string; conversationId?: string }> {
     if (!p.boite) throw new Error("Envoi : boite manquante.");
     if (dest(p.a).length === 0) throw new Error("Envoi : au moins un destinataire en 'A'.");
     const tk = await jetonGraph();
@@ -211,7 +213,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     // 1. Brouillon de reponse (Graph garde le fil + la citation HTML).
     const r1 = await graphFetch(`${u}/messages/${id}/createReply`, { method: "POST", headers: h, body: "{}" });
     if (!r1.ok) throw new Error(`Graph createReply ${r1.status} : ${(await r1.text()).slice(0, 200)}`);
-    const draft = (await r1.json()) as { id: string; webLink?: string; body?: { content?: string } };
+    const draft = (await r1.json()) as { id: string; webLink?: string; body?: { content?: string }; internetMessageId?: string; conversationId?: string };
 
     // Une etape qui echoue apres createReply (PJ de plus de 3 Mo, PATCH refuse) laissait un
     // brouillon orphelin dans la boite, et le nouvel essai en creait un deuxieme (audit du
@@ -254,12 +256,26 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
       throw e;
     }
 
-    return { u, h, draftId: draft.id, ...(draft.webLink ? { webLink: draft.webLink } : {}) };
+    // internetMessageId et conversationId du brouillon (02/11/2026) : Exchange les garde a l'envoi,
+    // ils servent a poser la relance « si pas de reponse » sans relire les Envoyes.
+    return {
+      u,
+      h,
+      draftId: draft.id,
+      ...(draft.webLink ? { webLink: draft.webLink } : {}),
+      ...(draft.internetMessageId ? { internetMessageId: draft.internetMessageId } : {}),
+      ...(draft.conversationId ? { conversationId: draft.conversationId } : {}),
+    };
   }
 
-  async preparerBrouillonReponse(p: ReponseMail): Promise<{ id: string; webLink?: string }> {
-    const { draftId, webLink } = await this.preparerReponse(p);
-    return { id: draftId, ...(webLink ? { webLink } : {}) };
+  async preparerBrouillonReponse(p: ReponseMail): Promise<{ id: string; webLink?: string; internetMessageId?: string; conversationId?: string }> {
+    const { draftId, webLink, internetMessageId, conversationId } = await this.preparerReponse(p);
+    return {
+      id: draftId,
+      ...(webLink ? { webLink } : {}),
+      ...(internetMessageId ? { internetMessageId } : {}),
+      ...(conversationId ? { conversationId } : {}),
+    };
   }
 
   async ajouterPieceJointe(p: { boite: string; draftId: string; nom: string; contentType: string; octets: Uint8Array }): Promise<void> {
@@ -328,7 +344,7 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     corpsHtml?: string;
     piecesJointes?: PieceJointeMail[];
     citationHtml?: string;
-  }): Promise<{ webLink?: string; internetMessageId?: string; id?: string }> {
+  }): Promise<{ webLink?: string; internetMessageId?: string; id?: string; conversationId?: string }> {
     if (!p.boite) throw new Error("Creation brouillon neuf : boite manquante.");
     const tk = await jetonGraph();
     // Meme rendu HTML que envoyer() (police Aptos 11), signature dessous quand on la connait.
@@ -362,11 +378,12 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
       }),
     }, p.piecesJointes?.length ? 60_000 : undefined);
     if (!r.ok) throw new Error(`Graph creer brouillon ${r.status} : ${(await r.text()).slice(0, 200)}`);
-    const j = (await r.json()) as { id?: string; webLink?: string; internetMessageId?: string };
+    const j = (await r.json()) as { id?: string; webLink?: string; internetMessageId?: string; conversationId?: string };
     return {
       ...(j.id ? { id: j.id } : {}),
       ...(j.webLink ? { webLink: j.webLink } : {}),
       ...(j.internetMessageId ? { internetMessageId: j.internetMessageId } : {}),
+      ...(j.conversationId ? { conversationId: j.conversationId } : {}),
     };
   }
 

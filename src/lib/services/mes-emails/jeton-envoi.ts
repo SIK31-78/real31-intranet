@@ -26,6 +26,8 @@ export interface JetonBrouillon {
   emailId: string;
   coproCode: string;
   boiteMessage: string;
+  /** La réponse elle-même, une fois partie (02/11/2026) : de quoi poser « Relancer si pas de réponse ». */
+  reponse?: { internetMessageId: string; conversationId: string };
   exp: number;
 }
 
@@ -46,6 +48,8 @@ export interface JetonNeuf {
   lots: number;
   /** Premier lot seulement : de quoi inscrire le mail au journal du dossier après l'envoi. */
   internetMessageId?: string;
+  /** Premier lot seulement (02/11/2026) : la conversation du mail, pour une relance posée à l'envoi. */
+  conversationId?: string;
   dossier?: { id: string; pour: string; objet: string };
   exp: number;
 }

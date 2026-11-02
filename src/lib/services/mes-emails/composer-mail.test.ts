@@ -13,6 +13,8 @@ const etat = vi.hoisted(() => ({
   referenceCS: "",
   appelsBinome: [] as unknown[][],
   brouillons: [] as Record<string, unknown>[],
+  envoyes: [] as string[],
+  relances: [] as Record<string, unknown>[],
   identites: [] as { cle: string; nom: string; emails: string[]; copros: { reference: string; qualite: string }[] }[],
 }));
 
@@ -23,6 +25,19 @@ vi.mock("@/lib/domain/mail-gate", async (orig) => ({
 }));
 vi.mock("./get-signature", () => ({ async getSignatureGestionnaire() { return null; } }));
 vi.mock("./jeton-envoi", () => ({ DUREE_JETON_MS: 1000, scellerJeton: (j: unknown) => JSON.stringify(j) }));
+// Jetons en clair dans ces tests : relus tels quels, à la personne qui les a préparés.
+vi.mock("./depot-piece-jointe", () => ({
+  brouillonNeufDe: (j: string, gid: string) => {
+    const x = JSON.parse(j) as { gid: string };
+    return x.gid === gid ? x : null;
+  },
+}));
+vi.mock("./boite-equipe", () => ({
+  async relancerApresEnvoi(_g: unknown, p: Record<string, unknown>) {
+    etat.relances.push(p);
+    return { jusquAu: "2026-11-05T07:00:00.000Z" };
+  },
+}));
 
 vi.mock("@/lib/services/coproprietes/assistante-de-copro", () => ({
   async binomeEnCopie(...args: unknown[]) {
@@ -48,7 +63,11 @@ vi.mock("@/lib/adapters/router", () => ({
   getMailOutboundProvider: () => ({
     async creerBrouillonNeuf(b: Record<string, unknown>) {
       etat.brouillons.push(b);
-      return { id: `d${etat.brouillons.length}` };
+      const n = etat.brouillons.length;
+      return { id: `d${n}`, internetMessageId: `<neuf-${n}@x>`, conversationId: `conv-${n}` };
+    },
+    async envoyerBrouillon(p: { id: string }) {
+      etat.envoyes.push(p.id);
     },
     async supprimerBrouillon() {},
   }),
@@ -101,7 +120,7 @@ vi.mock("@/lib/adapters/router", () => ({
   }),
 }));
 
-const { listerContactsComposition, listerCoprosComposition, preparerComposition, rechercherDestinataires } = await import("./composer-mail");
+const { finaliserComposition, listerContactsComposition, listerCoprosComposition, preparerComposition, rechercherDestinataires, RELANCE_UN_SEUL_MAIL } = await import("./composer-mail");
 
 const syndic2 = { boite: "syndic2@real31.fr", agences: ["LGC", "ASN"] };
 const syndic4 = { boite: "syndic4@real31.fr", agences: ["HLS"] };
@@ -255,5 +274,47 @@ describe("« De » au choix (29/10/2026)", () => {
       preparerComposition({ objet: "x", corps: "y", a: [], cc: [], cci: ["c1@x.fr"] }, g, { boite: "moi@real31.fr", personnelle: true }),
     ).rejects.toThrow("boîte partagée");
     expect(etat.brouillons).toEqual([]);
+  });
+});
+
+// 02/11/2026 : « Relancer si pas de réponse » choisi à l'envoi (Océane).
+describe("finaliserComposition : relance posée à l'envoi", () => {
+  const g = { id: "g1", nomComplet: "Moi", initiales: "MO", email: "moi@real31.fr" } as never;
+  const perso = { boite: "moi@real31.fr", personnelle: true };
+  beforeEach(() => {
+    etat.brouillons = [];
+    etat.envoyes = [];
+    etat.relances = [];
+  });
+
+  it("un mail unique parti : la relance porte ses identifiants scellés et la boîte d'envoi", async () => {
+    const p = await preparerComposition({ objet: "x", corps: "y", a: ["a@x.fr"], cc: [] }, g, perso);
+    const r = await finaliserComposition(p.jetons!, g, "3-jours");
+    expect(etat.envoyes).toEqual(["d1"]);
+    expect(etat.relances).toEqual([{ boite: "moi@real31.fr", internetMessageId: "<neuf-1@x>", conversationId: "conv-1", choix: "3-jours" }]);
+    expect(r?.relance).toEqual({ jusquAu: "2026-11-05T07:00:00.000Z" });
+  });
+
+  it("un brouillon (rien n'est parti) : pas de relance", async () => {
+    const p = await preparerComposition({ objet: "x", corps: "y", a: ["a@x.fr"], cc: [] }, g, syndic4 as never);
+    const r = await finaliserComposition(p.jetons!, g, "demain");
+    expect(etat.envoyes).toEqual([]);
+    expect(etat.relances).toEqual([]);
+    expect(r?.relance).toBeUndefined();
+  });
+
+  it("plusieurs mails (envoi séparé) : pas de relance, on le dit", async () => {
+    const p = await preparerComposition({ objet: "x", corps: "y", a: ["a@x.fr", "b@y.fr"], cc: [], envois: [["a@x.fr"], ["b@y.fr"]] }, g, perso);
+    const r = await finaliserComposition(p.jetons!, g, "demain");
+    expect(etat.envoyes).toEqual(["d1", "d2"]);
+    expect(etat.relances).toEqual([]);
+    expect(r?.relance).toEqual({ erreur: RELANCE_UN_SEUL_MAIL });
+  });
+
+  it("jetons d'une autre personne : rien ne part, aucune relance", async () => {
+    const p = await preparerComposition({ objet: "x", corps: "y", a: ["a@x.fr"], cc: [] }, g, perso);
+    expect(await finaliserComposition(p.jetons!, { id: "autre" } as never, "demain")).toBeNull();
+    expect(etat.envoyes).toEqual([]);
+    expect(etat.relances).toEqual([]);
   });
 });
