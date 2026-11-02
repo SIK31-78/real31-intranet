@@ -87,6 +87,7 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
             modeles={modeles}
             pilote={pilote}
             reformulation={reformulation}
+            relance={equipe.actif}
           />
           <form action={rafraichirAction}>
             <BoutonRafraichir />

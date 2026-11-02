@@ -14,10 +14,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BellRing, CalendarClock, Check, ChevronDown, ExternalLink, Hand, StickyNote, UserMinus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/field";
+import { Select, Textarea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
-import { jourParis, libelleRetour, NOTE_LONGUEUR_MAX, type ChoixAttente, type MembreEquipe, type NoteInterne, type RelanceAffichee } from "@/lib/domain/boite-equipe";
+import { jourParis, libelleRetour, NOTE_LONGUEUR_MAX, type ChoixAttente, type ChoixEcheance, type MembreEquipe, type NoteInterne, type RelanceAffichee } from "@/lib/domain/boite-equipe";
 import {
   ajouterNoteAction,
   attribuerMailAction,
@@ -418,6 +418,59 @@ export function MenuAttente({
       </Deroulant>
     </div>
   );
+}
+
+/** La relance choisie dans la fenêtre d'écriture : null = pas de relance. */
+export type ChoixRelance = ChoixEcheance | { jour: string } | null;
+
+/**
+ * « Relancer si pas de réponse dans… » posé À L'ENVOI (02/11/2026, demande d'Océane) : les
+ * choix du menu des Envoyés, à côté du bouton d'envoi. La relance n'est posée qu'après un
+ * envoi réussi (côté serveur) ; un brouillon Outlook n'en pose pas.
+ */
+export function ChoixRelanceEnvoi({ valeur, onChange, desactive = false }: { valeur: ChoixRelance; onChange: (c: ChoixRelance) => void; desactive?: boolean }) {
+  const cle = valeur === null ? "" : typeof valeur === "string" ? valeur : "jour";
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <CalendarClock strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3" aria-hidden="true" />
+      <Select
+        taille="sm"
+        largeur="auto"
+        value={cle}
+        disabled={desactive}
+        aria-label="Relancer si pas de réponse"
+        title="Le mail reviendra dans « À traiter » à la date choisie si personne n'a répondu"
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v === "" ? null : v === "jour" ? { jour: "" } : (v as ChoixEcheance));
+        }}
+      >
+        <option value="">Pas de relance</option>
+        <option value="demain">Relancer demain sans réponse</option>
+        <option value="3-jours">Relancer dans 3 jours sans réponse</option>
+        <option value="semaine">Relancer dans une semaine sans réponse</option>
+        <option value="jour">Relancer le…</option>
+      </Select>
+      {valeur !== null && typeof valeur === "object" ? (
+        <input
+          type="date"
+          min={demain()}
+          value={valeur.jour}
+          disabled={desactive}
+          onChange={(e) => onChange({ jour: e.target.value })}
+          aria-label="Relancer le (date)"
+          className="h-7 rounded border border-line bg-surface px-1.5 text-meta text-ink"
+        />
+      ) : null}
+    </span>
+  );
+}
+
+/** La relance à transmettre au serveur : rien sans choix, ni pour « Relancer le… » sans date. */
+export function relanceAEnvoyer(c: ChoixRelance): ChoixEcheance | { jour: string } | undefined {
+  if (c === null) return undefined;
+  if (typeof c === "object" && !c.jour) return undefined;
+  return c;
 }
 
 /** « jusqu'au jeudi 30 oct. » ou « de côté ». */

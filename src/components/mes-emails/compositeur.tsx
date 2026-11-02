@@ -20,6 +20,8 @@
 // boîte perso) : choisir une copro règle la boîte sur celle de la copro, et la ligne « De » le
 // dit (règle dans domain/expediteur-composition). Depuis la boîte perso, le mail part comme une
 // réponse ; « Toute la copropriété » n'en part pas.
+// « Relancer si pas de réponse dans… » (02/11/2026, Océane) : proposé à côté du bouton quand le
+// mail PART (pas un brouillon) et qu'il est unique ; posé côté serveur après l'envoi réussi.
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { Building2, Users, X } from "lucide-react";
@@ -76,6 +78,8 @@ import { htmlVersTexte, texteVersHtml } from "@/lib/domain/mes-emails-html";
 import { conseilEncoreDestinataire, phraseCopieBinome } from "@/lib/domain/copie-binome";
 import { useAlerteSortie } from "./alerte-sortie";
 import { SignatureRepliee } from "./signature-repliee";
+import { ChoixRelanceEnvoi, relanceAEnvoyer, type ChoixRelance } from "./equipe-mail";
+import { libelleRetour } from "@/lib/domain/boite-equipe";
 import {
   MOTIF_CCI_DEPUIS_PERSO,
   expediteurApresCopro,
@@ -115,6 +119,8 @@ type Props = {
   reformulation?: boolean;
   /** Prévient la fenêtre qu'une saisie est en cours (elle ne se ferme plus d'un clic à côté). */
   onSaisie?: (enCours: boolean) => void;
+  /** « Relancer si pas de réponse » proposé (boîte d'équipe active, 02/11/2026). */
+  relance?: boolean;
 };
 
 const LIBELLE_QUALITE: Record<string, string> = {
@@ -197,7 +203,7 @@ export function BadgeDestinataire({ genre }: { genre: DestinataireTrouve["genre"
   return null;
 }
 
-export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expediteurParDefaut, signatureHtml, onTermine, modeles, pilote = false, reformulation = false, onSaisie }: Props) {
+export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expediteurParDefaut, signatureHtml, onTermine, modeles, pilote = false, reformulation = false, onSaisie, relance = false }: Props) {
   const toast = useToast();
   const confirmer = useConfirm();
   // Le « De » : la boîte de l'ouverture, puis celle de la copro choisie, ou celle choisie à la main.
@@ -208,6 +214,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
   const envoiDirect = expediteur?.envoi ?? false;
   const [a, setA] = useState<Personne[]>([]);
   const [cc, setCc] = useState<Personne[]>([]);
+  const [choixRelance, setChoixRelance] = useState<ChoixRelance>(null);
   // Les immeubles proposés : ceux des personnes choisies.
   const [proposees, setProposees] = useState<(CoproChoisissable & { qualite: string })[]>([]);
   const [refCopro, setRefCopro] = useState("");
@@ -468,6 +475,8 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
   const envoisPrets = decoupe?.ok ? decoupe.envois : null;
   // L'objet doit dire de quoi parle le mail : le préfixe copro seul ne suffit pas (incident du 28/10/2026).
   const aUnSujet = Boolean(sujetDeLObjet(objet, copro));
+  // La relance : seulement un mail qui part, unique (ni toute la copropriété, ni envoi séparé).
+  const relancePossible = relance && brouillonPossible && envoiDirect && cci.length === 0 && !envoisPrets;
   const pretAEnvoyer = Boolean(aUnSujet && (adresses(a).length || cci.length) && corps.trim() && (!decoupe || decoupe.ok) && !cciDepuisPerso);
   // Tout est prêt sauf l'objet, réduit à la copro : on dit pourquoi le bouton reste grisé.
   const objetReduitACopro = Boolean(copro && !aUnSujet && (adresses(a).length || cci.length) && corps.trim());
@@ -492,6 +501,10 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
     }
     if (decoupe && !decoupe.ok) {
       toast.err(decoupe.motif);
+      return;
+    }
+    if (relancePossible && choixRelance !== null && typeof choixRelance === "object" && !choixRelance.jour) {
+      toast.err("Choisis la date de la relance, ou « Pas de relance ».");
       return;
     }
     // L'adresse personnelle d'un collègue (incident Elsa, décision 14) : dite dans la
@@ -598,7 +611,8 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
           }
         }
       }
-      const r = await finaliserCompositionAction({ jetons });
+      const aRelancer = relancePossible ? relanceAEnvoyer(choixRelance) : undefined;
+      const r = await finaliserCompositionAction({ jetons, ...(aRelancer ? { relance: aRelancer } : {}) });
       setEnvoiEnCours(false);
       majProgres(null, 0);
       if (!r.ok) {
@@ -618,6 +632,10 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
           : `Brouillon pour ${pour} créé dans ${res.boite ?? "la boîte"}${plusieurs}, à relire puis envoyer dans Outlook.`,
         !res.envoye && res.webLink ? { href: res.webLink, libelle: "Ouvrir le brouillon dans Outlook" } : undefined,
       );
+      if (res.relance) {
+        if ("jusquAu" in res.relance) toast.ok(`S'il n'y a pas de réponse, il reviendra dans « À traiter » le ${libelleRetour(res.relance.jusquAu)}.`);
+        else toast.warn(res.relance.erreur);
+      }
       if (res.rattache === true) toast.ok("Le mail est inscrit au journal du dossier.");
       if (res.rattache === false) toast.warn(`${res.envoye ? "Mail envoyé" : "Brouillon créé"}, mais le rattachement au dossier a échoué.`);
       setParti(true);
@@ -859,6 +877,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
             {brouillonPossible && !envoiDirect ? `Brouillon dans ${boite} : à relire puis envoyer dans Outlook.` : null}
           </span>
         )}
+        {relancePossible ? <ChoixRelanceEnvoi valeur={choixRelance} onChange={setChoixRelance} desactive={envoiEnCours} /> : null}
         {onTermine ? (
           <Button type="button" variant="ghost" onClick={() => void annuler()} disabled={envoiEnCours}>
             Annuler

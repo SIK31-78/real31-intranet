@@ -24,7 +24,10 @@ export function EnvoyerEmail({
   modeles,
   pilote = false,
   reformulation = false,
+  relance = false,
 }: {
+  /** « Relancer si pas de réponse » proposé à l'envoi (boîte d'équipe active, 02/11/2026). */
+  relance?: boolean;
   /** Nouveautés en pilote (super-admin) : texte mis en forme (REA-345). */
   pilote?: boolean;
   /** « Reformuler » proposé (ADR-051). */
@@ -99,6 +102,7 @@ export function EnvoyerEmail({
                 modeles={modeles}
                 pilote={pilote}
                 reformulation={reformulation}
+                relance={relance}
                 onTermine={fermer}
                 onSaisie={setSaisie}
               />

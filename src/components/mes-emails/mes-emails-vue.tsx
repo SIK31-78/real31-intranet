@@ -93,7 +93,7 @@ import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
 import { estMailInterne } from "@/lib/domain/tri-emails";
 import { traitesAuChargement, chiffreATraiter, etatPourChiffre, marqueLu, modeChiffre, type OuvertureMail } from "@/lib/domain/mes-emails-liste";
-import { BoutonsAttribution, libelleAttente, MenuAttente, NotesInternes, PastilleAttributaire, RelancesDues } from "./equipe-mail";
+import { BoutonsAttribution, ChoixRelanceEnvoi, libelleAttente, MenuAttente, NotesInternes, PastilleAttributaire, relanceAEnvoyer, RelancesDues, type ChoixRelance } from "./equipe-mail";
 import { mettreEnAttenteAction, reprendreMailAction } from "@/app/mes-emails/actions-equipe";
 import { publierChiffre } from "./chiffre-a-traiter";
 import { VisionneusePj, type ApercuPj } from "./visionneuse-pj";
@@ -389,6 +389,8 @@ export function MesEmailsVue({
   const corbeillePossible = pilote && maBoite(boiteActive);
   // Modèle choisi pour la réponse, par mail (la liste se remet à « Aucun » à la fermeture).
   const [modeleParMail, setModeleParMail] = useState<Map<string, string>>(new Map());
+  // « Relancer si pas de réponse dans… » choisi dans la réponse (02/11/2026), par mail.
+  const [relanceParMail, setRelanceParMail] = useState<Map<string, ChoixRelance>>(new Map());
   const [msgBrouillon, setMsgBrouillon] = useState<string | null>(null);
   // Le lien Outlook du brouillon créé, attaché au message qui l'annonce : un autre message
   // (ou aucun) le fait disparaître sans rien avoir à remettre à zéro (REA-408).
@@ -933,6 +935,11 @@ export function MesEmailsVue({
       setMsgBrouillon("Ajoute au moins un destinataire en « À ».");
       return;
     }
+    const relance = equipe.actif ? (relanceParMail.get(m.id) ?? null) : null;
+    if (relance !== null && typeof relance === "object" && !relance.jour) {
+      setMsgBrouillon("Choisis la date de la relance, ou « Pas de relance ».");
+      return;
+    }
     // Pas de fenêtre de confirmation (retour du 14/10 : un clic de trop). La boîte d'envoi est
     // affichée en couleur au-dessus, et l'envoi hors du fil y est signalé avant de cliquer.
     const expediteur = expediteurDe(m);
@@ -947,7 +954,8 @@ export function MesEmailsVue({
         return;
       }
       setMsgBrouillon("Envoi en cours…");
-      const fin = await finaliserEnvoiAction({ jeton: r.jeton });
+      const aRelancer = relanceAEnvoyer(relance);
+      const fin = await finaliserEnvoiAction({ jeton: r.jeton, ...(aRelancer ? { relance: aRelancer } : {}) });
       if (!fin.ok) {
         majProgres(m, null, 0);
         setMsgBrouillon(`Échec de l'envoi : ${fin.message ?? ""} La réponse est restée dans les brouillons de ${r.boite ?? expediteur}.`);
@@ -962,6 +970,11 @@ export function MesEmailsVue({
       // du haut ne suffisait pas (REA-349, 16/10/2026) : un toast dit à qui et depuis où.
       fermerReponse(m);
       toast.ok(`Réponse envoyée à ${resumeDestinataires(dst.to)} depuis ${expediteur}.`);
+      // La relance posée à l'envoi (02/11/2026) : sa date, ou pourquoi elle ne l'est pas.
+      if (fin.relance) {
+        if ("jusquAu" in fin.relance) toast.ok(`S'il n'y a pas de réponse, il reviendra dans « À traiter » le ${libelleRetour(fin.relance.jusquAu)}.`);
+        else toast.warn(fin.relance.erreur);
+      }
       setMsgBrouillon(
         r.filConserve === false
           ? r.historiqueCite
@@ -994,6 +1007,7 @@ export function MesEmailsVue({
     setFichiersParMail(sans);
     setPjJointesParMail(sans);
     setModeleParMail(sans);
+    setRelanceParMail(sans);
     setMsgBrouillon(null);
     void editBrouillonAction(m.id, m.coproCode, "");
   }
@@ -1434,6 +1448,7 @@ export function MesEmailsVue({
               sujet={sujetDe(selection)}
               onMajSujet={(v) => majSujet(selection, v)}
               onEnvoyer={(puisTraiter) => void envoyerSeul(selection, puisTraiter)}
+              relance={equipe.actif ? { valeur: relanceParMail.get(selection.id) ?? null, onChange: (c) => setRelanceParMail((p) => new Map(p).set(selection.id, c)) } : null}
               envoiEnCours={envoiEnCours}
               msgBrouillon={msgBrouillon}
               lienBrouillon={lienBrouillon?.msg === msgBrouillon ? lienBrouillon.url : null}
@@ -2166,6 +2181,7 @@ function AnalysePane({
   sujet,
   onMajSujet,
   onEnvoyer,
+  relance,
   envoiEnCours,
   msgBrouillon,
   lienBrouillon = null,
@@ -2259,6 +2275,8 @@ function AnalysePane({
   onMajSujet: (v: string) => void;
   /** Envoie la réponse ; `puisTraiter` : la marque aussi traitée (ou l'archive, Ma boîte). */
   onEnvoyer: (puisTraiter: boolean) => void;
+  /** « Relancer si pas de réponse dans… » (02/11/2026) ; null : boîte d'équipe inactive, pas proposé. */
+  relance: { valeur: ChoixRelance; onChange: (c: ChoixRelance) => void } | null;
   envoiEnCours: boolean;
   msgBrouillon: string | null;
   /** Lien Outlook du brouillon de réponse annoncé par msgBrouillon. */
@@ -2695,6 +2713,7 @@ function AnalysePane({
               <Button variant="ghost" size="lg" onClick={onAnnuler} disabled={envoiEnCours}>
                 Annuler
               </Button>
+              {relance ? <ChoixRelanceEnvoi valeur={relance.valeur} onChange={relance.onChange} desactive={envoiEnCours} /> : null}
               {msgBrouillon ? (
                 <span className="text-meta text-ink-3">
                   {msgBrouillon}
