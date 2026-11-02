@@ -2404,6 +2404,7 @@ function AnalysePane({
             piecesJointes={m.attachments.length === 0 ? [] : piecesJointes}
             onTransfere={onTransfere}
             reformulation={reformulation !== null}
+            coproCode={coproCode}
             compact
           />
         ) : null}

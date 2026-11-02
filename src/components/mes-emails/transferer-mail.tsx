@@ -7,9 +7,12 @@
 // l'adresse personnelle d'un collègue se fait confirmer (décision 14, incident Elsa du 29/10/2026).
 // Un mail ENVOYÉ se transfère aussi, depuis la vue « Envoyés » (02/11/2026, Océane) : même
 // fenêtre, action dédiée (garde : l'envoyé doit être dans la liste que la personne voit).
+// « + Conseil syndical » (02/11/2026, Océane) : les membres du CS de la copro du mail en « À »,
+// l'autre membre du binôme en Cc (ADR-052), même source et mêmes règles que le compositeur ;
+// la copie du binôme s'en va d'elle-même quand plus aucun membre du CS n'est en « À ».
 
 import { useEffect, useRef, useState } from "react";
-import { Forward, Paperclip } from "lucide-react";
+import { Forward, Paperclip, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
 import { Textarea } from "@/components/ui/field";
@@ -18,12 +21,18 @@ import { useConfirm } from "@/components/ui/confirm";
 import { adresseMailValide, resumeDestinataires } from "@/lib/domain/mes-emails-composition";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { transfererEnvoyeAction, transfererMailAction } from "@/app/mes-emails/actions";
+import { listerContactsCompositionAction } from "@/app/mes-emails/composer/actions";
+import { ajoutConseilEtBinome, conseilEncoreDestinataire, phraseCopieBinome } from "@/lib/domain/copie-binome";
 import { alertesAdressePersonnelle } from "@/lib/domain/destinataires-collegues";
 import { ChampPersonnes, LigneExpediteur, adresses, useCollegues, type Personne } from "./compositeur";
 import { useAlerteSortie } from "./alerte-sortie";
 import { BoutonReformuler } from "./bouton-reformuler";
 import { LigneSousChamp } from "./editeur-riche";
 import { LiensCopie, useLignesCopie } from "./lignes-copie";
+
+/** Clé des personnes mises en Cc d'office avec le conseil syndical (binôme de la copro). */
+const CLE_COPIE_BINOME = "binome:";
+const estCopieBinome = (p: Personne) => p.cle.startsWith(CLE_COPIE_BINOME);
 
 export function TransfererMail({
   emailId,
@@ -35,7 +44,10 @@ export function TransfererMail({
   reformulation = false,
   compact = false,
   envoye,
+  coproCode,
 }: {
+  /** Copro du mail : « + Conseil syndical » proposé (vide ou absent : pas de bouton). */
+  coproCode?: string;
   /**
    * Mail ENVOYÉ (vue « Envoyés ») : son id Graph dans la liste et s'il a des pièces jointes.
    * `emailId` est alors ignoré : le serveur relit l'internetMessageId dans la liste.
@@ -70,6 +82,7 @@ export function TransfererMail({
           objet={objet}
           piecesJointes={piecesJointes}
           {...(envoye ? { envoye } : {})}
+          {...(coproCode ? { coproCode } : {})}
           {...(onTransfere ? { onTransfere } : {})}
           reformulation={reformulation}
           onFermer={() => setOuvert(false)}
@@ -89,8 +102,10 @@ function FenetreTransfert({
   reformulation,
   onFermer,
   envoye,
+  coproCode,
 }: {
   envoye?: { id: string; aPiecesJointes: boolean };
+  coproCode?: string;
   reformulation: boolean;
   emailId: string;
   boite: string;
@@ -105,6 +120,9 @@ function FenetreTransfert({
   const [cc, setCc] = useState<Personne[]>([]);
   const [corps, setCorps] = useState("");
   const [enCours, setEnCours] = useState(false);
+  const [csEnCours, setCsEnCours] = useState(false);
+  // Les adresses du CS ajoutées d'un clic : tant que l'une est en « À », la copie du binôme tient.
+  const conseilAjoute = useRef<string[]>([]);
   const confirmer = useConfirm();
   const collegues = useCollegues();
   // « Cc » replié tant qu'il est vide (29/10/2026) : un lien au bout de « À » l'ouvre.
@@ -133,13 +151,55 @@ function FenetreTransfert({
     onFermer();
   }
 
+  // Le « À » change : plus aucun membre du CS ajouté d'un clic -> la copie du binôme s'en va.
+  function majA(l: Personne[]) {
+    setA(l);
+    if (conseilAjoute.current.length && !conseilEncoreDestinataire(adresses(l), conseilAjoute.current)) {
+      conseilAjoute.current = [];
+      setCc((c) => (c.some(estCopieBinome) ? c.filter((p) => !estCopieBinome(p)) : c));
+    }
+  }
+
   function deplacer(depuis: string, cle: string) {
-    const [source, setSource, setCible] = depuis === "a" ? [a, setA, setCc] : [cc, setCc, setA];
+    const source = depuis === "a" ? a : cc;
     const p = source.find((x) => x.cle === cle);
     if (!p) return;
-    setSource((l) => l.filter((x) => x.cle !== cle));
-    setCible((l) => (l.some((x) => x.cle === cle) ? l : [...l, p]));
+    if (depuis === "a") {
+      majA(a.filter((x) => x.cle !== cle));
+      setCc((l) => (l.some((x) => x.cle === cle) ? l : [...l, p]));
+    } else {
+      setCc((l) => l.filter((x) => x.cle !== cle));
+      setA((l) => (l.some((x) => x.cle === cle) ? l : [...l, p]));
+    }
   }
+
+  // « + Conseil syndical » : la même lecture que le compositeur (CS d'ESTALE, sinon liste de
+  // diffusion ; binôme calculé côté serveur d'après la session).
+  async function ajouterConseil() {
+    if (!coproCode || csEnCours) return;
+    setCsEnCours(true);
+    try {
+      const r = await listerContactsCompositionAction({ reference: coproCode });
+      if (!r.ok) {
+        toast.err(r.erreur);
+        return;
+      }
+      const membres = r.donnees?.conseil.membres ?? [];
+      if (!membres.length) {
+        toast.warn(`Aucune liste de conseil syndical pour ${coproCode} : tapez les noms dans « À ».`);
+        return;
+      }
+      const { versA, versCc } = ajoutConseilEtBinome({ a: adresses(a), cc: adresses(cc), membres, binome: r.donnees?.copieBinome ?? [] });
+      setA((l) => [...l, ...versA.map((m) => ({ cle: m.email, nom: m.nom, emails: [m.email] })).filter((p) => !l.some((x) => x.cle === p.cle))]);
+      if (versCc.length) {
+        setCc((l) => [...l, ...versCc.map((m) => ({ cle: `${CLE_COPIE_BINOME}${m.email}`, nom: m.nomComplet, emails: [m.email] })).filter((p) => !l.some((x) => x.cle === p.cle))]);
+      }
+      conseilAjoute.current = membres.map((m) => m.email);
+    } finally {
+      setCsEnCours(false);
+    }
+  }
+  const phraseBinome = phraseCopieBinome(cc.filter(estCopieBinome).map((p) => p.nom));
 
   const invalides = [...adresses(a), ...adresses(cc)].filter((e) => !adresseMailValide(e));
 
@@ -201,7 +261,7 @@ function FenetreTransfert({
               champ="a"
               label="À"
               personnes={a}
-              onChange={setA}
+              onChange={majA}
               onDeplacer={deplacer}
               placeholder="Nom du collègue ou de la personne (ou une adresse)…"
               suffixe={lignesCopie.visible("cc") ? null : <LiensCopie lignes={["cc"]} onOuvrir={lignesCopie.ouvrir} />}
@@ -217,6 +277,15 @@ function FenetreTransfert({
               placeholder="Nom ou adresse…"
               autoFocus={lignesCopie.focus === "cc"}
             />
+          ) : null}
+          {phraseBinome ? <p className="-mt-2 text-meta text-ink-3">{phraseBinome}</p> : null}
+          {coproCode ? (
+            <div>
+              <Button size="sm" onClick={() => void ajouterConseil()} loading={csEnCours} disabled={enCours} title={`Ajoute en « À » les membres du conseil syndical de ${coproCode}, le binôme en copie`}>
+                <Users strokeWidth={1.5} />
+                Conseil syndical
+              </Button>
+            </div>
           ) : null}
           <p className="text-body text-ink-2">
             <span className="text-ink-3">Objet : </span>TR: {objet}

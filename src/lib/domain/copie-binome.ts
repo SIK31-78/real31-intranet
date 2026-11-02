@@ -58,3 +58,21 @@ export function phraseCopieBinome(noms: readonly string[]): string {
     ? `${liste}, du binôme de la copro, est en copie. Retirez l'adresse si besoin.`
     : `${liste}, du binôme de la copro, sont en copie. Retirez une adresse si besoin.`;
 }
+
+/**
+ * Ce qu'ajoute un clic sur « Conseil syndical » (compositeur, transfert depuis le 02/11/2026) :
+ * les membres du CS absents de « À », et le binôme en copie s'il n'est ni en « À » (après
+ * l'ajout) ni en « Cc ». Comparaison sans casse ; l'ordre des listes est gardé.
+ */
+export function ajoutConseilEtBinome<M extends { email: string }, B extends { email: string }>(p: {
+  a: readonly string[];
+  cc: readonly string[];
+  membres: readonly M[];
+  binome: readonly B[];
+}): { versA: M[]; versCc: B[] } {
+  const dejaA = new Set(p.a.map(minuscules));
+  const versA = p.membres.filter((m, i) => !dejaA.has(minuscules(m.email)) && p.membres.findIndex((x) => minuscules(x.email) === minuscules(m.email)) === i);
+  const presents = new Set([...dejaA, ...versA.map((m) => minuscules(m.email)), ...p.cc.map(minuscules)]);
+  const versCc = p.binome.filter((b) => !presents.has(minuscules(b.email)));
+  return { versA, versCc };
+}

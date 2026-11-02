@@ -1,7 +1,7 @@
 // Copie au binôme d'un envoi au conseil syndical (28/10/2026). Adresses inventées @example.test.
 
 import { describe, expect, it } from "vitest";
-import { conseilEncoreDestinataire, copieBinomeConseil, phraseCopieBinome } from "./copie-binome";
+import { ajoutConseilEtBinome, conseilEncoreDestinataire, copieBinomeConseil, phraseCopieBinome } from "./copie-binome";
 
 const G = { nomComplet: "Gaëlle Gestion", email: "Gaelle@Example.test" };
 const A = { nomComplet: "Julie Binôme", email: "julie@example.test" };
@@ -52,5 +52,22 @@ describe("phraseCopieBinome", () => {
     expect(phraseCopieBinome(["Gaëlle Gestion", "Julie Binôme"])).toBe(
       "Gaëlle Gestion et Julie Binôme, du binôme de la copro, sont en copie. Retirez une adresse si besoin.",
     );
+  });
+});
+
+describe("ajoutConseilEtBinome (02/11/2026, transfert au conseil syndical)", () => {
+  it("ajoute les membres absents de « À » et le binôme absent des destinataires", () => {
+    const r = ajoutConseilEtBinome({
+      a: ["Pin@example.test"],
+      cc: ["assistante@example.test"],
+      membres: [{ email: "pin@example.test" }, { email: "lys@example.test" }, { email: "LYS@example.test" }],
+      binome: [{ email: "assistante@example.test" }, { email: "gestionnaire@example.test" }],
+    });
+    expect(r.versA.map((m) => m.email)).toEqual(["lys@example.test"]);
+    expect(r.versCc.map((m) => m.email)).toEqual(["gestionnaire@example.test"]);
+  });
+  it("un membre du binôme déjà ajouté en « À » par le CS ne passe pas en copie", () => {
+    const r = ajoutConseilEtBinome({ a: [], cc: [], membres: [{ email: "g@example.test" }], binome: [{ email: "G@example.test" }] });
+    expect(r.versCc).toEqual([]);
   });
 });
