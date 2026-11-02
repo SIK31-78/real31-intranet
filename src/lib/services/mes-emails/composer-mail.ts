@@ -35,7 +35,16 @@ import { donneesCoproEstale } from "@/lib/services/estale/donnees-copro-estale";
 import { destinatairesConseilSyndical } from "@/lib/services/coproprietes/destinataires-conseil";
 import { binomeEnCopie } from "@/lib/services/coproprietes/assistante-de-copro";
 import { classerDestinataires, estAdresseReal31, type Collegue } from "@/lib/domain/destinataires-collegues";
-import { conseilPourComposition, enLots, fusionnerContactsCopro, type ContactsComposition, type CoproChoisissable, type DestinataireTrouve } from "@/lib/domain/mes-emails-composition";
+import {
+  conseilPourComposition,
+  enLots,
+  fusionnerContactsCopro,
+  identitesPrestataires,
+  type ContactsComposition,
+  type CoproChoisissable,
+  type DestinataireTrouve,
+  type PrestataireDeCopro,
+} from "@/lib/domain/mes-emails-composition";
 import { cleDeReference } from "@/lib/domain/tri-emails";
 import { normaliserRef } from "@/lib/domain/copro-fusion";
 import { getSignatureGestionnaire } from "./get-signature";
@@ -87,10 +96,23 @@ export function boiteEnvoi(e: Expediteur | null | undefined): string | null {
  * choisir une copro règle « De » sur elle. Une copro vue par deux boîtes garde la première.
  */
 export async function listerCoprosComposition(boites: readonly BoitePartagee[]): Promise<CoproChoisissable[]> {
+  return (await referentielComposition(boites)).copros;
+}
+
+/**
+ * Les copros des boîtes proposées et les prestataires ESTALE de ces copros (02/11/2026) : le même
+ * référentiel (cache de 10 min), lu une fois. ESTALE en panne : pas de prestataires, les copros
+ * Crypto restent.
+ */
+async function referentielComposition(
+  boites: readonly BoitePartagee[],
+): Promise<{ copros: CoproChoisissable[]; prestataires: Record<string, PrestataireDeCopro[]> }> {
   const parBoite = await Promise.all(boites.map(async (b) => ({ boite: b.boite, ref: await getReferentielTriProvider(b.agences).charger() })));
   const vues = new Set<string>();
   const out: CoproChoisissable[] = [];
+  const prestataires: Record<string, PrestataireDeCopro[]> = {};
   for (const { boite, ref } of parBoite) {
+    for (const [reference, liste] of Object.entries(ref.prestataires ?? {})) prestataires[reference] ??= liste;
     // Les copros inactives (gardees pour reconnaitre le courrier entrant) ne recoivent plus de mail.
     for (const c of ref.copros) {
       const cle = cleDeReference(c.reference) ?? c.reference;
@@ -99,7 +121,7 @@ export async function listerCoprosComposition(boites: readonly BoitePartagee[]):
       out.push({ reference: c.reference, nom: c.nom, adresse: c.adresse, gestionnaire: c.gestionnaire?.nomComplet ?? null, boite });
     }
   }
-  return out.sort((a, b) => a.reference.localeCompare(b.reference, "fr"));
+  return { copros: out.sort((a, b) => a.reference.localeCompare(b.reference, "fr")), prestataires };
 }
 
 /**
@@ -107,11 +129,15 @@ export async function listerCoprosComposition(boites: readonly BoitePartagee[]):
  * ses copros, pour choisir à laquelle rattacher le mail (ou aucune : c'est parfois perso).
  */
 export async function rechercherDestinataires(texte: string, boites: readonly BoitePartagee[]): Promise<DestinataireTrouve[]> {
-  const [identites, copros, collegues] = await Promise.all([
+  const [crypto, { copros, prestataires }, collegues] = await Promise.all([
     getContactsCoproProvider().rechercherIdentites(texte),
-    listerCoprosComposition(boites).catch(() => [] as CoproChoisissable[]),
+    referentielComposition(boites).catch(() => ({ copros: [] as CoproChoisissable[], prestataires: {} })),
     listerCollegues(),
   ]);
+  // Les prestataires ESTALE des copros proposées (02/11/2026), après l'annuaire Crypto et sans
+  // redire une adresse qu'il connaît déjà.
+  const connues = new Set(crypto.flatMap((i) => i.emails.map((e) => e.trim().toLowerCase())));
+  const identites = [...crypto, ...identitesPrestataires(texte, prestataires, connues)];
   // Les copros des agences des boîtes proposées seulement : un copropriétaire d'une autre agence ne
   // sort pas. Une fiche sans copro (artisan, notaire) reste proposée.
   const parCle = new Map(copros.map((c) => [cleDeReference(c.reference) ?? c.reference, c]));

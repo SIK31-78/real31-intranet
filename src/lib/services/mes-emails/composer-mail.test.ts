@@ -91,7 +91,16 @@ vi.mock("@/lib/adapters/router", () => ({
           ],
         };
       }
-      return { copros: [{ reference: "S247", nom: "Les Tilleuls", adresse: "", gestionnaire: null }] };
+      return {
+        copros: [{ reference: "S247", nom: "Les Tilleuls", adresse: "", gestionnaire: null }],
+        prestataires: {
+          S247: [
+            { nom: "Paul Dépanne", entreprise: "PLOMBERIE 31", email: "paul@plomberie31.fr" },
+            { nom: "Elsa Plomb", entreprise: "PLOMBERIE 31", email: "elsa.p@gmail.com" },
+          ],
+          S999: [{ nom: "Hors agence", entreprise: "PLOMBERIE 31", email: "hors@x.fr" }],
+        },
+      };
     },
   }),
   getCoproRepository: () => ({
@@ -212,6 +221,19 @@ describe("rechercherDestinataires : collègues d'abord (décision 14)", () => {
       ["Elsa PEIXOTO", "collegue", "elsa.peixoto@real31.fr"],
       ["PEIXOTO Elsa", "client", "elsa.p@gmail.com"],
     ]);
+  });
+});
+
+describe("rechercherDestinataires : prestataires ESTALE (02/11/2026)", () => {
+  it("propose les prestataires des copros de la boîte, sans doublon avec Crypto", async () => {
+    etat.identites = [{ cle: "crypto:9", nom: "PEIXOTO Elsa", emails: ["elsa.p@gmail.com"], copros: [{ reference: "S247", qualite: "coproprietaire" }] }];
+    const l = await rechercherDestinataires("plomb", [syndic2]);
+    const p = l.find((d) => d.emails[0] === "paul@plomberie31.fr");
+    expect(p).toMatchObject({ nom: "Paul Dépanne", casquette: "Prestataire · PLOMBERIE 31" });
+    expect(p?.copros.map((c) => [c.reference, c.qualite])).toEqual([["S247", "prestataire"]]);
+    // L'adresse que Crypto connaît déjà n'est pas redite ; la copro hors agence ne sort pas.
+    expect(l.filter((d) => d.emails.includes("elsa.p@gmail.com"))).toHaveLength(1);
+    expect(l.some((d) => d.emails.includes("hors@x.fr"))).toBe(false);
   });
 });
 

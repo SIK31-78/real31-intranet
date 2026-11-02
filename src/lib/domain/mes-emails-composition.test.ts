@@ -13,6 +13,7 @@ import {
   sansPolitesseEnDouble,
   factureComplete,
   fusionnerContactsCopro,
+  identitesPrestataires,
   fusionnerModele,
   objetCompose,
   objetFactureEstale,
@@ -348,5 +349,37 @@ describe("envoisSepares (décision 10)", () => {
   it("dit combien de mails partiront", () => {
     expect(phraseEnvoisSepares(3, true)).toMatch(/^3 mails séparés partiront/);
     expect(phraseEnvoisSepares(3, false)).toMatch(/^3 brouillons séparés/);
+  });
+});
+
+describe("identitesPrestataires (02/11/2026)", () => {
+  const prestataires = {
+    S0300: [{ nom: "Jean Martin", entreprise: "DGP NETTOYAGE", email: "jean@dgp.fr" }],
+    S0247: [
+      { nom: "Jean Martin", entreprise: "DGP NETTOYAGE", email: "Jean@dgp.fr" },
+      { nom: "", entreprise: "Élec Sud", email: "contact@elecsud.fr" },
+    ],
+  };
+  it("cherche par contact, entreprise ou adresse, une identité par adresse avec ses copros", () => {
+    const r = identitesPrestataires("dgp", prestataires, new Set());
+    expect(r).toEqual([
+      {
+        cle: "estale-prestataire:jean@dgp.fr",
+        nom: "Jean Martin",
+        metier: "Prestataire · DGP NETTOYAGE",
+        emails: ["jean@dgp.fr"],
+        copros: [
+          { reference: "S0300", qualite: "prestataire" },
+          { reference: "S0247", qualite: "prestataire" },
+        ],
+      },
+    ]);
+  });
+  it("sans nom de contact : l'entreprise, accents ignorés", () => {
+    const r = identitesPrestataires("elec", prestataires, new Set());
+    expect(r.map((i) => [i.nom, i.metier])).toEqual([["Élec Sud", "Prestataire"]]);
+  });
+  it("une adresse déjà connue de Crypto n'est pas redite", () => {
+    expect(identitesPrestataires("jean", prestataires, new Set(["jean@dgp.fr"]))).toEqual([]);
   });
 });

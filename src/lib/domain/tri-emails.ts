@@ -83,6 +83,22 @@ export interface ReferentielTri {
   expediteurs: Record<string, LienExpediteur[]>;
   /** Une source n'a pas repondu : le tri marche avec l'autre, l'ecran le dit. */
   avertissements?: string[];
+  /**
+   * Les prestataires ESTALE de chaque copro (cle = reference de la copro), pour proposer leurs
+   * contacts comme destinataires dans les E-mails (02/11/2026). Meme requete que l'index des
+   * expediteurs, rien de plus a lire. Absent : source sans prestataires (Crypto) ou ESTALE en panne.
+   */
+  prestataires?: Record<string, PrestataireCopro[]>;
+}
+
+/** Un contact d'un prestataire (fournisseur) ESTALE d'une copro. */
+export interface PrestataireCopro {
+  /** Nom du contact (« Jean Martin », parfois « Accueil ») ; "" si ESTALE ne le donne pas. */
+  nom: string;
+  /** Nom de l'entreprise (fournisseur ESTALE), ex « DGP NETTOYAGE ». */
+  entreprise: string;
+  /** En minuscules. */
+  email: string;
 }
 
 /**
@@ -139,9 +155,17 @@ export function fusionnerReferentiels(
   ajouter(estale?.expediteurs, "estale");
   ajouter(crypto?.expediteurs, "crypto");
 
+  // Les prestataires ESTALE suivent leur copro, dans le perimetre, sous sa reference finale (02/11/2026).
+  const prestataires: Record<string, PrestataireCopro[]> = {};
+  for (const [reference, liste] of Object.entries(estale?.prestataires ?? {})) {
+    const copro = parCle.get(cleDeReference(reference) ?? "");
+    if (copro && liste.length) prestataires[copro.reference] = [...(prestataires[copro.reference] ?? []), ...liste];
+  }
+
   return {
     copros: [...parCle.values()],
     expediteurs,
+    ...(Object.keys(prestataires).length ? { prestataires } : {}),
     avertissements: [...(estale?.avertissements ?? []), ...(crypto?.avertissements ?? [])],
   };
 }

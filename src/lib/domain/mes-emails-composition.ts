@@ -93,6 +93,51 @@ export interface IdentiteAnnuaire {
   copros: { reference: string; qualite: string }[];
 }
 
+/** Un contact de prestataire ESTALE d'une copro (même forme que PrestataireCopro du tri). */
+export interface PrestataireDeCopro {
+  nom: string;
+  entreprise: string;
+  email: string;
+}
+
+/**
+ * Les prestataires ESTALE qui répondent à la recherche d'un destinataire (02/11/2026) : nom du
+ * contact, de l'entreprise ou adresse. Une identité par adresse, avec toutes ses copros
+ * (qualité « prestataire »), casquette « Prestataire · ENTREPRISE ». Une adresse déjà rendue
+ * par l'annuaire Crypto (`dejaConnues`, en minuscules) n'est pas proposée deux fois.
+ */
+export function identitesPrestataires(
+  texte: string,
+  prestataires: Readonly<Record<string, readonly PrestataireDeCopro[]>>,
+  dejaConnues: ReadonlySet<string>,
+): IdentiteAnnuaire[] {
+  const q = sansAccents(texte);
+  if (!q) return [];
+  const parEmail = new Map<string, IdentiteAnnuaire>();
+  for (const [reference, liste] of Object.entries(prestataires)) {
+    for (const p of liste) {
+      const email = p.email.trim().toLowerCase();
+      if (!email || dejaConnues.has(email)) continue;
+      if (![p.nom, p.entreprise, email].some((x) => sansAccents(x).includes(q))) continue;
+      const deja = parEmail.get(email);
+      if (deja) {
+        if (!deja.copros.some((c) => c.reference === reference)) deja.copros.push({ reference, qualite: "prestataire" });
+        continue;
+      }
+      const entreprise = p.entreprise.trim();
+      const nom = p.nom.trim() || entreprise || email;
+      parEmail.set(email, {
+        cle: `estale-prestataire:${email}`,
+        nom,
+        metier: entreprise && entreprise !== nom ? `Prestataire · ${entreprise}` : "Prestataire",
+        emails: [email],
+        copros: [{ reference, qualite: "prestataire" }],
+      });
+    }
+  }
+  return [...parEmail.values()];
+}
+
 /**
  * Une adresse que l'envoi acceptera : la même règle que la validation serveur (celle de zod),
  * pour que le compositeur refuse à la saisie ce que le serveur refuserait à l'envoi. Pas

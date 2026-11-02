@@ -781,6 +781,19 @@ describe("fusionnerReferentiels (ESTALE + Crypto, 12/10/2026)", () => {
   });
 });
 
+describe("fusionnerReferentiels : prestataires ESTALE (02/11/2026)", () => {
+  const p = { nom: "Jean", entreprise: "DGP NETTOYAGE", email: "jean@dgp.fr" };
+  const estale: ReferentielTri = {
+    copros: [{ reference: "S0300", nom: "A", adresse: "", gestionnaire: null, assistant: null }],
+    expediteurs: {},
+    prestataires: { S0300: [p], S0999: [{ ...p, email: "hors@x.fr" }] },
+  };
+  it("suit la copro dans le périmètre, rien hors périmètre", () => {
+    expect(fusionnerReferentiels(estale, null, null).prestataires).toEqual({ S0300: [p] });
+    expect(fusionnerReferentiels(estale, null, new Set(["S247"])).prestataires).toBeUndefined();
+  });
+});
+
 describe("clesDossiersDe (mes mails sur la boîte partagée)", () => {
   const b = {
     binomes: [

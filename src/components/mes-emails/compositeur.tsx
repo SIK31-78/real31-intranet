@@ -128,6 +128,7 @@ const LIBELLE_QUALITE: Record<string, string> = {
   coproprietaire: "copropriétaire",
   locataire: "locataire",
   professionnel: "professionnel",
+  prestataire: "prestataire",
   autre: "autre",
 };
 

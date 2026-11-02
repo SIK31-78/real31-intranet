@@ -9,11 +9,14 @@
 // une boite triee ne garde que les copros ESTALE de ses agences.
 // Depuis le 28/10/2026, le nom de chaque coproprietaire (fullname) : le choix de copro le
 // cherche (« Dupont » -> ses copros). Les noms seuls, jamais leurs adresses, cote ecran.
+// Depuis le 02/11/2026, le nom des prestataires et de leurs contacts : les E-mails proposent
+// ces contacts comme destinataires (`prestataires`, lu cote serveur seulement).
 
 import {
   estAssistantDeCopro,
   type CoproTri,
   type LienExpediteur,
+  type PrestataireCopro,
   type QualiteExpediteur,
   type ReferentielTri,
 } from "@/lib/domain/tri-emails";
@@ -31,7 +34,7 @@ const Q_COPRO = `query($id: ID!) {
     serviceBook { mandate { managerID } }
     owners(archived: false) { fullname email rentalAgent { email } contacts(archived: false) { email tenant } }
     council { owner { email } }
-    suppliers(archived: false) { contacts(archived: false) { email } }
+    suppliers(archived: false) { name contacts(archived: false) { name email } }
     sales(archived: false) { notaryPersonnel { email } notaryOffice { personnels { email } } }
   }
 }`;
@@ -52,7 +55,7 @@ type Condo = {
       }[]
     | null;
   council: { owner: { email: string | null } | null }[] | null;
-  suppliers: { contacts: { email: string | null }[] | null }[] | null;
+  suppliers: { name: string | null; contacts: { name: string | null; email: string | null }[] | null }[] | null;
   sales:
     | {
         notaryPersonnel: { email: string | null } | null;
@@ -117,12 +120,32 @@ function indexer(c: Condo, index: Record<string, LienExpediteur[]>): void {
   for (const s of c.suppliers ?? []) for (const x of s.contacts ?? []) ajouter(x.email, "fournisseur");
 }
 
+/**
+ * Les contacts des prestataires de la copro, proposés comme destinataires dans les E-mails
+ * (02/11/2026) : le nom du contact et celui de l'entreprise, une adresse une fois. Nos propres
+ * adresses écartées, comme l'index des expéditeurs.
+ */
+export function prestatairesDe(c: Pick<Condo, "suppliers">): PrestataireCopro[] {
+  const vues = new Set<string>();
+  const out: PrestataireCopro[] = [];
+  for (const s of c.suppliers ?? []) {
+    for (const x of s.contacts ?? []) {
+      const email = (x.email ?? "").trim().toLowerCase();
+      if (!email.includes("@") || email.endsWith(DOMAINE_INTERNE) || vues.has(email)) continue;
+      vues.add(email);
+      out.push({ nom: (x.name ?? "").trim(), entreprise: (s.name ?? "").trim(), email });
+    }
+  }
+  return out;
+}
+
 export class EstaleReferentielTri implements ReferentielTriProvider {
   async charger(): Promise<ReferentielTri> {
     if (cache && Date.now() < cache.expire) return cache.valeur;
     const refs = await chargerCondosAccessibles();
     const copros: CoproTri[] = [];
     const expediteurs: Record<string, LienExpediteur[]> = {};
+    const prestataires: Record<string, PrestataireCopro[]> = {};
     for (let i = 0; i < refs.length; i += EN_PARALLELE) {
       const lot = refs.slice(i, i + EN_PARALLELE);
       const donnees = await Promise.all(lot.map((r) => estaleGql<{ condo: Condo | null }>(Q_COPRO, { id: r.id })));
@@ -130,10 +153,12 @@ export class EstaleReferentielTri implements ReferentielTriProvider {
         if (!d.condo) continue;
         copros.push(versCopro(d.condo));
         indexer(d.condo, expediteurs);
+        const p = prestatairesDe(d.condo);
+        if (p.length) prestataires[d.condo.reference] = p;
       }
     }
     copros.sort((a, b) => a.reference.localeCompare(b.reference));
-    const valeur = { copros, expediteurs };
+    const valeur = { copros, expediteurs, prestataires };
     cache = { valeur, expire: Date.now() + TTL_MS };
     return valeur;
   }
