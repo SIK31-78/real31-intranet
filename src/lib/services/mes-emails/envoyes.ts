@@ -38,3 +38,11 @@ export async function lireEnvoye(boite: string, id: string, perimetre?: Perimetr
   if (perimetre && !(await listerEnvoyes(boite, perimetre)).some((e) => e.id === id)) return null;
   return getRechercheMail().lireCorps({ boite, id });
 }
+
+/**
+ * Un envoyé que la liste montre, par son id Graph (même règle que lireEnvoye), ou null. Sert
+ * au transfert d'un envoyé (02/11/2026) : l'internetMessageId transféré vient d'ici.
+ */
+export async function envoyeVisible(boite: string, id: string, perimetre?: PerimetreEnvoyes): Promise<EchangeTrouve | null> {
+  return (await listerEnvoyes(boite, perimetre)).find((e) => e.id === id) ?? null;
+}

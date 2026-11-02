@@ -22,7 +22,7 @@ vi.mock("@/lib/adapters/router", () => ({
   }),
 }));
 
-const { lireEnvoye, listerEnvoyes } = await import("./envoyes");
+const { envoyeVisible, lireEnvoye, listerEnvoyes } = await import("./envoyes");
 
 const envoye = (id: string, objet: string, conversationId?: string): EchangeTrouve => ({
   boite: "syndic2@real31.fr",
@@ -69,5 +69,13 @@ describe("lireEnvoye : un envoyé lisible est un envoyé listé (REA-422)", () =
     expect(await lireEnvoye("syndic2@real31.fr", "1", perimetre)).toBe("corps 1");
     expect(await lireEnvoye("syndic2@real31.fr", "2", perimetre)).toBeNull();
     expect(faux.corpsLus).toEqual(["1"]);
+  });
+});
+
+describe("envoyeVisible : l'envoyé à transférer (02/11/2026)", () => {
+  it("rend l'envoyé de mon binôme avec son internetMessageId, null pour un autre binôme", async () => {
+    expect((await envoyeVisible("syndic2@real31.fr", "1", perimetre))?.internetMessageId).toBe("<1>");
+    expect(await envoyeVisible("syndic2@real31.fr", "2", perimetre)).toBeNull();
+    expect(await envoyeVisible("syndic2@real31.fr", "inconnu", perimetre)).toBeNull();
   });
 });

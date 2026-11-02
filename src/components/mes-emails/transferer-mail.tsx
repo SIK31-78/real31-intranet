@@ -5,6 +5,8 @@
 // « Envoyer un e-mail » ; les pièces jointes d'origine partent avec (createForward de
 // Graph), depuis la boîte qui détient le mail. Les collègues passent en tête de la liste ;
 // l'adresse personnelle d'un collègue se fait confirmer (décision 14, incident Elsa du 29/10/2026).
+// Un mail ENVOYÉ se transfère aussi, depuis la vue « Envoyés » (02/11/2026, Océane) : même
+// fenêtre, action dédiée (garde : l'envoyé doit être dans la liste que la personne voit).
 
 import { useEffect, useRef, useState } from "react";
 import { Forward, Paperclip } from "lucide-react";
@@ -15,7 +17,7 @@ import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
 import { adresseMailValide, resumeDestinataires } from "@/lib/domain/mes-emails-composition";
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
-import { transfererMailAction } from "@/app/mes-emails/actions";
+import { transfererEnvoyeAction, transfererMailAction } from "@/app/mes-emails/actions";
 import { alertesAdressePersonnelle } from "@/lib/domain/destinataires-collegues";
 import { ChampPersonnes, LigneExpediteur, adresses, useCollegues, type Personne } from "./compositeur";
 import { useAlerteSortie } from "./alerte-sortie";
@@ -32,7 +34,13 @@ export function TransfererMail({
   onTransfere,
   reformulation = false,
   compact = false,
+  envoye,
 }: {
+  /**
+   * Mail ENVOYÉ (vue « Envoyés ») : son id Graph dans la liste et s'il a des pièces jointes.
+   * `emailId` est alors ignoré : le serveur relit l'internetMessageId dans la liste.
+   */
+  envoye?: { id: string; aPiecesJointes: boolean };
   /** Barre d'actions du volet : petit, en texte, sans icône (une seule ligne à 1280 px). */
   compact?: boolean;
   /** « Reformuler » proposé sur le mot du transfert (ADR-051). */
@@ -61,6 +69,7 @@ export function TransfererMail({
           boitePerso={boitePerso}
           objet={objet}
           piecesJointes={piecesJointes}
+          {...(envoye ? { envoye } : {})}
           {...(onTransfere ? { onTransfere } : {})}
           reformulation={reformulation}
           onFermer={() => setOuvert(false)}
@@ -79,7 +88,9 @@ function FenetreTransfert({
   onTransfere,
   reformulation,
   onFermer,
+  envoye,
 }: {
+  envoye?: { id: string; aPiecesJointes: boolean };
   reformulation: boolean;
   emailId: string;
   boite: string;
@@ -156,7 +167,8 @@ function FenetreTransfert({
     }
     setEnCours(true);
     try {
-      const r = await transfererMailAction({ emailId, boite, a: adresses(a), cc: adresses(cc), corps });
+      const commun = { boite, a: adresses(a), cc: adresses(cc), corps };
+      const r = envoye ? await transfererEnvoyeAction({ ...commun, id: envoye.id }) : await transfererMailAction({ ...commun, emailId });
       if (!r.ok) {
         toast.err(r.erreur);
         return;
@@ -230,11 +242,15 @@ function FenetreTransfert({
           </div>
           <div className="flex flex-wrap items-center gap-1.5 text-meta text-ink-3">
             <Paperclip strokeWidth={1.5} className="w-3.5 h-3.5" />
-            {piecesJointes === null
-              ? "Pièces jointes en cours de chargement…"
-              : piecesJointes.length === 0
-                ? "Aucune pièce jointe."
-                : `Jointes d'office : ${piecesJointes.map((pj) => pj.nom).join(", ")}`}
+            {envoye
+              ? envoye.aPiecesJointes
+                ? "Pièces jointes d'origine jointes d'office."
+                : "Aucune pièce jointe."
+              : piecesJointes === null
+                ? "Pièces jointes en cours de chargement…"
+                : piecesJointes.length === 0
+                  ? "Aucune pièce jointe."
+                  : `Jointes d'office : ${piecesJointes.map((pj) => pj.nom).join(", ")}`}
           </div>
         </div>
       </ModalBody>

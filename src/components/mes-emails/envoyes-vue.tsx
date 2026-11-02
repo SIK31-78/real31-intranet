@@ -2,8 +2,10 @@
 
 // Vue « Envoyés » de l'écran E-mails (REA-341, 16/10/2026, en pilote) : les 30 derniers
 // mails partis de la boîte affichée, en lecture seule. Objet, destinataires, date, aperçu
-// dans la liste ; le texte complet à l'ouverture. On ne répond ni ne transfère d'ici : le
-// suivi d'un envoyé se fait depuis le mail reçu, ou dans Outlook.
+// dans la liste ; le texte complet à l'ouverture. On ne répond pas d'ici : le suivi d'un
+// envoyé se fait depuis le mail reçu, ou dans Outlook.
+// « Transférer » un envoyé (02/11/2026, Océane) : la fenêtre de transfert de l'écran, pièces
+// jointes d'origine comprises ; le serveur vérifie que l'envoyé est dans cette liste.
 // Boîte partagée (30/10/2026) : les envoyés des 14 derniers jours de mes conversations et de
 // mes copropriétés (référence dans l'objet), 30 au plus.
 // « Relancer si pas de réponse » (ADR-053, décision 9, 29/10/2026) : le même menu que « En
@@ -21,6 +23,7 @@ import { Callout } from "@/components/ui/callout";
 import type { EchangeTrouve } from "@/lib/domain/echanges";
 import { chargerEnvoyesAction, lireEnvoyeAction } from "@/app/mes-emails/actions";
 import { TexteAvecLiens } from "@/components/mes-emails/texte-avec-liens";
+import { TransfererMail } from "./transferer-mail";
 
 const dateHeure = (iso: string) =>
   new Date(iso).toLocaleString("fr-FR", {
@@ -102,13 +105,13 @@ export function EnvoyesVue({
         </Card>
       </aside>
       <section className="flex-1 min-w-0">
-        <DetailEnvoye key={choisi.id} e={choisi} relance={relance} />
+        <DetailEnvoye key={choisi.id} e={choisi} relance={relance} partagee={partagee} />
       </section>
     </div>
   );
 }
 
-function DetailEnvoye({ e, relance }: { e: EchangeTrouve; relance: boolean }) {
+function DetailEnvoye({ e, relance, partagee }: { e: EchangeTrouve; relance: boolean; partagee: boolean }) {
   const toast = useToast();
   const [corps, setCorps] = useState<string | null>(null);
   const [relanceLe, setRelanceLe] = useState<string | null>(null);
@@ -156,6 +159,15 @@ function DetailEnvoye({ e, relance }: { e: EchangeTrouve; relance: boolean }) {
               />
             )
           ) : null}
+          <TransfererMail
+            compact
+            emailId={e.internetMessageId}
+            boite={e.boite}
+            boitePerso={!partagee}
+            objet={e.objet}
+            piecesJointes={null}
+            envoye={{ id: e.id, aPiecesJointes: e.aPiecesJointes }}
+          />
           {e.lienOutlook ? (
             <a
               href={e.lienOutlook}

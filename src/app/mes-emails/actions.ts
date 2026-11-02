@@ -36,7 +36,7 @@ import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
 import { coprosPourReaffecter, envoyerABonneCopro } from "@/lib/services/tri-emails/reaffecter";
 import type { CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
 import { mettreALaCorbeille, type ResultatCorbeille } from "@/lib/services/mes-emails/corbeille";
-import { lireEnvoye, listerEnvoyes } from "@/lib/services/mes-emails/envoyes";
+import { envoyeVisible, lireEnvoye, listerEnvoyes } from "@/lib/services/mes-emails/envoyes";
 import { transfererMail } from "@/lib/services/mes-emails/transferer";
 import type { EchangeTrouve, ReponseEnvoyee } from "@/lib/domain/echanges";
 import { corpsMisEnForme } from "@/lib/services/mes-emails/corps-mis-en-forme";
@@ -762,6 +762,39 @@ export async function lireEnvoyeAction(input: unknown): Promise<Res<string>> {
   }
 }
 
+const zTransfert = z.object({
+  boite: zBoite,
+  a: z.array(z.string().trim().max(320).regex(EMAIL_RE)).min(1).max(50),
+  cc: z.array(z.string().trim().max(320).regex(EMAIL_RE)).max(50),
+  corps: zCorps,
+});
+const MOTIF_DESTINATAIRES = "Ajoute au moins un destinataire valide (50 au plus).";
+
+/**
+ * Le transfert lui-même, une fois la garde passée (mail reçu ou envoyé) : depuis la boîte qui
+ * détient le mail ; boîte perso (la mienne, ou celle d'un titulaire par délégation) : il part ;
+ * partagée : selon la config.
+ */
+async function transfererDepuis(
+  g: Gestionnaire,
+  cible: string,
+  internetMessageId: string,
+  d: z.infer<typeof zTransfert>,
+): Promise<{ envoye: boolean; boite: string }> {
+  const envoyer = (await natureBoite(g, cible)) !== "partagee" || envoiMailPour(cible);
+  const signatureHtml = (await getSignatureGestionnaire(g)) ?? undefined;
+  await transfererMail({
+    boite: cible,
+    internetMessageId,
+    a: d.a,
+    cc: d.cc,
+    corps: d.corps,
+    ...(signatureHtml ? { signatureHtml } : {}),
+    envoyer,
+  });
+  return { envoye: envoyer, boite: cible };
+}
+
 /**
  * Transférer un mail (REA-350) depuis la boîte qui le détient, pièces jointes d'origine
  * comprises. Depuis la boîte perso, il part ; depuis une boîte partagée, il ne part que si
@@ -771,36 +804,44 @@ export async function lireEnvoyeAction(input: unknown): Promise<Res<string>> {
 export async function transfererMailAction(input: unknown): Promise<Res<{ envoye: boolean; boite: string }>> {
   const g = await gestionnairePilote();
   if (!g?.email) return echec(PILOTE_SEUL);
-  const v = z
-    .object({
-      emailId: zId,
-      boite: zBoite,
-      a: z.array(z.string().trim().max(320).regex(EMAIL_RE)).min(1).max(50),
-      cc: z.array(z.string().trim().max(320).regex(EMAIL_RE)).max(50),
-      corps: zCorps,
-    })
-    .safeParse(input);
-  if (!v.success) return echec("Ajoute au moins un destinataire valide (50 au plus).");
+  const v = zTransfert.extend({ emailId: zId }).safeParse(input);
+  if (!v.success) return echec(MOTIF_DESTINATAIRES);
   const d = v.data;
   if (d.a.length + d.cc.length > 50) return echec("Trop de destinataires (50 maximum).");
   const cible = await boiteDuMail(g, d.boite, d.emailId);
   if (!cible) return echec("Boîte non autorisée.");
-  // Boîte perso (la mienne, ou celle d'un titulaire par délégation) : il part ; partagée : selon la config.
-  const envoyer = (await natureBoite(g, cible)) !== "partagee" || envoiMailPour(cible);
   try {
-    const signatureHtml = (await getSignatureGestionnaire(g)) ?? undefined;
-    await transfererMail({
-      boite: cible,
-      internetMessageId: d.emailId,
-      a: d.a,
-      cc: d.cc,
-      corps: d.corps,
-      ...(signatureHtml ? { signatureHtml } : {}),
-      envoyer,
-    });
+    const r = await transfererDepuis(g, cible, d.emailId, d);
     // Parti (pas un simple brouillon) : « répondu » en base, comme une réponse (REA-422).
-    if (envoyer) await noterRepondu(g, d.emailId, "", cible);
-    return { ok: true, donnees: { envoye: envoyer, boite: cible } };
+    if (r.envoye) await noterRepondu(g, d.emailId, "", cible);
+    return { ok: true, donnees: r };
+  } catch (e) {
+    return echecDepuis(e, "mes-emails");
+  }
+}
+
+/**
+ * Transférer un mail ENVOYÉ, depuis la vue « Envoyés » (02/11/2026, demande d'Océane). Même
+ * transfert que pour un mail reçu (createForward : pièces jointes d'origine comprises), même
+ * garde que lireEnvoyeAction : l'envoyé doit être dans la liste que la personne voit (boîte
+ * partagée : envoyés de son binôme ; boîte perso : ses 30 derniers). Le client donne l'id
+ * Graph de la liste ; l'internetMessageId transféré est celui que le SERVEUR relit dans la
+ * liste, jamais celui du client. Pas de « répondu » : ce n'est pas un mail reçu.
+ */
+export async function transfererEnvoyeAction(input: unknown): Promise<Res<{ envoye: boolean; boite: string }>> {
+  const g = await gestionnairePilote();
+  if (!g?.email) return echec(PILOTE_SEUL);
+  const v = zTransfert.extend({ id: zId }).safeParse(input);
+  if (!v.success) return echec(MOTIF_DESTINATAIRES);
+  const d = v.data;
+  if (d.a.length + d.cc.length > 50) return echec("Trop de destinataires (50 maximum).");
+  const cible = await boiteCible(g, d.boite);
+  if (!cible) return echec("Boîte non autorisée.");
+  try {
+    const perso = (await boitesDe(g)).find((x) => x.id === cible)?.personnelle ?? false;
+    const envoye = await envoyeVisible(cible, d.id, perso ? undefined : await perimetreEnvoyes(g, cible));
+    if (!envoye?.internetMessageId) return echec("Ce mail envoyé n'est pas dans les envoyés de ton binôme.");
+    return { ok: true, donnees: await transfererDepuis(g, cible, envoye.internetMessageId, d) };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
   }
