@@ -96,7 +96,22 @@ function texteCompact(html: string): string {
 
 // Début de l'historique cité sous une réponse : Outlook (web et Graph createReply), Gmail, et
 // toute citation en <blockquote>.
-const DEBUT_CITATION = /<div[^>]*\bid="?(?:appendonsend|divRplyFwdMsg|mail-editor-reference-message-container)\b|<div[^>]*\bclass="?[^">]*\bgmail_quote\b|<blockquote\b/i;
+// 02/11/2026 : aussi Outlook bureau (Windows), dont l'en-tête du message cité est un <div> à
+// trait supérieur (border-top:solid #E1E1E1 1.0pt, #B5C4DF sur les anciennes versions,
+// guillemets simples ou doubles) suivi de « De : » / « From: », souvent dans un <div> nu qu'on
+// emporte avec lui ; et le trait <hr> posé juste avant l'en-tête divRplyFwdMsg. L'historique
+// reste ainsi tel quel, hors de l'éditeur. Le corps est déjà normalisé (pas de blanc entre
+// balises).
+const DEBUT_CITATION = new RegExp(
+  [
+    String.raw`<div[^>]*\bid="?(?:appendonsend|divRplyFwdMsg|mail-editor-reference-message-container)\b`,
+    String.raw`<hr\b[^>]*>(?=<div[^>]*\bid="?divRplyFwdMsg\b)`,
+    String.raw`(?:<div>)?<div[^>]*\bstyle=["'][^"']*border-top:\s*solid\s+#[0-9a-f]{3,6}\s+1(?:\.0)?pt[^"']*["'][^>]*>(?=(?:<[^>]+>)*(?:De|From)(?:\s|&nbsp;|&#160;)*:)`,
+    String.raw`<div[^>]*\bclass="?[^">]*\bgmail_quote\b`,
+    String.raw`<blockquote\b`,
+  ].join("|"),
+  "i",
+);
 
 /** Une signature trop courte se retrouverait n'importe où dans le texte : on ne la cherche pas. */
 const SIGNATURE_MIN = 12;
