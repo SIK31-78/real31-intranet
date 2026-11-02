@@ -114,6 +114,7 @@ import {
   marquerTraiteAction,
   editBrouillonAction,
   marquerLuAction,
+  marquerNonLuAction,
   preparerEnvoiAction,
   finaliserEnvoiAction,
   abandonnerEnvoiAction,
@@ -254,7 +255,10 @@ export function MesEmailsVue({
   // ouverts ici pendant cette session.
   const [lus, setLus] = useState<Set<string>>(() => new Set());
   const lusLecture = useMemo(() => new Set(data.mails.filter((m) => m.lu).map((m) => m.id)), [data.mails]);
-  const estLu = (id: string) => lus.has(id) || lusLecture.has(id);
+  // `nonLus` = remis en non lu ici (02/11/2026) : l'emporte sur le lu relu au chargement, jusqu'à
+  // ce que le mail soit rouvert d'un clic.
+  const [nonLus, setNonLus] = useState<Set<string>>(() => new Set());
+  const estLu = (id: string) => !nonLus.has(id) && (lus.has(id) || lusLecture.has(id));
   const [repondus, setRepondus] = useState<Set<string>>(
     () =>
       new Set(
@@ -875,7 +879,25 @@ export function MesEmailsVue({
   function marquerLu(m: MailEntrant, ouverture: OuvertureMail) {
     if (!marqueLu(ouverture, estLu(m.id))) return;
     setLus((p) => new Set(p).add(m.id));
+    setNonLus((p) => del(p, m.id));
     void marquerLuAction(m.id, m.coproCode, m.boite ?? boiteActive);
+  }
+  // « Non lu » (02/11/2026, remontée d'Océane) : le mail repasse en gras ici et en non lu dans
+  // Outlook, pour toute la boîte partagée. Le volet reste ouvert, comme dans Outlook : seul un
+  // nouveau clic sur sa ligne (ou une réponse) le remarque lu, jamais le simple affichage.
+  // Outlook refuse : on rétablit le lu à l'écran.
+  async function marquerNonLu(m: MailEntrant) {
+    const etaitLuIci = lus.has(m.id);
+    setLus((p) => del(p, m.id));
+    setNonLus((p) => add(p, m.id));
+    const r = await marquerNonLuAction(m.id, m.coproCode, m.boite ?? boiteActive);
+    if (r.ok) {
+      toast.ok("Remis en non lu.");
+      return;
+    }
+    setNonLus((p) => del(p, m.id));
+    if (etaitLuIci) setLus((p) => add(p, m.id));
+    toast.err(r.erreur);
   }
   // Afficher un mail : la sélection change, les pièces jointes suivent (effet plus haut).
   // `ouverture` = « clic » depuis la liste (marqué lu), « affichage » quand l'écran enchaîne.
@@ -1495,6 +1517,7 @@ export function MesEmailsVue({
                 passerAuSuivant(selection);
               }}
               onConclure={() => marquerTraite(selection)}
+              {...(estLu(selection.id) ? { onNonLu: () => void marquerNonLu(selection) } : {})}
               onTransfere={() => {
                 marquerLu(selection, "reponse");
                 noterReponse(selection.id, "transfere");
@@ -2154,6 +2177,7 @@ function AnalysePane({
   classementOutlook,
   onParti,
   onConclure,
+  onNonLu,
   onTransfere,
   onSupprimer,
   suppressionEnCours = false,
@@ -2250,6 +2274,8 @@ function AnalysePane({
   onParti?: () => void;
   /** « Marquer traité » (boîte partagée) : le mail sort de « À traiter » pour le binôme, sans bouger dans Outlook. */
   onConclure: () => void;
+  /** « Non lu » (02/11/2026) : absent quand le mail n'est pas lu. */
+  onNonLu?: () => void;
   /** Le transfert est parti (pas un brouillon) : badge « Transféré » (REA-422). */
   onTransfere: () => void;
   /** Mettre le mail à la corbeille : boîte perso seulement (absent sinon). */
@@ -2385,6 +2411,13 @@ function AnalysePane({
             « un meilleur alignement ») : les réponses à gauche et « Traité » à droite en haut,
             les gestes alignés à gauche en dessous. */}
         <div className="order-3 w-full flex items-center gap-0.5 @min-[960px]:order-2 @min-[960px]:w-auto @min-[960px]:ml-auto">
+          {/* « Non lu » (02/11/2026) : seulement sur un mail lu ; il disparaît une fois remis en non lu. */}
+          {onNonLu ? (
+            <Button size="sm" variant="ghost" onClick={onNonLu} title="Remettre ce mail en non lu (aussi dans Outlook, pour toute la boîte partagée)">
+              <Mail strokeWidth={1.5} />
+              Non lu
+            </Button>
+          ) : null}
           {/* « En attente » / « De côté » (décision 9), puis « Je prends / Attribuer à… » (décision 5). */}
           {actionsAttente}
           {actionsAttribution}
