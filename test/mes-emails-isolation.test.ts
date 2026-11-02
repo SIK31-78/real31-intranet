@@ -376,3 +376,61 @@ describe("comptables : le dossier « Comptabilité » de toutes les boîtes tri�
     oublierCompteurEmails(elsa.id);
   });
 });
+
+// « Répondre depuis Échanges » (décision Sekou du 02/11/2026) : un mail de MA boîte d'agence,
+// même pas distribué à mon binôme, se lit et se répond (droit de lecture d'Échanges) ; Traité,
+// attribuer, « Pas pour moi » restent réservés aux mails distribués. Une boîte que je ne peux
+// pas fouiller reste refusée.
+describe("répondre depuis Échanges : isolation assouplie pour la lecture et la réponse seulement", () => {
+  beforeEach(() => {
+    vi.stubEnv("MAIL_BOITES_AGENCE", `HLS=${SYNDIC4};LGC=${SYNDIC2}`);
+  });
+
+  it("un mail non distribué de ma boîte d'agence est lisible et ouvert à la réponse", async () => {
+    const { boiteDuMailLisible } = await import("@/app/mes-emails/gardes-boites");
+    etat.session = sophie;
+    expect(await boiteDuMailLisible(sophie, SYNDIC4, "<b-marc@x>")).toEqual({ boite: SYNDIC4, distribue: false });
+    expect(await boiteDuMailLisible(sophie, SYNDIC4, "<a-sophie@x>")).toEqual({ boite: SYNDIC4, distribue: true });
+    expect(await chargerHistoriqueAction("<b-marc@x>", SYNDIC4)).toBe("> historique");
+  });
+
+  it("…mais ni « Traité », ni attribution, ni « Pas pour moi »", async () => {
+    const { attribuerMailAction, prendreMailAction } = await import("@/app/mes-emails/actions-equipe");
+    etat.session = sophie;
+    await marquerTraiteAction("<b-marc@x>", "", SYNDIC4);
+    expect(etat.statuts).toEqual([]);
+    expect((await prendreMailAction("<b-marc@x>", SYNDIC4)).ok).toBe(false);
+    expect((await attribuerMailAction("<b-marc@x>", SYNDIC4, "sophie@real31.fr")).ok).toBe(false);
+    expect((await envoyerABonneCoproAction("<b-marc@x>", "S0297", SYNDIC4)).ok).toBe(false);
+  });
+
+  it("un mail d'une boîte que je ne peux pas fouiller est refusé, lecture et réponse comprises", async () => {
+    const { boiteDuMailLisible } = await import("@/app/mes-emails/gardes-boites");
+    const { preparerEnvoiAction } = await import("@/app/mes-emails/actions");
+    etat.session = sophie;
+    expect(await boiteDuMailLisible(sophie, SYNDIC2, "<c-nadia@x>")).toBeNull();
+    expect(await chargerHistoriqueAction("<c-nadia@x>", SYNDIC2)).toBeNull();
+    const r = await preparerEnvoiAction({
+      mode: "brouillon",
+      emailId: "<c-nadia@x>",
+      coproCode: "",
+      corps: "Bonjour",
+      sujet: "RE: Fuite",
+      a: ["client@exemple.fr"],
+      cc: [],
+      cci: [],
+      pjIds: [],
+      boite: SYNDIC2,
+      expediteur: SYNDIC4,
+      fichiers: [],
+    });
+    expect(r).toMatchObject({ ok: false, message: "Boîte non autorisée." });
+    expect(etat.lus).toEqual([]);
+  });
+
+  it("sans boîte d'agence pour Échanges, l'isolation par binôme reste entière", async () => {
+    vi.stubEnv("MAIL_BOITES_AGENCE", "");
+    etat.session = sophie;
+    expect(await chargerHistoriqueAction("<b-marc@x>", SYNDIC4)).toBeNull();
+  });
+});

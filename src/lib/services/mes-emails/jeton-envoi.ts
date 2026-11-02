@@ -28,6 +28,11 @@ export interface JetonBrouillon {
   boiteMessage: string;
   /** La réponse elle-même, une fois partie (02/11/2026) : de quoi poser « Relancer si pas de réponse ». */
   reponse?: { internetMessageId: string; conversationId: string };
+  /**
+   * Mail ouvert depuis « Échanges » hors de ma distribution (02/11/2026) : la réponse part, mais
+   * ni statut « répondu » en base ni attribution (réservés aux mails distribués).
+   */
+  horsDistribution?: true;
   exp: number;
 }
 

@@ -9,7 +9,7 @@ import type { NextRequest } from "next/server";
 import { getGestionnaireCourant, mailModuleActifPour } from "@/lib/auth/session";
 import { fluxPieceJointeMail } from "@/lib/services/mes-emails/pieces-jointes";
 import { lireParametresPj, reponseEchecPj, reponsePieceJointe, reponseRefusPj } from "@/lib/services/mes-emails/reponse-piece-jointe";
-import { boiteDuMail } from "../gardes-boites";
+import { boiteDuMailLisible } from "../gardes-boites";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +22,8 @@ export async function GET(req: NextRequest): Promise<Response> {
   const g = await getGestionnaireCourant();
   if (!g) return reponseRefusPj(401, "Non connecté.");
   if (!g.email || !mailModuleActifPour(g.email)) return reponseRefusPj(403, "Le module mail n'est pas ouvert pour ce compte.");
-  const boite = await boiteDuMail(g, q.boite, q.message);
+  // Lecture : aussi un mail ouvert depuis « Échanges » (02/11/2026).
+  const boite = (await boiteDuMailLisible(g, q.boite, q.message))?.boite ?? null;
   if (!boite) return reponseRefusPj(403, "Boîte non autorisée.");
   try {
     return reponsePieceJointe(await fluxPieceJointeMail(boite, q.message, q.pj), q.inline);

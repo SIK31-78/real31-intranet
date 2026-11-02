@@ -1,12 +1,15 @@
 "use client";
 
 // Résultats de l'écran « Échanges » : la liste (du plus récent au plus ancien) et, au clic,
-// le mail complet avec ses pièces jointes. Lecture seule ; on répond depuis Outlook.
+// le mail complet avec ses pièces jointes. Lecture seule ; on répond depuis Outlook, ou
+// depuis l'écran E-mails (« Répondre », décision Sekou du 02/11/2026) : le mail s'y ouvre avec
+// la fenêtre de réponse habituelle, qu'il soit reçu ou envoyé, distribué ou non.
 
 import { useEffect, useState, useTransition } from "react";
-import { ArrowDownLeft, ArrowUpRight, ExternalLink, Paperclip, Users } from "lucide-react";
+import Link from "next/link";
+import { ArrowDownLeft, ArrowUpRight, ExternalLink, Paperclip, Reply, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, classesBouton } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -37,9 +40,12 @@ export function EchangesVue({
   echanges,
   plusieursBoites,
   coproParDefaut,
+  repondre = false,
 }: {
   echanges: EchangeTrouve[];
   plusieursBoites: boolean;
+  /** « Répondre » proposé (02/11/2026) : le module E-mails est ouvert à la personne. */
+  repondre?: boolean;
   /** Copro de la recherche : proposee pour le rattachement a un dossier. */
   coproParDefaut?: string;
 }) {
@@ -74,12 +80,17 @@ export function EchangesVue({
           );
         })}
       </ul>
-      {choisi && <Detail key={`${choisi.boite}|${choisi.id}`} e={choisi} coproParDefaut={coproParDefaut} />}
+      {choisi && <Detail key={`${choisi.boite}|${choisi.id}`} e={choisi} coproParDefaut={coproParDefaut} repondre={repondre} />}
     </div>
   );
 }
 
-function Detail({ e, coproParDefaut }: { e: EchangeTrouve; coproParDefaut?: string | undefined }) {
+/** Le mail dans l'écran E-mails, avec Répondre / Répondre à tous / Transférer (02/11/2026). */
+export function lienRepondre(e: Pick<EchangeTrouve, "boite" | "internetMessageId">): string {
+  return `/mes-emails?boite=${encodeURIComponent(e.boite)}&mail=${encodeURIComponent(e.internetMessageId)}`;
+}
+
+function Detail({ e, coproParDefaut, repondre }: { e: EchangeTrouve; coproParDefaut?: string | undefined; repondre: boolean }) {
   const [corps, setCorps] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const s = SENS[sensDe(e)];
@@ -101,8 +112,18 @@ function Detail({ e, coproParDefaut }: { e: EchangeTrouve; coproParDefaut?: stri
       <div className="flex items-center gap-2 flex-wrap">
         <Badge ton={s.ton}>{s.libelle}</Badge>
         <span className="text-meta text-ink-3">{date(e.date)} · {e.boite}</span>
+        {repondre ? (
+          <Link
+            href={lienRepondre(e)}
+            className={classesBouton({ variant: "secondary", size: "sm" }, "ml-auto")}
+            title={sensDe(e) === "envoye" ? "Ouvre le mail dans E-mails : la réponse va aux destinataires d'origine" : "Ouvre le mail dans E-mails, avec la fenêtre de réponse"}
+          >
+            <Reply strokeWidth={1.5} />
+            Répondre
+          </Link>
+        ) : null}
         {e.lienOutlook && (
-          <a href={e.lienOutlook} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-meta text-green-700 hover:underline">
+          <a href={e.lienOutlook} target="_blank" rel="noreferrer" className={`${repondre ? "" : "ml-auto "}inline-flex items-center gap-1 text-meta text-green-700 hover:underline`}>
             Ouvrir dans Outlook <ExternalLink strokeWidth={1.5} className="w-3.5 h-3.5" aria-hidden="true" />
           </a>
         )}

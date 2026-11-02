@@ -65,7 +65,7 @@ export function ResultatsFouille({ fouille, onFermer }: { fouille: Fouille; onFe
         </p>
       ))}
       {r?.tronque && <p className="text-meta text-ink-3">Affichage limité aux plus récents : précisez (copro, personne, mot).</p>}
-      {r && <EchangesVue key={fouille.saisie} echanges={r.echanges} plusieursBoites={r.plusieursBoites} {...(r.copro ? { coproParDefaut: r.copro } : {})} />}
+      {r && <EchangesVue key={fouille.saisie} echanges={r.echanges} plusieursBoites={r.plusieursBoites} repondre {...(r.copro ? { coproParDefaut: r.copro } : {})} />}
     </div>
   );
 }

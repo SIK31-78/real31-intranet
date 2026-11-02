@@ -25,7 +25,7 @@ import {
 } from "@/lib/services/mes-emails/maj-etat";
 import { boiteTri, envoiMailPour } from "@/lib/domain/mail-gate";
 import { mailDistribue, perimetreEnvoyes } from "@/lib/services/mes-emails/boites-visibles";
-import { boiteCible, boiteDuMail, boitePartageeDe, boitesDe, natureBoite } from "./gardes-boites";
+import { boiteCible, boiteDuMail, boiteDuMailLisible, boitePartageeDe, boitesDe, natureBoite } from "./gardes-boites";
 import { boiteDe } from "@/lib/services/tri-emails/acces";
 import { oublierCompteurEmails } from "@/lib/services/mes-emails/compteur-emails";
 import { reporterCoproAuTri } from "@/lib/services/mes-emails/reporter-copro-tri";
@@ -299,7 +299,8 @@ export async function chargerPiecesJointesAction(
     return [];
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok || !auth.g.email) return [];
-  const cible = await boiteDuMail(auth.g, boite, emailId);
+  // Lecture : aussi un mail ouvert depuis « Échanges » (02/11/2026, boiteDuMailLisible).
+  const cible = (await boiteDuMailLisible(auth.g, boite, emailId))?.boite;
   if (!cible) return [];
   try {
     return await listerPiecesJointesMail(cible, emailId);
@@ -314,7 +315,7 @@ export async function chargerReponsesEnvoyeesAction(emailId: string, boite?: str
   if (!z.object({ emailId: zId, boite: zBoite }).safeParse({ emailId, boite }).success) return null;
   const g = await getGestionnaireCourant();
   if (!g?.email) return null;
-  const cible = await boiteDuMail(g, boite, emailId);
+  const cible = (await boiteDuMailLisible(g, boite, emailId))?.boite;
   if (!cible) return null;
   try {
     return await reponsesEnvoyees(cible, emailId);
@@ -329,7 +330,7 @@ export async function chargerHistoriqueAction(emailId: string, boite?: string): 
   if (!z.object({ emailId: zId, boite: zBoite }).safeParse({ emailId, boite }).success) return null;
   const g = await getGestionnaireCourant();
   if (!g?.email) return null;
-  const cible = await boiteDuMail(g, boite, emailId);
+  const cible = (await boiteDuMailLisible(g, boite, emailId))?.boite;
   if (!cible) return null;
   try {
     return await historiqueDuMail(cible, emailId);
@@ -381,7 +382,7 @@ export async function chargerImagesMailAction(emailId: string, coproCode: string
   if (!z.object({ emailId: zId, coproCode: zCopro, boite: zBoite }).safeParse({ emailId, coproCode, boite }).success) return [];
   const auth = await withGestionnaire(coproCode, cloisonnementCoproRequis());
   if (!auth.ok || !auth.g.email) return [];
-  const cible = await boiteDuMail(auth.g, boite, emailId);
+  const cible = (await boiteDuMailLisible(auth.g, boite, emailId))?.boite;
   if (!cible) return [];
   try {
     return await listerImagesMail(cible, emailId);
@@ -483,8 +484,10 @@ export async function preparerEnvoiAction(input: unknown): Promise<{
   if (!auth.ok) return auth;
   const g = auth.g;
   if (!g.email) return { ok: false, message: "Aucune boîte associée à ce compte." };
-  // Le mail auquel on répond doit être distribué à mon binôme (boîte partagée, 27/10/2026).
-  const cibleMessage = await boiteDuMail(g, d.boite, d.emailId);
+  // Le mail auquel on répond doit être distribué à mon binôme (boîte partagée, 27/10/2026), ou
+  // lisible dans « Échanges » (« Répondre depuis Échanges », décision Sekou du 02/11/2026).
+  const lisible = await boiteDuMailLisible(g, d.boite, d.emailId);
+  const cibleMessage = lisible?.boite ?? null;
   // Les DEUX boites sont validees contre la configuration : celle qui detient le mail et
   // celle qui expedie. Un "De :" fabrique cote client est refuse ici.
   const cibleEnvoi = d.mode === "envoyer" ? await boiteCible(g, d.expediteur) : cibleMessage;
@@ -539,6 +542,7 @@ export async function preparerEnvoiAction(input: unknown): Promise<{
       emailId: d.emailId,
       coproCode: d.coproCode,
       boiteMessage: cibleMessage,
+      ...(lisible && !lisible.distribue ? { horsDistribution: true as const } : {}),
       ...(b.internetMessageId && b.conversationId ? { reponse: { internetMessageId: b.internetMessageId, conversationId: b.conversationId } } : {}),
       exp: Date.now() + DUREE_JETON_MS,
     });
@@ -571,10 +575,14 @@ export async function finaliserEnvoiAction(input: unknown): Promise<{ ok: boolea
   if (j.mode === "brouillon") return { ok: true, envoye: false };
   try {
     await envoyerBrouillonPrepare(j);
-    await noterRepondu(g, j.emailId, j.coproCode, j.boiteMessage);
-    // Répondre attribue le mail à celui qui répond, s'il n'est à personne (décision 5, ADR-053).
-    // Best-effort : ne lève jamais, une réponse partie ne doit pas sembler échouer.
-    await attribuerAuRepondant(g, j.boiteMessage, j.emailId);
+    // Un mail ouvert depuis « Échanges » hors de ma distribution (02/11/2026) : ni statut ni
+    // attribution, réservés aux mails distribués ; le marqueur « répondu » d'Outlook suffit.
+    if (!j.horsDistribution) {
+      await noterRepondu(g, j.emailId, j.coproCode, j.boiteMessage);
+      // Répondre attribue le mail à celui qui répond, s'il n'est à personne (décision 5, ADR-053).
+      // Best-effort : ne lève jamais, une réponse partie ne doit pas sembler échouer.
+      await attribuerAuRepondant(g, j.boiteMessage, j.emailId);
+    }
     const relance = v.data.relance
       ? await relancerApresEnvoi(g, { boite: j.boite, internetMessageId: j.reponse?.internetMessageId, conversationId: j.reponse?.conversationId, choix: v.data.relance })
       : undefined;
@@ -819,12 +827,14 @@ export async function transfererMailAction(input: unknown): Promise<Res<{ envoye
   if (!v.success) return echec(MOTIF_DESTINATAIRES);
   const d = v.data;
   if (d.a.length + d.cc.length > 50) return echec("Trop de destinataires (50 maximum).");
-  const cible = await boiteDuMail(g, d.boite, d.emailId);
-  if (!cible) return echec("Boîte non autorisée.");
+  // Aussi un mail ouvert depuis « Échanges » (02/11/2026, boiteDuMailLisible) : sans statut en base.
+  const lisible = await boiteDuMailLisible(g, d.boite, d.emailId);
+  if (!lisible) return echec("Boîte non autorisée.");
+  const cible = lisible.boite;
   try {
     const r = await transfererDepuis(g, cible, d.emailId, d);
     // Parti (pas un simple brouillon) : « répondu » en base, comme une réponse (REA-422).
-    if (r.envoye) await noterRepondu(g, d.emailId, "", cible);
+    if (r.envoye && lisible.distribue) await noterRepondu(g, d.emailId, "", cible);
     return { ok: true, donnees: r };
   } catch (e) {
     return echecDepuis(e, "mes-emails");

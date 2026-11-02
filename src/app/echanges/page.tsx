@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getGestionnaireCourant, estSuperAdmin, incarnationEnCours } from "@/lib/auth/session";
+import { getGestionnaireCourant, estSuperAdmin, incarnationEnCours, mailModuleActifPour } from "@/lib/auth/session";
 import {
   boitesDe,
   coprosEchanges,
@@ -143,7 +143,13 @@ export default async function EchangesPage({ searchParams }: { searchParams: Pro
               {resultat.adressesCopro !== null && ` · ${resultat.adressesCopro} adresse${resultat.adressesCopro > 1 ? "s" : ""} connue${resultat.adressesCopro > 1 ? "s" : ""} pour la copropriété`}
               {resultat.tronque && " · affichage limité aux plus récents : affinez par date ou par mot"}
             </p>
-            <EchangesVue echanges={resultat.echanges} plusieursBoites={cibles.length > 1} {...(critere.copro ? { coproParDefaut: critere.copro } : {})} />
+            <EchangesVue
+              echanges={resultat.echanges}
+              plusieursBoites={cibles.length > 1}
+              // « Répondre » dans l'écran E-mails (02/11/2026) : seulement si le module est ouvert à la personne.
+              repondre={mailModuleActifPour(g.email)}
+              {...(critere.copro ? { coproParDefaut: critere.copro } : {})}
+            />
           </>
         )}
       </Page>

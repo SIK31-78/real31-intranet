@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { destinatairesDeReponse, dossierOutlookSuggere, filtrerDossiers, grouperDossiersBoite, mailsDeLaBoite, nomDossierCopro, sujetDeReponse, type MailEntrant } from "./mes-emails";
+import { destinatairesDeReponse, destinatairesParDefaut, dossierOutlookSuggere, filtrerDossiers, grouperDossiersBoite, mailsDeLaBoite, nomDossierCopro, sujetDeReponse, type MailEntrant } from "./mes-emails";
 import { construireBoites, regrouperPartagees } from "./boites-mail";
 
 // Les regles de la reponse a un mail vivaient dans 1 500 lignes de JSX, sans test.
@@ -123,5 +123,23 @@ describe("mailsDeLaBoite : un onglet qui regroupe plusieurs boîtes (28/10/2026)
   it("sans regroupement, une boîte par onglet (comme avant)", () => {
     const boites = construireBoites("elsa@real31.fr", "syndic2@real31.fr,syndic4@real31.fr");
     expect(mailsDeLaBoite(mails, "syndic2@real31.fr", boites).map((m) => m.id)).toEqual(["s2"]);
+  });
+});
+
+// Répondre à un mail ENVOYÉ ouvert depuis « Échanges » (02/11/2026) : la réponse va aux
+// destinataires d'origine, jamais à la boîte elle-même.
+describe("destinatairesParDefaut", () => {
+  it("mail reçu : l'expéditeur en À, les autres en Cc, sans la boîte", () => {
+    expect(destinatairesParDefaut({ expediteurEmail: "client@ex.fr", destinataires: ["syndic4@real31.fr", "voisin@ex.fr"], copie: ["Syndic4@real31.fr"] }, "syndic4@real31.fr")).toEqual({
+      to: ["client@ex.fr"],
+      cc: ["voisin@ex.fr"],
+      cci: [],
+    });
+  });
+
+  it("mail envoyé par la boîte : ses destinataires d'origine (À en À, Cc en Cc)", () => {
+    expect(
+      destinatairesParDefaut({ expediteurEmail: "Syndic4@real31.fr", destinataires: ["cs@ex.fr", "syndic4@real31.fr"], copie: ["cs@ex.fr", "assistante@real31.fr"] }, "syndic4@real31.fr"),
+    ).toEqual({ to: ["cs@ex.fr"], cc: ["assistante@real31.fr"], cci: [] });
   });
 });

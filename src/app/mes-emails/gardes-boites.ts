@@ -15,6 +15,7 @@ import { estSuperAdmin } from "@/lib/auth/roles";
 import { incarnationEnCours } from "@/lib/auth/session";
 import { boiteAutorisee } from "@/lib/domain/boites-mail";
 import { boitesVisibles, mailDistribue } from "@/lib/services/mes-emails/boites-visibles";
+import { boiteLisibleEchanges, utilisateurEchanges } from "@/lib/services/echanges/rechercher";
 
 /**
  * `id` : celui de la personne, pour ses délégations de portefeuille (complément d'ADR-041).
@@ -58,6 +59,26 @@ export async function boiteDuMail(g: Personne, demandee: string | undefined, ema
   // dans les boites visibles que hors incarnation : tout son contenu m'est ouvert.
   if (boites.find((b) => b.id === cible)?.personnelle || estSuperAdmin(g.email)) return cible;
   return (await mailDistribue(g, cible, emailId)) ? cible : null;
+}
+
+/**
+ * « Répondre depuis Échanges » (décision Sekou du 02/11/2026, isolation par binôme assouplie
+ * pour CE chemin seulement) : la boîte d'un mail sur lequel on LIT (pièces jointes, images,
+ * historique, réponse envoyée) ou auquel on RÉPOND / qu'on TRANSFÈRE. Un mail distribué à mon
+ * binôme passe comme avant (boiteDuMail, `distribue`). Sinon (plus vieux que 90 jours, chez un
+ * autre binôme, rangé ou conclu) : la boîte doit être l'une de MES boîtes de l'écran E-mails
+ * (le « De » d'une réponse en dépend) ET une boîte que je peux fouiller dans « Échanges »
+ * (boitesVisibles / boiteAutorisee du domaine echanges, délégation comprise) : exactement le
+ * droit de lecture d'Échanges, rien de plus. Jamais pour Traité, attribuer, « Pas pour moi »,
+ * classer, BPO, facture… qui gardent boiteDuMail.
+ */
+export async function boiteDuMailLisible(g: Personne, demandee: string | undefined, emailId: string): Promise<{ boite: string; distribue: boolean } | null> {
+  const distribuee = await boiteDuMail(g, demandee, emailId);
+  if (distribuee) return { boite: distribuee, distribue: true };
+  const cible = cibleParmi(await boitesDe(g), demandee);
+  if (!cible) return null;
+  const u = await utilisateurEchanges(g, estSuperAdmin(g.email), await incarnationEnCours());
+  return u && boiteLisibleEchanges(u, cible) ? { boite: cible, distribue: false } : null;
 }
 
 /**

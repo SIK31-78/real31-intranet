@@ -73,6 +73,14 @@ export function echangesOuverts(u: Utilisateur | null): boolean {
   return u !== null && boitesDe(u).length > 0;
 }
 
+/**
+ * La boîte fait-elle partie de celles que la personne peut fouiller dans « Échanges » ? Sert aussi
+ * à « Répondre depuis Échanges » dans l'écran E-mails (décision Sekou du 02/11/2026) : même droit.
+ */
+export function boiteLisibleEchanges(u: Utilisateur, boite: string): boolean {
+  return boiteAutorisee(boite.trim().toLowerCase(), u, parAgence());
+}
+
 function garder(u: Utilisateur, boite: string): string {
   const b = boite.trim().toLowerCase();
   if (!boiteAutorisee(b, u, parAgence())) throw new AccesRefuse(`Accès refusé à la boîte ${b}.`);

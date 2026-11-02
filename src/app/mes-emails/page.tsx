@@ -4,7 +4,7 @@ import { getMesEmails } from "@/lib/services/mes-emails/get-mes-emails";
 import { getGestionnaireCourant, mailModuleActifPour, incarnationEnCours } from "@/lib/auth/session";
 import { estSuperAdmin } from "@/lib/auth/roles";
 import { AppShell } from "@/components/layout/app-shell";
-import { MesEmailsVue } from "@/components/mes-emails/mes-emails-vue";
+import { MesEmailsVue, type MailOuvert } from "@/components/mes-emails/mes-emails-vue";
 import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import { agenceDesModeles, modelesMailPour } from "@/lib/services/mes-emails/modeles-mail";
 import { facturesEstaleConfigurees } from "@/lib/services/mes-emails/transmettre-facture";
@@ -17,6 +17,10 @@ import { expediteursDeComposition } from "@/lib/services/mes-emails/composer-mai
 import { reformulationDisponible } from "@/lib/services/ia/reformuler-mail";
 import { equipeDeLEcran } from "@/lib/services/mes-emails/equipe-ecran";
 import { depotBpoActif } from "@/lib/services/mes-emails/depot-bpo";
+import { lireMailUnique } from "@/lib/services/mes-emails/lire-boites";
+import type { MesEmails } from "@/lib/domain/mes-emails";
+import type { Gestionnaire } from "@/lib/domain/gestionnaire";
+import { boiteDuMailLisible } from "./gardes-boites";
 
 export const metadata: Metadata = { title: "E-mails - REAL31 Intranet" };
 
@@ -32,13 +36,37 @@ function plafondPerso(plus: string | undefined): number {
   return Number.isFinite(n) ? Math.min(Math.max(Math.trunc(n), 40), 200) : 40;
 }
 
-export default async function MesEmailsPage({ searchParams }: { searchParams: Promise<{ plus?: string }> }) {
+/**
+ * « Répondre » depuis « Échanges » (décision Sekou du 02/11/2026) : /mes-emails?boite=…&mail=…
+ * ouvre ce mail, même absent de la liste (pas distribué à mon binôme, plus vieux, rangé, conclu,
+ * ou envoyé), si la boîte est l'une de mes boîtes de l'écran ET que je peux la fouiller dans
+ * « Échanges » (boiteDuMailLisible). Lecture seule ici : rien n'est écrit.
+ */
+async function mailDepuisEchanges(g: Gestionnaire, boite: string | undefined, mid: string, data: MesEmails): Promise<MailOuvert> {
+  const lisible = await boiteDuMailLisible(g, boite, mid);
+  if (!lisible) return { erreur: "Ce mail n'est pas dans une boîte que vous pouvez lire ici : répondez depuis Outlook." };
+  const present = data.mails.find((m) => m.id === mid && m.boite === lisible.boite);
+  if (present) return { mail: present, distribue: lisible.distribue };
+  const b = data.boites.find((x) => x.id === lisible.boite);
+  if (!b) return { erreur: "Cette boîte n'est pas affichée dans l'écran E-mails : répondez depuis Outlook." };
+  try {
+    const mail = await lireMailUnique(g, b, mid);
+    return mail ? { mail, distribue: lisible.distribue } : { erreur: "Ce mail n'est plus dans la boîte (supprimé ou déplacé ailleurs)." };
+  } catch {
+    return { erreur: "Ce mail n'a pas pu être lu dans la boîte. Réessayez, ou répondez depuis Outlook." };
+  }
+}
+
+export default async function MesEmailsPage({ searchParams }: { searchParams: Promise<{ plus?: string; boite?: string; mail?: string }> }) {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
   // Module grise en prod tant que la vraie boite n'est pas branchee (MAIL_SOURCE=graph),
   // et reserve aux pilotes si MAIL_PILOTES est pose (deploiement pilote).
   if (!mailModuleActifPour(g.email)) redirect("/accueil");
-  const maxPerso = plafondPerso((await searchParams).plus);
+  const sp = await searchParams;
+  const maxPerso = plafondPerso(sp.plus);
+  const mid = typeof sp.mail === "string" && sp.mail.trim() && sp.mail.length <= 600 ? sp.mail.trim() : null;
+  const boiteDemandee = typeof sp.boite === "string" && sp.boite.length <= 320 ? sp.boite : undefined;
   // PILOTE (16/10/2026) : le 15/10, un changement d'affichage de cet écran mis en prod sans
   // avoir été vu a fait appeler toute l'agence. Toute nouveauté visible passe d'abord par
   // le super-admin ; les actions serveur de ces nouveautés refusent aussi les autres.
@@ -61,6 +89,7 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
     getSignatureGestionnaire(g),
     modelesMailPour(agencePersonne),
   ]);
+  const mailOuvert = mid ? await mailDepuisEchanges(g, boiteDemandee, mid, data) : null;
   // Boîte d'équipe (ADR-053) : attribution, notes, attente des mails affichés, relances dues.
   // Sans les tables : inactive, l'écran se comporte comme avant.
   const equipe = await equipeDeLEcran({ ...(g.email ? { email: g.email } : {}), ...(g.role ? { role: g.role } : {}) }, data.mails, data.boites);
@@ -95,7 +124,10 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
           </form>
         </div>
         <MesEmailsVue
+          // Un autre mail ouvert depuis « Échanges » : l'écran repart de lui.
+          key={mid ? `mail:${boiteDemandee ?? ""}|${mid}` : "boites"}
           data={data}
+          mailOuvert={mailOuvert}
           signatureHtml={signatureHtml}
           adresseFactures={facturesEstaleConfigurees() ? "la boîte factures ESTALE de l'agence de la copropriété" : null}
           agence={agence}

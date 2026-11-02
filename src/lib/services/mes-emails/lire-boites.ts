@@ -265,38 +265,81 @@ export async function lireBoitesLive(
     const idx = idxAffaireDe.get(m.id);
     const aff = idx !== undefined ? affaires[idx] : undefined;
     const filMultiple = (aff?.mails.length ?? 1) > 1;
-    const corps = cleanBody(m);
-    return {
-      id: m.internetMessageId || m.id,
+    return versCarte(m, {
       boite: boiteDe.get(m.id) ?? boites[0]!.id,
       ...(pourDe.has(m.id) ? { pour: pourDe.get(m.id)! } : {}),
-      ...(m.conversationId ? { conversationId: m.conversationId } : {}),
-      de: m.fromName || nomCourt(m.from),
-      // L'adresse réelle, même d'un collègue : on doit pouvoir lui répondre (comme Outlook).
-      expediteurEmail: m.from,
-      destinataires: m.to,
-      copie: (m.ccDetail ?? []).map((c) => c.adresse),
-      ...(m.toDetail?.length ? { destinatairesDetail: m.toDetail } : {}),
-      ...(m.ccDetail?.length ? { copieDetail: m.ccDetail } : {}),
-      ...(reponseDepuisVerbe(m.dernierVerbe) ? { reponseOutlook: reponseDepuisVerbe(m.dernierVerbe)! } : {}),
-      ...(m.replyTo?.length && m.replyTo.some((r) => r.adresse.toLowerCase() !== m.from.toLowerCase()) ? { repondreA: m.replyTo } : {}),
-      objet: m.subject || "(sans objet)",
-      date: jourDe(m.receivedAt),
-      recuLe: m.receivedAt,
-      coproCode: m.copro,
+      lu: luDe.get(m.id) ?? false,
       coproNom: coproNomDe(m.copro),
       ...(coproAdresseDe(m.copro) ? { coproAdresse: coproAdresseDe(m.copro)! } : {}),
-      lu: luDe.get(m.id) ?? false,
-      corps: corps || "(corps vide)",
-      attachments: significantAttachments(m).map((x) => ({ nom: x.name })),
-      type: "autre",
       rattachement: {
         statut: filMultiple ? "existant" : "nouveau",
         dossierId: idx !== undefined ? `S${idx + 1}` : `N-${m.id}`,
         dossierLabel: aff?.label ?? (m.subject || "(sans objet)"),
       },
-    };
+    });
   });
 
   return { mails, nbMailsAnalyses: bruts.length, plusDeMails, erreurs, horsListe, traitesAujourdhui };
+}
+
+/** La carte de l'écran pour un mail brut, son contexte (boîte, lu, copro, fil) déjà résolu. */
+function versCarte(
+  m: RawMail,
+  c: { boite: string; pour?: string; lu: boolean; coproNom: string; coproAdresse?: string; rattachement: MailEntrant["rattachement"] },
+): MailEntrant {
+  const corps = cleanBody(m);
+  return {
+    id: m.internetMessageId || m.id,
+    boite: c.boite,
+    ...(c.pour ? { pour: c.pour } : {}),
+    ...(m.conversationId ? { conversationId: m.conversationId } : {}),
+    de: m.fromName || nomCourt(m.from),
+    // L'adresse réelle, même d'un collègue : on doit pouvoir lui répondre (comme Outlook).
+    expediteurEmail: m.from,
+    destinataires: m.to,
+    copie: (m.ccDetail ?? []).map((x) => x.adresse),
+    ...(m.toDetail?.length ? { destinatairesDetail: m.toDetail } : {}),
+    ...(m.ccDetail?.length ? { copieDetail: m.ccDetail } : {}),
+    ...(reponseDepuisVerbe(m.dernierVerbe) ? { reponseOutlook: reponseDepuisVerbe(m.dernierVerbe)! } : {}),
+    ...(m.replyTo?.length && m.replyTo.some((r) => r.adresse.toLowerCase() !== m.from.toLowerCase()) ? { repondreA: m.replyTo } : {}),
+    objet: m.subject || "(sans objet)",
+    date: jourDe(m.receivedAt),
+    recuLe: m.receivedAt,
+    coproCode: m.copro,
+    coproNom: c.coproNom,
+    ...(c.coproAdresse ? { coproAdresse: c.coproAdresse } : {}),
+    lu: c.lu,
+    corps: corps || "(corps vide)",
+    attachments: significantAttachments(m).map((x) => ({ nom: x.name })),
+    type: "autre",
+    rattachement: c.rattachement,
+  };
+}
+
+/**
+ * UN mail, absent de la liste, ouvert depuis « Échanges » pour y répondre (décision Sekou du
+ * 02/11/2026) : reçu ou envoyé, distribué ou non, rangé ou conclu, il est relu dans toute la
+ * boîte par son internetMessageId. La garde (droit de lecture d'Échanges) est faite par
+ * l'appelant. Copro : le moteur du tri quand il est sûr, sinon aucune. Aucune écriture (le
+ * « lu » n'est pas posé). null : le mail n'est plus dans la boîte.
+ */
+export async function lireMailUnique(g: Gestionnaire, boite: BoiteMail, internetMessageId: string): Promise<MailEntrant | null> {
+  const ingestion = getMailIngestionProvider();
+  if (!ingestion.lireParIds) return null;
+  const [m] = await ingestion.lireParIds(boite.adresse, [internetMessageId]);
+  if (!m) return null;
+  const referentiel = await agencesDuReferentiel(g, [boite])
+    .then((agences) => getReferentielTriProvider(agences).charger())
+    .catch((): ReferentielTri | null => null);
+  const s = referentiel ? suggererCopro({ deAdresse: m.from, objet: m.subject, apercu: m.bodyText.slice(0, 4000) }, referentiel) : null;
+  m.copro = s?.nature === "sure" ? s.candidats[0]! : "";
+  const copro = m.copro ? referentiel?.copros.find((c) => (cleDeReference(c.reference) ?? c.reference) === (cleDeReference(m.copro) ?? m.copro)) : undefined;
+  return versCarte(m, {
+    boite: boite.id,
+    ...(boite.pour ? { pour: boite.pour } : {}),
+    lu: true,
+    coproNom: copro?.nom ?? (m.copro || "Non rattaché"),
+    ...(copro?.adresse ? { coproAdresse: copro.adresse } : {}),
+    rattachement: { statut: "nouveau", dossierId: `N-${m.id}`, dossierLabel: m.subject || "(sans objet)" },
+  });
 }

@@ -282,6 +282,29 @@ export function sujetDeReponse(m: Pick<MailEntrant, "objet"> & Partial<Pick<Mail
 
 const PREFIXE_REPONSE = /^(re|ré|tr|fwd?)\s*:\s*/i;
 
+/**
+ * Destinataires par défaut d'une réponse dans l'écran E-mails, vus depuis la boîte qui détient
+ * le mail (`boite`) : À = l'expéditeur ; Cc = les autres participants, sans l'expéditeur ni la
+ * boîte elle-même ; Cci vide. Mail ENVOYÉ par la boîte (ouvert depuis « Échanges », décision
+ * Sekou du 02/11/2026) : répondre, c'est écrire de nouveau aux destinataires d'origine, pas à
+ * la boîte : leurs À restent en À, leurs Cc en Cc (reconstruits ici plutôt que par
+ * createReplyAll : le PATCH du brouillon pose de toute façon les destinataires, et l'écran les
+ * montre avant l'envoi).
+ */
+export function destinatairesParDefaut(m: Pick<MailEntrant, "expediteurEmail" | "destinataires" | "copie">, boite: string): Destinataires {
+  const moi = boite.trim().toLowerCase();
+  const exp = (m.expediteurEmail || "").trim();
+  const propres = (l: string[], sauf: string[]) => [
+    ...new Set(l.map((e) => e.trim()).filter((e) => e.includes("@") && !sauf.includes(e.toLowerCase()))),
+  ];
+  if (moi && exp.toLowerCase() === moi) {
+    const to = propres(m.destinataires, [moi]);
+    return { to, cc: propres(m.copie, [moi, ...to.map((e) => e.toLowerCase())]), cci: [] };
+  }
+  const to = exp.includes("@") ? [exp] : [];
+  return { to, cc: propres([...m.destinataires, ...m.copie], [exp.toLowerCase(), moi]), cci: [] };
+}
+
 /** Destinataires par defaut : A = l'expediteur ; Cc = To + Cc d'origine dedupliques, sans l'expediteur ; Cci vide. */
 export function destinatairesDeReponse(m: Pick<MailEntrant, "expediteurEmail" | "destinataires" | "copie">): Destinataires {
   const exp = (m.expediteurEmail || "").trim();

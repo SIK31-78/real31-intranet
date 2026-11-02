@@ -103,3 +103,19 @@ describe("finaliserEnvoiAction : relance posée à l'envoi", () => {
     expect(services.relancerApresEnvoi).not.toHaveBeenCalled();
   });
 });
+
+// « Répondre depuis Échanges » (02/11/2026) : la réponse à un mail non distribué part, sans
+// attribution ni statut en base (réservés aux mails distribués).
+describe("finaliserEnvoiAction : mail ouvert depuis Échanges hors distribution", () => {
+  it("la réponse part, sans attribution", async () => {
+    etat.jeton = { ...jetonEnvoi("envoyer"), horsDistribution: true };
+    expect(await finaliserEnvoiAction({ jeton: "x" })).toEqual({ ok: true, envoye: true });
+    expect(services.envoyerBrouillonPrepare).toHaveBeenCalled();
+    expect(services.attribuerAuRepondant).not.toHaveBeenCalled();
+  });
+
+  it("un mail distribué : attribué à celui qui répond, comme avant", async () => {
+    await finaliserEnvoiAction({ jeton: "x" });
+    expect(services.attribuerAuRepondant).toHaveBeenCalled();
+  });
+});

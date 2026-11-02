@@ -41,6 +41,7 @@ import type {
   Rattachement,
 } from "@/lib/domain/mes-emails";
 import {
+  destinatairesParDefaut,
   dossierOutlookSuggere,
   libelleCorrespondant,
   nomDossierCopro,
@@ -139,16 +140,18 @@ type Statut = "nouveau" | "repondu" | "classe";
 type Destinataires = { to: string[]; cc: string[]; cci: string[] };
 
 // Destinataires par defaut d'une reponse : A = l'expediteur ; Cc = les autres
-// participants (To + Cc d'origine, dedupliques, sans l'expediteur) ; Cci vide.
+// participants (To + Cc d'origine, dedupliques, sans l'expediteur) ; Cci vide. Un mail ENVOYE
+// par la boite (ouvert depuis « Échanges », 02/11/2026) : ses destinataires d'origine.
 function defautDestinataires(m: MailEntrant): Destinataires {
-  const exp = (m.expediteurEmail || "").trim();
-  const to = exp.includes("@") ? [exp] : [];
-  const moi = (m.boite ?? "").toLowerCase();
-  const autres = [...m.destinataires, ...m.copie]
-    .map((e) => e.trim())
-    .filter((e) => e.includes("@") && e.toLowerCase() !== exp.toLowerCase() && e.toLowerCase() !== moi);
-  return { to, cc: [...new Set(autres)], cci: [] };
+  return destinatairesParDefaut(m, m.boite ?? "");
 }
+
+/**
+ * Un mail ouvert depuis « Échanges » (« Répondre », décision Sekou du 02/11/2026), lu par la page
+ * (/mes-emails?boite=…&mail=…) : épinglé dans la liste de sa boîte et affiché. `distribue` faux :
+ * pas distribué à mon binôme, on peut le lire, y répondre et le transférer, rien d'autre.
+ */
+export type MailOuvert = { mail: MailEntrant; distribue: boolean } | { erreur: string };
 
 /** Un mail sans état d'équipe connu : non attribué, sans note, sans attente. */
 function etatVide(id: string): EtatEquipeComplet {
@@ -203,7 +206,8 @@ function formatTaille(octets: number): string {
 }
 
 export function MesEmailsVue({
-  data,
+  data: dataServeur,
+  mailOuvert,
   signatureHtml,
   adresseFactures = null,
   maxPerso = 40,
@@ -217,6 +221,8 @@ export function MesEmailsVue({
 }: {
   /** « Pour BPO » proposé : faux tant que le dépôt SharePoint est coupé (calculé par la page, 02/11/2026). */
   depotBpo?: boolean;
+  /** Mail ouvert depuis « Échanges » pour y répondre (02/11/2026), ou pourquoi il ne s'ouvre pas. */
+  mailOuvert?: MailOuvert | null;
   /** « Reformuler » proposé dans la réponse et le transfert (ADR-051). */
   reformulation?: boolean;
   /** Boîte d'équipe (ADR-053) : attribution, notes, attente ; inactive sans les tables. */
@@ -240,8 +246,17 @@ export function MesEmailsVue({
   // on en regarde une a la fois. Par defaut la BOITE DE TRAVAIL (le binome, P6 de l'audit UX,
   // 29/10/2026 : un clic de moins a chaque arrivee), sinon la perso ; le dernier onglet choisi
   // l'emporte (garde dans le navigateur).
-  const boiteParDefaut =
-    ongletsDe(data.boites).find((b) => !b.personnelle)?.id ?? data.boites.find((b) => b.personnelle)?.id ?? data.boites[0]?.id ?? "";
+  // Le mail ouvert depuis « Échanges » (02/11/2026) rejoint la liste de sa boîte s'il n'y est pas.
+  const epingle = mailOuvert && "mail" in mailOuvert ? mailOuvert.mail : null;
+  const data = useMemo<MesEmails>(
+    () => (epingle && !dataServeur.mails.some((m) => m.id === epingle.id && m.boite === epingle.boite) ? { ...dataServeur, mails: [epingle, ...dataServeur.mails] } : dataServeur),
+    [dataServeur, epingle],
+  );
+  /** Ouvert depuis « Échanges » sans m'être distribué : lecture, réponse, transfert seulement. */
+  const horsDistribution = (m: MailEntrant) => Boolean(mailOuvert && "mail" in mailOuvert && !mailOuvert.distribue && m.id === mailOuvert.mail.id);
+  const boiteParDefaut = epingle
+    ? ongletDe(data.boites, epingle.boite ?? "")
+    : ongletsDe(data.boites).find((b) => !b.personnelle)?.id ?? data.boites.find((b) => b.personnelle)?.id ?? data.boites[0]?.id ?? "";
   const [boiteActive, setBoiteActive] = useState<string>(boiteParDefaut);
   const toast = useToast();
   const confirmer = useConfirm();
@@ -255,7 +270,7 @@ export function MesEmailsVue({
     [data.mails, data.boites, boiteActive],
   );
   const mailsTries = useMemo(() => trierMails(mailsBoite), [mailsBoite]);
-  const [selId, setSelId] = useState<string>(mailsTries[0]?.id ?? "");
+  const [selId, setSelId] = useState<string>(epingle?.id ?? mailsTries[0]?.id ?? "");
   // `m.lu` = lu dans Outlook OU dans l'intranet (REA-422), relu à chaque actualisation ; `lus` =
   // ouverts ici pendant cette session.
   const [lus, setLus] = useState<Set<string>>(() => new Set());
@@ -690,10 +705,12 @@ export function MesEmailsVue({
   // le 29/10/2026 ; un ancien cookie real31_emails_internes n'est plus lu et expirera seul).
   const visibles = mailsTries.filter(
     (m) =>
-      !partis.has(m.id) &&
+      // Le mail ouvert depuis « Échanges » reste affiché, même traité ou conclu (02/11/2026).
+      (vue === "a_traiter" && m.id === epingle?.id) ||
+      (!partis.has(m.id) &&
       !classes.has(m.id) &&
       dansLaVue(m) &&
-      (q === "" || `${m.objet} ${m.de} ${m.coproCode} ${m.coproNom}`.toLowerCase().includes(q)),
+      (q === "" || `${m.objet} ${m.de} ${m.coproCode} ${m.coproNom}`.toLowerCase().includes(q))),
   );
   // Combien attendent dans l'onglet (le libellé de la vue « En attente »).
   const nbEnAttente = equipe.actif ? mailsTries.filter((m) => !partis.has(m.id) && !classes.has(m.id) && etatEquipeDe(m.id)?.horsATraiter).length : 0;
@@ -790,13 +807,14 @@ export function MesEmailsVue({
     const onglet = lireLocal(CLE_ONGLET);
     const f = lireLocal(CLE_FILTRE);
     queueMicrotask(() => {
-      if (onglet && onglet !== boiteActive && ongletsDe(data.boites).some((b) => b.id === onglet)) {
+      // Un mail ouvert depuis « Échanges » garde sa boîte (02/11/2026).
+      if (onglet && !epingle && onglet !== boiteActive && ongletsDe(data.boites).some((b) => b.id === onglet)) {
         setBoiteActive(onglet);
         setSelId("");
       }
       if (f === "a-moi" || f === "tous") setFiltre(f);
     });
-  }, [boiteActive, data.boites]);
+  }, [boiteActive, data.boites, epingle]);
   function choisirFiltre(f: FiltreAttribution) {
     ecrireLocal(CLE_FILTRE, f);
     setFiltre(f);
@@ -1203,6 +1221,7 @@ export function MesEmailsVue({
 
   return (
     <div className="flex flex-col gap-3">
+      {mailOuvert && "erreur" in mailOuvert ? <Callout ton="warn">{mailOuvert.erreur}</Callout> : null}
       {/* Barre unique : la boîte affichée (onglets), la recherche, les vues. */}
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -1394,6 +1413,12 @@ export function MesEmailsVue({
 
         {/* Volet droit : recommandation + detail */}
         <section className="flex-1 min-w-0">
+          {selection && horsDistribution(selection) ? (
+            <Callout ton="info" className="mb-3">
+              Ouvert depuis « Échanges » : ce mail n&apos;est pas distribué à votre binôme. Vous pouvez le lire, y répondre ou le
+              transférer ; « Traité », l&apos;attribution, « Pas pour moi » et le classement restent à ceux à qui il est distribué.
+            </Callout>
+          ) : null}
           {selection ? (
             <AnalysePane
               m={selection}
@@ -1555,7 +1580,7 @@ export function MesEmailsVue({
                 ? { onSupprimer: () => void supprimerMail(selection), suppressionEnCours }
                 : {})}
               onToggleSection={toggleSection}
-              {...(equipe.actif && partageeDuMail(selection)
+              {...(equipe.actif && partageeDuMail(selection) && !horsDistribution(selection)
                 ? {
                     actionsAttribution: (
                       <BoutonsAttribution
@@ -1585,7 +1610,7 @@ export function MesEmailsVue({
                     ...(incarnation ? {} : { onNoteInterne: () => setAjoutNote(true), notesComptabilite: () => majEquipe(selection.id, (e) => ({ ...e, notes: e.notes + 1 })) }),
                   }
                 : {})}
-              {...(equipe.actif
+              {...(equipe.actif && !horsDistribution(selection)
                 ? {
                     actionsAttente: etatEquipeDe(selection.id)?.horsATraiter ? (
                       <Button size="sm" onClick={() => void reprendreMail(selection)} title="Le mail revient dans « À traiter »">
