@@ -386,7 +386,14 @@ function FileVue({
               >
                 <span className="font-medium text-ink truncate">{m.deNom}</span>
                 <span className="font-mono text-meta text-ink-3 tabular-nums">{heure(m.recuLe)}</span>
-                <span className="col-span-2 text-ink-2 truncate">{m.objet}</span>
+                {/* Trombone (02/11/2026) : `hasAttachments` de Graph, qui ignore les pièces « inline »
+                    (images de signature) ; une image de signature jointe en pièce normale l'allume. */}
+                <span className="col-span-2 flex items-center gap-1.5 min-w-0">
+                  <span className="text-ink-2 truncate">{m.objet}</span>
+                  {m.aPiecesJointes && (
+                    <Paperclip strokeWidth={1.75} className="w-3.5 h-3.5 shrink-0 text-ink-3" aria-label="Pièce jointe" />
+                  )}
+                </span>
                 <span className="col-span-2 mt-1 flex flex-wrap gap-1.5">
                   {m.interne && <Badge ton="err">Interne</Badge>}
                   {!m.interne && m.corbeille && <Badge ton="err">{LIBELLE_CORBEILLE[m.corbeille]}</Badge>}
