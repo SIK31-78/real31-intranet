@@ -9,7 +9,7 @@ vi.mock("@/lib/adapters/router", () => ({
   getReferentielTriProvider: () => null,
 }));
 
-const { cibleBpo, deposerPourBpo } = await import("./depot-bpo");
+const { cibleBpo, deposerPourBpo, depotBpoActif } = await import("./depot-bpo");
 
 // L'arborescence lue dans SharePoint, le lundi 02/11/2026 à 15 h (Paris).
 const ARBRE: Record<string, string[]> = {
@@ -89,5 +89,13 @@ describe("deposerPourBpo", () => {
     const { deps: d, deposes } = deps({ ecriture: false });
     expect(await deposerPourBpo(demande, d)).toMatchObject({ ok: false });
     expect(deposes).toHaveLength(0);
+  });
+});
+
+// 02/11/2026 (décision Sekou) : le lien « Pour BPO » n'est proposé que si l'écriture est ouverte.
+describe("depotBpoActif", () => {
+  it("suit l'écriture du port (SHAREPOINT_DEPOT_ACTIF)", () => {
+    expect(depotBpoActif(deps({ ecriture: false }).deps.depot)).toBe(false);
+    expect(depotBpoActif(deps({ ecriture: true }).deps.depot)).toBe(true);
   });
 });

@@ -47,6 +47,15 @@ export interface DepsBpo {
 
 const depsParDefaut = (): DepsBpo => ({ depot: getDepotBpoProvider(), copro: coproDuReferentiel, maintenant: () => new Date() });
 
+/**
+ * « Pour BPO » proposé dans l'écran (02/11/2026, décision Sekou : mis de côté tant que le dépôt
+ * est coupé) : seulement si l'écriture SharePoint est ouverte (SHAREPOINT_DEPOT_ACTIF=1, Graph
+ * branché). Calculé côté serveur par la page ; le code du dépôt reste en place.
+ */
+export function depotBpoActif(depot: DepotBpoProvider = getDepotBpoProvider()): boolean {
+  return depot.ecritureActive;
+}
+
 /** Le dossier daté et ses chemins, ou le motif lisible. */
 async function dossierDate(depot: DepotBpoProvider, agence: string, maintenant: Date): Promise<{ ok: true; d: DossierDate } | { ok: false; motif: string }> {
   const aujourdhui = jourDeParis(maintenant);

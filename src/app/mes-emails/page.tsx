@@ -16,6 +16,7 @@ import { ChiffreTitre } from "@/components/mes-emails/chiffre-a-traiter";
 import { expediteursDeComposition } from "@/lib/services/mes-emails/composer-mail";
 import { reformulationDisponible } from "@/lib/services/ia/reformuler-mail";
 import { equipeDeLEcran } from "@/lib/services/mes-emails/equipe-ecran";
+import { depotBpoActif } from "@/lib/services/mes-emails/depot-bpo";
 
 export const metadata: Metadata = { title: "E-mails - REAL31 Intranet" };
 
@@ -104,6 +105,7 @@ export default async function MesEmailsPage({ searchParams }: { searchParams: Pr
           reformulation={reformulation}
           equipe={equipe}
           incarnation={incarnation}
+          depotBpo={depotBpoActif()}
         />
       </Page>
     </AppShell>

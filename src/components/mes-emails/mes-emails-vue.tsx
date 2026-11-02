@@ -213,7 +213,10 @@ export function MesEmailsVue({
   reformulation = false,
   equipe = EQUIPE_INACTIVE,
   incarnation = false,
+  depotBpo = false,
 }: {
+  /** « Pour BPO » proposé : faux tant que le dépôt SharePoint est coupé (calculé par la page, 02/11/2026). */
+  depotBpo?: boolean;
   /** « Reformuler » proposé dans la réponse et le transfert (ADR-051). */
   reformulation?: boolean;
   /** Boîte d'équipe (ADR-053) : attribution, notes, attente ; inactive sans les tables. */
@@ -1440,6 +1443,7 @@ export function MesEmailsVue({
               piecesJointes={pjParMail.get(selection.id) ?? null}
               onTelecharger={(pj) => void telechargerPj(selection, pj)}
               onApercu={(pj) => void voirPj(selection, pj)}
+              depotBpo={depotBpo}
               {...(adresseFactures
                 ? { adresseFactures, onTransmettreFacture: (f: { compte: string; fournisseur: string; libelle: string }) => transmettreFactureMail(selection, f) }
                 : {})}
@@ -2174,6 +2178,7 @@ function AnalysePane({
   modeles,
   onTelecharger,
   onApercu,
+  depotBpo,
   adresseFactures,
   onTransmettreFacture,
   pjJointes,
@@ -2264,6 +2269,8 @@ function AnalysePane({
   modeles: ModeleMail[];
   onTelecharger: (pj: PieceJointeRef) => void;
   onApercu: (pj: PieceJointeRef) => void;
+  /** « Pour BPO » affiché seulement si le dépôt SharePoint est ouvert (02/11/2026). */
+  depotBpo: boolean;
   adresseFactures?: string;
   onTransmettreFacture?: (f: { compte: string; fournisseur: string; libelle: string }) => Promise<void>;
   pjJointes: Set<string>;
@@ -2772,8 +2779,9 @@ function AnalysePane({
           {m.attachments.length > 0 && adresseFactures && onTransmettreFacture && (
             <TransmettreFacture destinataire={adresseFactures} coproChoisie={Boolean(coproCode)} onTransmettre={onTransmettreFacture} />
           )}
-          {/* « Pour BPO » (02/11/2026) : déposer des pièces dans le dossier daté de la compta. */}
-          {m.attachments.length > 0 && piecesJointes && piecesJointes.length > 0 ? (
+          {/* « Pour BPO » (02/11/2026) : déposer des pièces dans le dossier daté de la compta.
+              Masqué tant que le dépôt est coupé (décision Sekou du 02/11/2026). */}
+          {depotBpo && m.attachments.length > 0 && piecesJointes && piecesJointes.length > 0 ? (
             <PourBpo key={`bpo-${m.id}`} boite={boiteDuMail} emailId={m.id} coproCode={coproCode} piecesJointes={piecesJointes} />
           ) : null}
           {(statut === "repondu" || m.reponseOutlook === "repondu") && <ReponseEnvoyee key={`reponse-${m.id}`} emailId={m.id} boite={boiteDuMail} />}
