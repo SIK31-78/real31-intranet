@@ -101,6 +101,20 @@ export class GraphRechercheMail implements RechercheMailProvider {
     return out.slice(0, max);
   }
 
+  async brouillons(p: { boite: string; max: number }): Promise<EchangeTrouve[]> {
+    const tk = await jetonGraph();
+    // Le dossier par son nom connu (drafts), une page : l'écran n'en montre que les derniers.
+    const max = Math.min(Math.max(Math.trunc(p.max), 1), ENVOYES_PAR_PAGE);
+    const url =
+      `${GRAPH}/users/${encodeURIComponent(p.boite)}/mailFolders/drafts/messages` +
+      `?$orderby=${encodeURIComponent("lastModifiedDateTime desc")}&$top=${max}&$select=${SELECT},lastModifiedDateTime`;
+    const r = await graphFetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+    if (r.status === 403 || r.status === 404) throw new BoiteNonLisible(p.boite);
+    if (!r.ok) throw new Error(`Graph brouillons ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    const j = (await r.json()) as { value?: (GraphMessage & { lastModifiedDateTime?: string })[] };
+    return (j.value ?? []).slice(0, max).map((m) => ({ ...versEchange(p.boite, m), date: m.lastModifiedDateTime ?? m.receivedDateTime }));
+  }
+
   async lireCorps(p: { boite: string; id: string }): Promise<string> {
     const tk = await jetonGraph();
     const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${encodeURIComponent(p.id)}?$select=body`, {

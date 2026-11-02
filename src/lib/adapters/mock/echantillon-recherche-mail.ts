@@ -55,6 +55,11 @@ export class EchantillonRechercheMail implements RechercheMailProvider {
       .slice(0, p.max);
   }
 
+  async brouillons(): Promise<EchangeTrouve[]> {
+    // Pas de brouillon dans l'échantillon : la vue « Brouillons » s'affiche vide hors Graph.
+    return [];
+  }
+
   async lireCorps(p: { id: string }): Promise<string> {
     return ECHANTILLON.find((e) => e.id === p.id)?.apercu ?? "";
   }

@@ -101,6 +101,7 @@ import { deposerFichier } from "./deposer-fichier";
 import { NB_MAX_FICHIERS, TAILLE_MAX_FICHIER, TAILLE_MAX_TOTALE, typePieceJointe, urlPieceJointe } from "@/lib/domain/piece-jointe-flux";
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { EnvoyesVue } from "./envoyes-vue";
+import { BrouillonsVue } from "./brouillons-vue";
 import { TransfererMail } from "./transferer-mail";
 import { ecrireDansLaReponse } from "./focus-reponse";
 import { BoutonJoindre, EditeurRiche, LigneSousChamp } from "./editeur-riche";
@@ -422,7 +423,7 @@ export function MesEmailsVue({
   // Destinataires editables de la reponse (A / Cc / Cci), par mail.
   // « Envoyés » (REA-341) : vue en pilote, lecture seule du dossier Éléments envoyés.
   // « En attente » (ADR-053) : les mails mis de côté ou en attente datée, pour les reprendre.
-  const [vue, setVue] = useState<"a_traiter" | "attente" | "envoyes">("a_traiter");
+  const [vue, setVue] = useState<"a_traiter" | "attente" | "envoyes" | "brouillons">("a_traiter");
   // Onglet « À moi » de la boîte de travail (décision 5) ; « tous » = l'onglet « À traiter ».
   // Une seule rangée d'onglets (29/10/2026) : À traiter, À moi, En attente, Envoyés.
   const [filtre, setFiltre] = useState<FiltreAttribution>("tous");
@@ -695,7 +696,9 @@ export function MesEmailsVue({
   // Le chiffre de la boîte affichée (boîte de travail seulement) : « À traiter N » et « À moi N ».
   const chiffreOnglet = ongletDeTravail ? chiffreATraiter(data.mails, data.boites, sortis, { ...optsChiffre, onglet: boiteActive }) : null;
   // L'onglet de la rangée unique : « À moi » est « À traiter » filtré sur moi.
-  const ongletVue: "a_traiter" | "a_moi" | "attente" | "envoyes" = vue === "a_traiter" && filtreActif && filtre === "a-moi" ? "a_moi" : vue;
+  // « Brouillons » (02/11/2026) : ma boîte perso, pas celle d'un titulaire ouverte par délégation.
+  const brouillonsPossibles = pilote && data.boites.some((b) => b.id === boiteActive && b.personnelle && !b.pour);
+  const ongletVue: "a_traiter" | "a_moi" | "attente" | "envoyes" | "brouillons" = vue === "a_traiter" && filtreActif && filtre === "a-moi" ? "a_moi" : vue;
   // Les relances dues de l'onglet, filtrées comme les mails (À moi : les miennes).
   const relancesOnglet = relancesActives.filter(
     (r) => ongletDe(data.boites, r.boite) === boiteActive && (!filtreActif || passeLeFiltre(filtre, r.parEmail, moi)),
@@ -770,6 +773,8 @@ export function MesEmailsVue({
     setMsgBrouillon(null);
     setMsgClasser(null);
     setCoches(new Set());
+    // Les brouillons ne valent que pour ma boîte perso (02/11/2026) : on revient à « À traiter ».
+    if (vue === "brouillons") setVue("a_traiter");
   }
 
   // Le dernier onglet et le dernier filtre choisis (navigateur), relus une fois après le premier
@@ -792,7 +797,7 @@ export function MesEmailsVue({
     ecrireLocal(CLE_FILTRE, f);
     setFiltre(f);
   }
-  function choisirOnglet(v: "a_traiter" | "a_moi" | "attente" | "envoyes") {
+  function choisirOnglet(v: "a_traiter" | "a_moi" | "attente" | "envoyes" | "brouillons") {
     if (v === "a_traiter" || v === "a_moi") {
       setVue("a_traiter");
       choisirFiltre(v === "a_moi" ? "a-moi" : "tous");
@@ -1181,7 +1186,7 @@ export function MesEmailsVue({
 
   function passerAuSuivant(m: MailEntrant) {
     // Enchaînement : on passe au mail suivant, le courant sort de la liste.
-    if (vue === "envoyes") return;
+    if (vue === "envoyes" || vue === "brouillons") return;
     const idx = visibles.findIndex((x) => x.id === m.id);
     const suivant =
       visibles.slice(idx + 1).find((x) => x.id !== m.id) ??
@@ -1268,6 +1273,8 @@ export function MesEmailsVue({
                 // Les mails de côté ou en attente datée (ADR-053), pour les retrouver et les reprendre.
                 ...(equipe.actif ? [{ value: "attente" as const, label: `En attente ${nbEnAttente}`, title: "Mails mis de côté ou en attente d'une date" }] : []),
                 ...(pilote ? [{ value: "envoyes" as const, label: "Envoyés", title: "Les 30 derniers mails partis de cette boîte" }] : []),
+                // Ma boîte perso seulement (02/11/2026) : dans une boîte partagée, on ne sait pas qui a créé un brouillon.
+                ...(brouillonsPossibles ? [{ value: "brouillons" as const, label: "Brouillons", title: "Les brouillons de votre boîte, à envoyer ou à jeter" }] : []),
               ]}
             />
           </div>
@@ -1286,6 +1293,8 @@ export function MesEmailsVue({
         <ResultatsFouille fouille={fouille} onFermer={() => setFouille(null)} />
       ) : pilote && vue === "envoyes" ? (
         <EnvoyesVue key={boiteActive} boite={boiteActive} partagee={!(data.boites.find((b) => b.id === boiteActive)?.personnelle ?? true)} relance={equipe.actif} />
+      ) : brouillonsPossibles && vue === "brouillons" ? (
+        <BrouillonsVue key={boiteActive} boite={boiteActive} />
       ) : (
       <div className="flex flex-col lg:flex-row gap-4 items-start">
         {/* La liste, en premier : c'est ce qu'on vient chercher. */}
