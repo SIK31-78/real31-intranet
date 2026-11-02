@@ -2,6 +2,7 @@
 // et lire un message trouvé. LECTURE SEULE. Ne dépend que du domaine.
 
 import type { EchangeTrouve, ReponseEnvoyee } from "@/lib/domain/echanges";
+import type { BrouillonLu } from "@/lib/domain/brouillon-edition";
 
 export interface RechercheMailProvider {
   /** Messages de la boîte qui répondent à la requête KQL, les plus récents d'abord. */
@@ -15,6 +16,10 @@ export interface RechercheMailProvider {
   /** Les brouillons de la boîte (dossier « Brouillons »), les plus récemment modifiés d'abord
    *  (vue « Brouillons », 02/11/2026). `date` = dernière modification. */
   brouillons(p: { boite: string; max: number }): Promise<EchangeTrouve[]>;
+  /** Un brouillon complet pour le rouvrir dans l'éditeur (02/11/2026) : destinataires (Cci
+   *  compris), objet, corps HTML brut, pièces jointes hors images « en ligne ». null : absent,
+   *  ou ce n'est pas un brouillon. */
+  lireBrouillonComplet(p: { boite: string; id: string }): Promise<BrouillonLu | null>;
   /** Corps complet d'un message trouvé, en texte. */
   lireCorps(p: { boite: string; id: string }): Promise<string>;
   /** Les messages ENVOYÉS de la boîte dans une conversation, après une date, du plus ancien au plus récent. */

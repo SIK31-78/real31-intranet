@@ -480,6 +480,8 @@ export async function abandonnerComposition(jetons: string[], gid: string): Prom
   const l = brouillonsDe(jetons, gid);
   const premier = l?.[0];
   if (!l || !premier) return false;
+  // Un brouillon rouvert (02/11/2026) appartient à la personne depuis avant : jamais supprimé ici.
+  if (premier.existant) return true;
   await supprimerBrouillons(premier.boite, l.map((j) => j.draftId));
   return true;
 }

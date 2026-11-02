@@ -15,6 +15,7 @@ const etat = vi.hoisted(() => ({
   brouillons: [] as Record<string, unknown>[],
   envoyes: [] as string[],
   relances: [] as Record<string, unknown>[],
+  supprimes: [] as string[],
   identites: [] as { cle: string; nom: string; emails: string[]; copros: { reference: string; qualite: string }[] }[],
 }));
 
@@ -69,7 +70,9 @@ vi.mock("@/lib/adapters/router", () => ({
     async envoyerBrouillon(p: { id: string }) {
       etat.envoyes.push(p.id);
     },
-    async supprimerBrouillon() {},
+    async supprimerBrouillon(p: { id: string }) {
+      etat.supprimes.push(p.id);
+    },
   }),
   getGestionnaireRepository: () => ({
     async listTous() {
@@ -129,7 +132,7 @@ vi.mock("@/lib/adapters/router", () => ({
   }),
 }));
 
-const { finaliserComposition, listerContactsComposition, listerCoprosComposition, preparerComposition, rechercherDestinataires, RELANCE_UN_SEUL_MAIL } = await import("./composer-mail");
+const { abandonnerComposition, finaliserComposition, listerContactsComposition, listerCoprosComposition, preparerComposition, rechercherDestinataires, RELANCE_UN_SEUL_MAIL } = await import("./composer-mail");
 
 const syndic2 = { boite: "syndic2@real31.fr", agences: ["LGC", "ASN"] };
 const syndic4 = { boite: "syndic4@real31.fr", agences: ["HLS"] };
@@ -350,5 +353,18 @@ describe("finaliserComposition : relance posée à l'envoi", () => {
     expect(await finaliserComposition(p.jetons!, { id: "autre" } as never, "demain")).toBeNull();
     expect(etat.envoyes).toEqual([]);
     expect(etat.relances).toEqual([]);
+  });
+});
+
+// Brouillon rouvert dans l'éditeur (02/11/2026) : un dépôt raté ne supprime jamais le brouillon d'origine.
+describe("abandonnerComposition", () => {
+  it("supprime un brouillon neuf, jamais un brouillon existant rouvert", async () => {
+    etat.supprimes = [];
+    const neuf = JSON.stringify({ nature: "neuf", boite: "julie@real31.fr", draftId: "n1", gid: "g1", mode: "envoyer", lot: 0, lots: 1, exp: 0 });
+    const existant = JSON.stringify({ nature: "neuf", boite: "julie@real31.fr", draftId: "e1", gid: "g1", mode: "envoyer", lot: 0, lots: 1, existant: true, exp: 0 });
+    expect(await abandonnerComposition([existant], "g1")).toBe(true);
+    expect(etat.supprimes).toEqual([]);
+    expect(await abandonnerComposition([neuf], "g1")).toBe(true);
+    expect(etat.supprimes).toEqual(["n1"]);
   });
 });

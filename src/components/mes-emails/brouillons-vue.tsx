@@ -6,9 +6,12 @@
 // peut l'envoyer tel quel (après confirmation), le finir dans Outlook, ou le mettre à la
 // corbeille (« Éléments supprimés », réversible ; jamais de suppression définitive).
 // Pas de boîte partagée : Graph ne dit pas qui a créé un brouillon dans une boîte commune.
+// « Modifier » (02/11/2026, décision Sekou, option a) : le brouillon se rouvre dans une fenêtre
+// d'écriture avec l'éditeur riche (modifier-brouillon), seulement quand cet éditeur est ouvert
+// à la personne.
 
 import { useEffect, useState } from "react";
-import { ExternalLink, FilePen, Paperclip, Send, Trash2 } from "lucide-react";
+import { ExternalLink, FilePen, Paperclip, PenLine, Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Callout } from "@/components/ui/callout";
@@ -17,6 +20,7 @@ import { useToast } from "@/components/ui/toast";
 import type { EchangeTrouve } from "@/lib/domain/echanges";
 import { chargerBrouillonsAction, envoyerBrouillonAction, lireBrouillonAction, supprimerBrouillonAction } from "@/app/mes-emails/actions-brouillons";
 import { TexteAvecLiens } from "@/components/mes-emails/texte-avec-liens";
+import { ModifierBrouillon } from "@/components/mes-emails/modifier-brouillon";
 
 const dateHeure = (iso: string) =>
   new Date(iso).toLocaleString("fr-FR", {
@@ -30,9 +34,11 @@ const dateHeure = (iso: string) =>
 
 type Etat = { enCours: true } | { enCours: false; brouillons: EchangeTrouve[] } | { enCours: false; erreur: string };
 
-export function BrouillonsVue({ boite }: { boite: string }) {
+export function BrouillonsVue({ boite, editeurRiche = false }: { boite: string; /** « Modifier » proposé : l'éditeur riche est ouvert à la personne. */ editeurRiche?: boolean }) {
   const [etat, setEtat] = useState<Etat>({ enCours: true });
   const [choisiId, setChoisiId] = useState<string | null>(null);
+  // Relire la liste après un brouillon modifié (objet, destinataires changés).
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let actif = true;
@@ -43,7 +49,7 @@ export function BrouillonsVue({ boite }: { boite: string }) {
     return () => {
       actif = false;
     };
-  }, [boite]);
+  }, [boite, version]);
 
   if (etat.enCours) return <p className="text-body text-ink-3">Chargement des brouillons…</p>;
   if ("erreur" in etat) return <Callout ton="warn">{etat.erreur}</Callout>;
@@ -86,18 +92,24 @@ export function BrouillonsVue({ boite }: { boite: string }) {
         </Card>
       </aside>
       <section className="flex-1 min-w-0">
-        <DetailBrouillon key={choisi.id} e={choisi} onRetire={() => retirer(choisi.id)} />
+        <DetailBrouillon
+          key={`${choisi.id}-${version}`}
+          e={choisi}
+          onRetire={() => retirer(choisi.id)}
+          {...(editeurRiche ? { onModifie: () => setVersion((v) => v + 1) } : {})}
+        />
       </section>
     </div>
   );
 }
 
-function DetailBrouillon({ e, onRetire }: { e: EchangeTrouve; onRetire: () => void }) {
+function DetailBrouillon({ e, onRetire, onModifie }: { e: EchangeTrouve; onRetire: () => void; /** Absent : pas d'éditeur riche, pas de « Modifier ». */ onModifie?: () => void }) {
   const toast = useToast();
   const confirmer = useConfirm();
   const [corps, setCorps] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
+  const [edition, setEdition] = useState(false);
 
   useEffect(() => {
     let actif = true;
@@ -147,9 +159,18 @@ function DetailBrouillon({ e, onRetire }: { e: EchangeTrouve; onRetire: () => vo
 
   return (
     <Card>
+      {edition && onModifie ? (
+        <ModifierBrouillon boite={e.boite} id={e.id} onFermer={() => setEdition(false)} onEnvoye={onRetire} onEnregistre={onModifie} />
+      ) : null}
       <div className="px-5 pt-4 pb-3 border-b border-line">
         <div className="flex flex-wrap items-start gap-2">
           <h2 className="flex-1 min-w-[200px] text-title font-semibold text-ink leading-snug">{e.objet}</h2>
+          {onModifie ? (
+            <Button size="sm" onClick={() => setEdition(true)} disabled={enCours} title="Rouvre le brouillon dans l'éditeur : destinataires, objet, texte, pièces jointes">
+              <PenLine strokeWidth={1.75} />
+              Modifier
+            </Button>
+          ) : null}
           <Button size="sm" variant="primary" onClick={() => void envoyer()} disabled={enCours}>
             <Send strokeWidth={1.75} />
             Envoyer

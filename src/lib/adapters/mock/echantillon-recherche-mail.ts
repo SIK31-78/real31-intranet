@@ -60,6 +60,11 @@ export class EchantillonRechercheMail implements RechercheMailProvider {
     return [];
   }
 
+  async lireBrouillonComplet(): Promise<null> {
+    // Pas de brouillon dans l'échantillon (02/11/2026).
+    return null;
+  }
+
   async lireCorps(p: { id: string }): Promise<string> {
     return ECHANTILLON.find((e) => e.id === p.id)?.apercu ?? "";
   }

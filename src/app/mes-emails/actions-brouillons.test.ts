@@ -21,7 +21,23 @@ const graph = vi.hoisted(() => ({
   envoyerBrouillon: vi.fn(async () => {}),
   mettreALaCorbeille: vi.fn(async (p: { internetMessageIds: string[] }) => ({ deplaces: p.internetMessageIds, echecs: [] })),
   lireCorps: vi.fn(async () => "Bonjour"),
+  // « Modifier » (02/11/2026) : le brouillon complet, sa mise à jour, le retrait d'une pièce.
+  lireBrouillonComplet: vi.fn(async (p: { id: string }) =>
+    p.id === "d1"
+      ? {
+          objet: "Devis",
+          a: ["client@ex.fr"],
+          cc: [],
+          cci: ["archive@ex.fr"],
+          html: `<html><head></head><body><div>Bonjour,</div><br>${SIG}</body></html>`,
+          pieces: [{ id: "pj1", nom: "devis.pdf", taille: 1000 }],
+        }
+      : null,
+  ),
+  majBrouillon: vi.fn(async () => {}),
+  retirerPieceJointe: vi.fn(async () => {}),
 }));
+const SIG = vi.hoisted(() => "<table><tr><td>Julie MARTIN, gestionnaire REAL31</td></tr></table>");
 
 vi.mock("@/lib/auth/session", () => ({
   getGestionnaireCourant: async () => etat.session,
@@ -38,12 +54,24 @@ vi.mock("@/lib/adapters/router", () => ({
       return etat.brouillons.get(p.boite) ?? [];
     },
     lireCorps: graph.lireCorps,
+    lireBrouillonComplet: graph.lireBrouillonComplet,
   }),
-  getMailOutboundProvider: () => ({ envoyerBrouillon: graph.envoyerBrouillon }),
+  getMailOutboundProvider: () => ({ envoyerBrouillon: graph.envoyerBrouillon, majBrouillon: graph.majBrouillon, retirerPieceJointe: graph.retirerPieceJointe }),
   getMailboxProvider: () => ({ mettreALaCorbeille: graph.mettreALaCorbeille }),
 }));
 
-import { chargerBrouillonsAction, envoyerBrouillonAction, lireBrouillonAction, supprimerBrouillonAction } from "./actions-brouillons";
+vi.mock("@/lib/services/mes-emails/get-signature", () => ({ getSignatureGestionnaire: async () => SIG }));
+vi.mock("@/lib/services/mes-emails/composer-mail", () => ({ brouillonPossible: () => true, envoiDirectComposition: () => true }));
+vi.mock("@/lib/services/mes-emails/jeton-envoi", () => ({ DUREE_JETON_MS: 1000, scellerJeton: (j: unknown) => JSON.stringify(j) }));
+
+import {
+  chargerBrouillonsAction,
+  envoyerBrouillonAction,
+  lireBrouillonAction,
+  ouvrirBrouillonEditionAction,
+  preparerEditionBrouillonAction,
+  supprimerBrouillonAction,
+} from "./actions-brouillons";
 
 const REFUS = { ok: false, erreur: "Les brouillons ne s'affichent que pour votre boîte personnelle." };
 const ABSENT = { ok: false, erreur: "Ce brouillon n'est plus dans vos brouillons." };
@@ -89,5 +117,57 @@ describe("actions des brouillons", () => {
     expect(await chargerBrouillonsAction({ boite: "julie@real31.fr" })).toMatchObject({ ok: false });
     expect(await envoyerBrouillonAction({ boite: "julie@real31.fr", id: "d1" })).toMatchObject({ ok: false });
     expect(graph.envoyerBrouillon).not.toHaveBeenCalled();
+  });
+});
+
+// « Modifier » un brouillon dans l'éditeur riche (02/11/2026, décision Sekou, option a).
+describe("rouvrir et mettre à jour un brouillon", () => {
+  const demande = (o: Record<string, unknown> = {}) => ({
+    boite: "julie@real31.fr",
+    id: "d1",
+    objet: "Devis révisé",
+    a: ["client@ex.fr"],
+    cc: ["collegue@real31.fr"],
+    cci: [],
+    corpsHtml: "<p>Bonjour, <b>voici</b> le devis.</p>",
+    retirer: ["pj1", "pj-d-ailleurs"],
+    ...o,
+  });
+
+  it("rouvre : destinataires (Cci compris), objet, texte sans la signature, pièces", async () => {
+    const r = await ouvrirBrouillonEditionAction({ boite: "julie@real31.fr", id: "d1" });
+    expect(r).toMatchObject({ ok: true, donnees: { objet: "Devis", a: ["client@ex.fr"], cci: ["archive@ex.fr"], signature: "isolee", pieces: [{ id: "pj1" }] } });
+    expect(r.ok && r.donnees!.corpsHtml).not.toContain("Julie MARTIN");
+  });
+
+  it("envoie : PATCH du brouillon existant, signature gardée une seule fois, seules ses pièces retirées, jeton « existant »", async () => {
+    const r = await preparerEditionBrouillonAction(demande());
+    expect(r).toMatchObject({ ok: true, donnees: { simulation: false, envoi: true } });
+    const jeton = JSON.parse((r.ok && r.donnees!.jeton) || "{}") as Record<string, unknown>;
+    expect(jeton).toMatchObject({ nature: "neuf", boite: "julie@real31.fr", draftId: "d1", gid: "g1", mode: "envoyer", existant: true });
+    const patch = (graph.majBrouillon.mock.calls[0] as unknown as [{ corpsHtml: string; sujet: string; cc: string[] }])[0];
+    expect(patch).toMatchObject({ sujet: "Devis révisé", cc: ["collegue@real31.fr"] });
+    expect(patch.corpsHtml.match(/Julie MARTIN/g)).toHaveLength(1);
+    expect(patch.corpsHtml).toContain("<b>voici</b>");
+    expect(graph.retirerPieceJointe).toHaveBeenCalledTimes(1);
+    expect(graph.retirerPieceJointe).toHaveBeenCalledWith({ boite: "julie@real31.fr", draftId: "d1", pieceId: "pj1" });
+    expect(graph.envoyerBrouillon).not.toHaveBeenCalled();
+  });
+
+  it("« Enregistrer » : mode brouillon, rien ne part", async () => {
+    const r = await preparerEditionBrouillonAction(demande({ brouillon: true, a: [], objet: "" }));
+    expect(JSON.parse((r.ok && r.donnees!.jeton) || "{}")).toMatchObject({ mode: "brouillon" });
+  });
+
+  it("isolation : boîte partagée, déléguée ou d'un autre, brouillon absent : refusé sans rien lire ni écrire", async () => {
+    for (const boite of ["syndic2@real31.fr", "fanny@real31.fr", "marc@real31.fr"]) {
+      expect(await ouvrirBrouillonEditionAction({ boite, id: "d1" })).toEqual(REFUS);
+      expect(await preparerEditionBrouillonAction(demande({ boite }))).toEqual(REFUS);
+    }
+    expect(await ouvrirBrouillonEditionAction({ boite: "julie@real31.fr", id: "recu-1" })).toEqual(ABSENT);
+    expect(await preparerEditionBrouillonAction(demande({ id: "recu-1" }))).toEqual(ABSENT);
+    expect(graph.lireBrouillonComplet).not.toHaveBeenCalled();
+    expect(graph.majBrouillon).not.toHaveBeenCalled();
+    expect(graph.retirerPieceJointe).not.toHaveBeenCalled();
   });
 });

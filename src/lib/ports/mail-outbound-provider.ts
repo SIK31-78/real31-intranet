@@ -66,6 +66,16 @@ export interface MailOutboundProvider {
   /** Depose une tranche [debut, debut + octets) d'une session ; `fini` quand la piece est complete. */
   envoyerTranche(p: { uploadUrl: string; debut: number; octets: Uint8Array; taille: number }): Promise<{ fini: boolean }>;
 
+  /**
+   * Met a jour un brouillon EXISTANT (02/11/2026, brouillon rouvert dans l'editeur) : objet,
+   * destinataires et corps HTML complet (deja recompose par l'appelant, signature comprise).
+   * Rien n'est envoye.
+   */
+  majBrouillon(p: { boite: string; id: string; sujet: string; a: string[]; cc: string[]; cci: string[]; corpsHtml: string }): Promise<void>;
+
+  /** Retire une piece jointe d'un brouillon (02/11/2026). Deja retiree (404) : rien a faire. */
+  retirerPieceJointe(p: { boite: string; draftId: string; pieceId: string }): Promise<void>;
+
   /** Supprime un brouillon cree par l'app (envoi abandonne en cours de route). */
   supprimerBrouillon(p: { boite: string; id: string }): Promise<void>;
 

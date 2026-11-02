@@ -51,6 +51,11 @@ export interface JetonNeuf {
   /** Premier lot seulement (02/11/2026) : la conversation du mail, pour une relance posée à l'envoi. */
   conversationId?: string;
   dossier?: { id: string; pour: string; objet: string };
+  /**
+   * Brouillon EXISTANT rouvert dans l'éditeur (02/11/2026) : il était là avant, un dépôt raté ne
+   * le supprime jamais (abandonnerComposition le laisse en place).
+   */
+  existant?: true;
   exp: number;
 }
 

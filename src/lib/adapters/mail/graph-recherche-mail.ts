@@ -5,6 +5,7 @@
 
 import { BoiteNonLisible, citationDe, sansCitation, type EchangeTrouve, type ReponseEnvoyee } from "@/lib/domain/echanges";
 import type { RechercheMailProvider } from "@/lib/ports/recherche-mail-provider";
+import type { BrouillonLu } from "@/lib/domain/brouillon-edition";
 import { GRAPH, graphFetch, jetonGraph } from "./graph-auth";
 
 type Adresse = { emailAddress?: { address?: string; name?: string } };
@@ -113,6 +114,31 @@ export class GraphRechercheMail implements RechercheMailProvider {
     if (!r.ok) throw new Error(`Graph brouillons ${r.status} : ${(await r.text()).slice(0, 200)}`);
     const j = (await r.json()) as { value?: (GraphMessage & { lastModifiedDateTime?: string })[] };
     return (j.value ?? []).slice(0, max).map((m) => ({ ...versEchange(p.boite, m), date: m.lastModifiedDateTime ?? m.receivedDateTime }));
+  }
+
+  async lireBrouillonComplet(p: { boite: string; id: string }): Promise<BrouillonLu | null> {
+    const tk = await jetonGraph();
+    const u = `${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${encodeURIComponent(p.id)}`;
+    const h = { Authorization: `Bearer ${tk}` };
+    // Corps en HTML (le défaut de Graph) : la signature et l'historique y sont gardés tels quels.
+    const r = await graphFetch(`${u}?$select=subject,toRecipients,ccRecipients,bccRecipients,body,isDraft`, { headers: h });
+    if (r.status === 404) return null;
+    if (r.status === 403) throw new BoiteNonLisible(p.boite);
+    if (!r.ok) throw new Error(`Graph brouillon ${r.status}`);
+    const m = (await r.json()) as GraphMessage & { bccRecipients?: Adresse[]; body?: { content?: string }; isDraft?: boolean };
+    if (m.isDraft === false) return null;
+    // Les pièces : métadonnées seulement ; les images « en ligne » (signature) ne sont pas proposées.
+    const rp = await graphFetch(`${u}/attachments?$select=id,name,size,isInline&$top=50`, { headers: h });
+    if (!rp.ok) throw new Error(`Graph pièces du brouillon ${rp.status}`);
+    const pieces = ((await rp.json()) as { value?: { id: string; name?: string; size?: number; isInline?: boolean }[] }).value ?? [];
+    return {
+      objet: m.subject ?? "",
+      a: adresses(m.toRecipients),
+      cc: adresses(m.ccRecipients),
+      cci: adresses(m.bccRecipients),
+      html: m.body?.content ?? "",
+      pieces: pieces.filter((x) => !x.isInline).map((x) => ({ id: x.id, nom: x.name ?? "pièce jointe", taille: x.size ?? 0 })),
+    };
   }
 
   async lireCorps(p: { boite: string; id: string }): Promise<string> {

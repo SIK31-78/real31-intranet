@@ -57,6 +57,14 @@ export class NoopMailOutboundProvider implements MailOutboundProvider {
     return { fini: p.debut + p.octets.byteLength >= p.taille };
   }
 
+  async majBrouillon(p: { id: string }): Promise<void> {
+    console.log(`[mail-outbound:noop] mise à jour du brouillon ${p.id} simulee`);
+  }
+
+  async retirerPieceJointe(p: { draftId: string; pieceId: string }): Promise<void> {
+    console.log(`[mail-outbound:noop] retrait de la piece ${p.pieceId} du brouillon ${p.draftId} simule`);
+  }
+
   async supprimerBrouillon(p: { id: string }): Promise<void> {
     console.log(`[mail-outbound:noop] suppression du brouillon ${p.id} simulee`);
   }

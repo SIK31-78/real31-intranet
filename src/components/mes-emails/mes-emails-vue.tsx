@@ -1298,7 +1298,7 @@ export function MesEmailsVue({
       ) : pilote && vue === "envoyes" ? (
         <EnvoyesVue key={boiteActive} boite={boiteActive} partagee={!(data.boites.find((b) => b.id === boiteActive)?.personnelle ?? true)} relance={equipe.actif} />
       ) : brouillonsPossibles && vue === "brouillons" ? (
-        <BrouillonsVue key={boiteActive} boite={boiteActive} />
+        <BrouillonsVue key={boiteActive} boite={boiteActive} editeurRiche={pilote} />
       ) : (
       <div className="flex flex-col lg:flex-row gap-4 items-start">
         {/* La liste, en premier : c'est ce qu'on vient chercher. */}

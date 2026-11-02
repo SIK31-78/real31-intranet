@@ -294,6 +294,33 @@ export class GraphMailOutboundProvider implements MailOutboundProvider {
     return deposerTranche(p.uploadUrl, p.debut, p.octets, p.taille);
   }
 
+  async majBrouillon(p: { boite: string; id: string; sujet: string; a: string[]; cc: string[]; cci: string[]; corpsHtml: string }): Promise<void> {
+    const tk = await jetonGraph();
+    // PATCH du brouillon rouvert (02/11/2026) : le corps arrive complet (signature et historique
+    // gardés par l'appelant), les destinataires remplacent ceux d'avant.
+    const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${encodeURIComponent(p.id)}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject: p.sujet,
+        body: { contentType: "HTML", content: p.corpsHtml },
+        toRecipients: dest(p.a),
+        ccRecipients: dest(p.cc),
+        bccRecipients: dest(p.cci),
+      }),
+    });
+    if (!r.ok) throw new Error(`Graph PATCH brouillon ${r.status} : ${(await r.text()).slice(0, 200)}`);
+  }
+
+  async retirerPieceJointe(p: { boite: string; draftId: string; pieceId: string }): Promise<void> {
+    const tk = await jetonGraph();
+    const r = await graphFetch(
+      `${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${encodeURIComponent(p.draftId)}/attachments/${encodeURIComponent(p.pieceId)}`,
+      { method: "DELETE", headers: { Authorization: `Bearer ${tk}` } },
+    );
+    if (!r.ok && r.status !== 404) throw new Error(`Graph retrait PJ ${r.status} : ${(await r.text()).slice(0, 200)}`);
+  }
+
   async supprimerBrouillon(p: { boite: string; id: string }): Promise<void> {
     const tk = await jetonGraph();
     const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(p.boite)}/messages/${encodeURIComponent(p.id)}`, {
