@@ -2622,8 +2622,8 @@ function AnalysePane({
                 />
               ) : (
                 <>
-                  <Textarea value={brouillon} onChange={(e) => onEditBrouillon(e.target.value)} onBlur={onBlurBrouillon} rows={7} className="resize-y" aria-label="Texte de la réponse" />
-                  <LigneSousChamp outils={joindre} aDroite={reformuler} />
+                    <Textarea value={brouillon} onChange={(e) => onEditBrouillon(e.target.value)} onBlur={onBlurBrouillon} rows={7} className="resize-y" aria-label="Texte de la réponse" />
+                    <LigneSousChamp outils={joindre} aDroite={reformuler} />
                 </>
               )}
             </div>
@@ -2725,7 +2725,8 @@ function AnalysePane({
               ) : piecesJointes.length === 0 ? (
                 <span className="text-meta text-ink-3 italic">Pièces jointes indisponibles</span>
               ) : (
-                piecesJointes.map((pj) => (
+                <>
+                {piecesJointes.map((pj) => (
                   <span
                     key={pj.id}
                     title={formatTaille(pj.taille)}
@@ -2749,7 +2750,25 @@ function AnalysePane({
                       <Download strokeWidth={1.5} className="w-3 h-3" />
                     </button>
                   </span>
-                ))
+                ))}
+                {/* « Tout télécharger » (02/11/2026, Océane) : les téléchargements unitaires,
+                    l'un après l'autre, par la même route en flux et ses mêmes gardes. Pas de zip
+                    côté serveur : il tiendrait toutes les pièces en mémoire et dépasserait vite
+                    les 4,5 Mo d'une réponse Vercel. Un écart de 400 ms entre deux fichiers : sans
+                    lui, le navigateur n'en garde que le dernier (il demande une fois s'il peut
+                    télécharger plusieurs fichiers). */}
+                {piecesJointes.length >= 2 ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => piecesJointes.forEach((pj, i) => window.setTimeout(() => onTelecharger(pj), i * 400))}
+                    title={`Télécharger les ${piecesJointes.length} pièces jointes`}
+                  >
+                    <Download strokeWidth={1.5} />
+                    Tout télécharger
+                  </Button>
+                ) : null}
+                </>
               )}
             </div>
           )}
