@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { htmlMailMisEnForme, htmlVersTexte, lienSur, nettoyerHtmlMail, texteVersHtml } from "./mes-emails-html";
+import { couleurNormalisee, htmlMailMisEnForme, htmlVersTexte, lienSur, nettoyerHtmlMail, texteVersHtml } from "./mes-emails-html";
 
 // REA-345 : ce qui part dans un mail mis en forme. La liste blanche est la seule défense
 // contre un HTML forgé côté navigateur : chaque contournement connu a son test.
@@ -76,5 +76,39 @@ describe("htmlMailMisEnForme", () => {
     expect(htmlMailMisEnForme("<div>a</div><script>x</script>")).toBe(
       '<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt"><p style="margin:0">a</p></div>',
     );
+  });
+});
+
+// 02/11/2026 : souligné et couleur du texte (Julie, Océane). Seules les couleurs de la
+// palette passent, sous une seule forme ; aucun autre style.
+describe("nettoyerHtmlMail : souligné et couleur", () => {
+  it("garde le souligné", () => {
+    expect(nettoyerHtmlMail('<u onclick="x()">a</u>')).toBe("<u>a</u>");
+  });
+  it("garde une couleur de la palette, en font ou en span, sous une seule forme", () => {
+    expect(nettoyerHtmlMail('<font color="#C00000">a</font>')).toBe('<span style="color:#c00000">a</span>');
+    expect(nettoyerHtmlMail('<span style="color: rgb(0, 112, 192);">a</span>')).toBe('<span style="color:#0070c0">a</span>');
+    expect(nettoyerHtmlMail("<span style='font-weight:bold; color:#00B050'>a</span>")).toBe('<span style="color:#00b050">a</span>');
+  });
+  it("une couleur hors palette, un autre style ou un style forgé : la balise tombe, le texte reste", () => {
+    expect(nettoyerHtmlMail('<span style="color:#123456">a</span>')).toBe("a");
+    expect(nettoyerHtmlMail('<span style="background-color:#c00000">a</span>')).toBe("a");
+    expect(nettoyerHtmlMail('<span style="color:#c00000;background:url(javascript:x)">a</span>')).toBe('<span style="color:#c00000">a</span>');
+    expect(nettoyerHtmlMail('<span style="color:expression(alert(1))">a</span>')).toBe("a");
+    expect(nettoyerHtmlMail('<span style="color:#c00000" onmouseover="x()" class="y">a</span>')).toBe('<span style="color:#c00000">a</span>');
+    expect(nettoyerHtmlMail('<b style="color:#c00000">a</b>')).toBe("<b>a</b>");
+  });
+  it("une balise tombée ne ferme pas la couleur qui l'entoure", () => {
+    expect(nettoyerHtmlMail('<span style="color:#c00000">a<span class="x">b</span>c</span>d')).toBe('<span style="color:#c00000">abc</span>d');
+    expect(nettoyerHtmlMail('<font color="#ed7d31">a<u>b')).toBe('<span style="color:#ed7d31">a<u>b</u></span>');
+  });
+});
+
+describe("couleurNormalisee", () => {
+  it("ramène #rgb, #rrggbb et rgb() à #rrggbb ; refuse le reste", () => {
+    expect(couleurNormalisee("#ABC")).toBe("#aabbcc");
+    expect(couleurNormalisee(" rgb(237, 125, 49) ")).toBe("#ed7d31");
+    expect(couleurNormalisee("rgb(300, 0, 0)")).toBeNull();
+    expect(couleurNormalisee("red")).toBeNull();
   });
 });
