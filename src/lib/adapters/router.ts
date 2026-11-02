@@ -77,6 +77,8 @@ import { GraphCalendrierOutboundProvider } from "@/lib/adapters/calendrier/graph
 import { NoopCalendrierOutboundProvider } from "@/lib/adapters/calendrier/noop-calendrier-outbound";
 import type { DepotDocumentProvider } from "@/lib/ports/depot-document-provider";
 import { DepotDocumentInactif, GraphDepotDocumentProvider } from "@/lib/adapters/mail/graph-depot-document";
+import type { DepotBpoProvider } from "@/lib/ports/depot-bpo-provider";
+import { DepotBpoInactif, GraphDepotBpo } from "@/lib/adapters/mail/graph-depot-bpo";
 import type { MailboxProvider } from "@/lib/ports/mailbox-provider";
 import { GraphMailboxProvider } from "@/lib/adapters/mail/graph-mailbox";
 import { NoopMailboxProvider } from "@/lib/adapters/mail/noop-mailbox";
@@ -599,6 +601,14 @@ export function getCalendrierOutboundProvider(): CalendrierOutboundProvider {
 export function getDepotDocumentProvider(): DepotDocumentProvider {
   if (process.env.SHAREPOINT_DEPOT_ACTIF === "1") return new GraphDepotDocumentProvider();
   return new DepotDocumentInactif();
+}
+
+// Dépôt des factures pour BPO (02/11/2026) : lecture de l'arborescence dès que Graph est branché
+// (Sites.Selected, lecture accordée sur le site copro) ; écriture seulement avec
+// SHAREPOINT_DEPOT_ACTIF=1, le même drapeau que le contrat de syndic (droit « write » sur le site).
+export function getDepotBpoProvider(): DepotBpoProvider {
+  if (process.env.MAIL_SOURCE === "graph") return new GraphDepotBpo(process.env.SHAREPOINT_DEPOT_ACTIF === "1");
+  return new DepotBpoInactif();
 }
 
 // Signature email du gestionnaire (Signitic). Cle SIGNITIC_API_KEY presente -> vraie
