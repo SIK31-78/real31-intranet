@@ -906,6 +906,9 @@ export function MesEmailsVue({
   // Marqué lu (dans l'intranet et dans Outlook, REA-422) seulement quand on l'ouvre vraiment :
   // clic sur sa ligne, ou Répondre / Transférer. Jamais quand il est affiché d'office.
   function marquerLu(m: MailEntrant, ouverture: OuvertureMail) {
+    // Ouvert depuis « Échanges » sans m'être distribué (02/11/2026) : le serveur refuse le lu
+    // (garde boiteDuMail), on ne le demande pas.
+    if (horsDistribution(m)) return;
     if (!marqueLu(ouverture, estLu(m.id))) return;
     setLus((p) => new Set(p).add(m.id));
     setNonLus((p) => del(p, m.id));
@@ -1416,12 +1419,14 @@ export function MesEmailsVue({
           {selection && horsDistribution(selection) ? (
             <Callout ton="info" className="mb-3">
               Ouvert depuis « Échanges » : ce mail n&apos;est pas distribué à votre binôme. Vous pouvez le lire, y répondre ou le
-              transférer ; « Traité », l&apos;attribution, « Pas pour moi » et le classement restent à ceux à qui il est distribué.
+              transférer ; « Traité », l&apos;attribution, l&apos;attente, « Pas pour moi », « Comptabilité », la copropriété, le
+              dossier et le classement restent à ceux à qui il est distribué.
             </Callout>
           ) : null}
           {selection ? (
             <AnalysePane
               m={selection}
+              horsDistribution={horsDistribution(selection)}
               contexte={coproSel ? contextes.get(coproSel) : null}
               ratt={rattDe(selection)}
               dossiersReels={dossiersReels.get(coproDe(selection).code) ?? null}
@@ -1468,8 +1473,9 @@ export function MesEmailsVue({
               piecesJointes={pjParMail.get(selection.id) ?? null}
               onTelecharger={(pj) => void telechargerPj(selection, pj)}
               onApercu={(pj) => void voirPj(selection, pj)}
-              depotBpo={depotBpo}
-              {...(adresseFactures
+              // BPO et facture passent par boiteDuMail : pas pour un mail hors distribution (02/11/2026).
+              depotBpo={depotBpo && !horsDistribution(selection)}
+              {...(adresseFactures && !horsDistribution(selection)
                 ? { adresseFactures, onTransmettreFacture: (f: { compte: string; fournisseur: string; libelle: string }) => transmettreFactureMail(selection, f) }
                 : {})}
               pjJointes={pjJointesDe(selection)}
@@ -1491,7 +1497,7 @@ export function MesEmailsVue({
               envoiEnCours={envoiEnCours}
               msgBrouillon={msgBrouillon}
               lienBrouillon={lienBrouillon?.msg === msgBrouillon ? lienBrouillon.url : null}
-              changer={changer}
+              changer={changer && !horsDistribution(selection)}
               ouverts={ouverts}
               onEditBrouillon={(t) => setEdits((p) => new Map(p).set(selection.id, t))}
               brouillonHtml={editsHtml.get(selection.id) ?? texteVersHtml(brouillonDe(selection))}
@@ -1566,17 +1572,23 @@ export function MesEmailsVue({
               onValider={() => void valider(selection)}
               classementOutlook={data.boites.find((b) => b.id === boiteDuMail(selection))?.personnelle ?? true}
               pilote={pilote}
-              onParti={() => {
-                setPartis((p) => new Set(p).add(selection.id));
-                passerAuSuivant(selection);
-              }}
+              // Hors distribution (02/11/2026) : ni « Pas pour moi » / « Comptabilité » (onParti
+              // absent), ni « Non lu », ni corbeille, refusés par la garde boiteDuMail.
+              {...(horsDistribution(selection)
+                ? {}
+                : {
+                    onParti: () => {
+                      setPartis((p) => new Set(p).add(selection.id));
+                      passerAuSuivant(selection);
+                    },
+                  })}
               onConclure={() => marquerTraite(selection)}
-              {...(estLu(selection.id) ? { onNonLu: () => void marquerNonLu(selection) } : {})}
+              {...(estLu(selection.id) && !horsDistribution(selection) ? { onNonLu: () => void marquerNonLu(selection) } : {})}
               onTransfere={() => {
                 marquerLu(selection, "reponse");
                 noterReponse(selection.id, "transfere");
               }}
-              {...(supprimable(selection)
+              {...(supprimable(selection) && !horsDistribution(selection)
                 ? { onSupprimer: () => void supprimerMail(selection), suppressionEnCours }
                 : {})}
               onToggleSection={toggleSection}
@@ -2169,6 +2181,7 @@ function FormCreerDossier({
 
 function AnalysePane({
   m,
+  horsDistribution = false,
   contexte,
   ratt,
   dossiersReels,
@@ -2256,6 +2269,12 @@ function AnalysePane({
   brouillonHtml: string;
   onEditBrouillonHtml: (html: string) => void;
   m: MailEntrant;
+  /**
+   * Ouvert depuis « Échanges » sans être distribué à mon binôme (02/11/2026) : seulement lire,
+   * Répondre / Répondre à tous / Transférer. Ni « Traité » ni archivage, ni copropriété, dossier
+   * ou classement : le serveur les refuse (garde boiteDuMail).
+   */
+  horsDistribution?: boolean;
   /** Contexte ESTALE de la copro choisie : undefined = en cours de chargement, null = indisponible. */
   contexte: ContexteCopro | null | undefined;
   ratt: Rattachement;
@@ -2381,15 +2400,18 @@ function AnalysePane({
   // « Traité » est LE bouton vert plein du volet ; pendant une réponse, c'est l'envoi qui l'est.
   const ecrit = Boolean(brouillon || compose);
   const dossierArchive = classementOutlook ? (dossiers ?? []).find((d) => d.id === dossierIdChoisi)?.nom : undefined;
-  const envoiEtFin = !classementOutlook
-    ? { libelle: "Envoyer et marquer traité", titre: "Envoie la réponse, puis le mail sort de « À traiter » pour tout le binôme" }
-    : dossierIdChoisi
-      ? { libelle: "Envoyer et archiver", titre: `Envoie la réponse, puis archive le mail dans « ${dossierArchive ?? "le dossier choisi"} »` }
-      : null;
+  // Hors distribution (02/11/2026) : la réponse part, le mail ne se termine pas d'ici.
+  const envoiEtFin = horsDistribution
+    ? null
+    : !classementOutlook
+      ? { libelle: "Envoyer et marquer traité", titre: "Envoie la réponse, puis le mail sort de « À traiter » pour tout le binôme" }
+      : dossierIdChoisi
+        ? { libelle: "Envoyer et archiver", titre: `Envoie la réponse, puis archive le mail dans « ${dossierArchive ?? "le dossier choisi"} »` }
+        : null;
 
   // Boîte perso : le dossier où archiver. Dans la barre quand elle est assez large ; sinon sous
   // le titre du mail (jamais une deuxième ligne de boutons dans la barre, 29/10/2026).
-  const choixDossier = classementOutlook ? (
+  const choixDossier = classementOutlook && !horsDistribution ? (
     <>
       {/* Toute l'arborescence, avec recherche (02/11/2026). */}
       <ChoixDossierOutlook dossiers={dossiers} valeur={dossierIdChoisi} onChoisir={onChoisirDossier} />
@@ -2467,7 +2489,7 @@ function AnalysePane({
           ) : null}
         </div>
         <div className="order-2 ml-auto flex items-center gap-1 @min-[960px]:order-3 @min-[960px]:ml-1">
-          {classementOutlook ? (
+          {horsDistribution ? null : classementOutlook ? (
             // Boîte perso : archiver = déplacer dans un dossier Outlook, qu'il faut choisir ; le
             // mail quitte la réception, donc la liste.
             <>
@@ -2518,56 +2540,59 @@ function AnalysePane({
         <EnTeteMail m={m} />
         {choixDossier ? <div className="mt-2 flex flex-wrap items-center gap-1 @min-[760px]:hidden">{choixDossier}</div> : null}
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1 text-meta">
-            <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
-            <Select
-              largeur="auto"
-              value={coproCode}
-              onChange={(e) => onRattacherCopro(e.target.value)}
-              aria-label="Copropriété du mail"
-              title={coproCode ? [coproCode, coproNom, coprosDispo.find((c) => c.code === coproCode)?.adresse].filter(Boolean).join(" · ") : "Rattacher à une copropriété"}
-              className="max-w-[360px]"
-            >
-              {/* Copro FACULTATIVE et reversible : l'option vide retire le rattachement. */}
-              <option value="">{coproCode ? "Retirer la copropriété" : "Copropriété…"}</option>
-              {coproCode && !coprosDispo.some((c) => c.code === coproCode) ? (
-                <option value={coproCode}>
-                  {coproCode} · {coproNom}
-                </option>
-              ) : null}
-              {coprosDispo.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {[c.code, c.nom, c.adresse].filter(Boolean).join(" · ")}
-                </option>
-              ))}
-            </Select>
-          </span>
-          {ratt.intranet ? (
-            <Link href={`/dossiers/${ratt.dossierId}`} className="inline-flex items-center gap-1 text-meta text-info-700 hover:underline">
-              <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
-              {ratt.dossierLabel}
-            </Link>
-          ) : null}
-          <Button onClick={onToggleChanger} aria-expanded={changer}>
-            {changer ? <X strokeWidth={1.5} /> : <FolderPlus strokeWidth={1.5} />}
-            {changer ? "Fermer" : ratt.intranet ? "Changer de dossier" : "Rattacher à un dossier"}
-          </Button>
-          {/* Une note pour l'équipe (ADR-053), discrète : aucun clic de plus si on l'ignore. */}
-          {onNoteInterne ? (
-            <Button variant="ghost" size="sm" onClick={onNoteInterne} title="Une note pour l'équipe, jamais envoyée, jamais dans Outlook">
-              <StickyNote strokeWidth={1.5} />
-              Note interne
+        {/* Copropriété, dossier, note : pas pour un mail hors distribution (02/11/2026). */}
+        {horsDistribution ? null : (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 text-meta">
+              <Building2 strokeWidth={1.5} className="w-3.5 h-3.5 text-ink-3 shrink-0" />
+              <Select
+                largeur="auto"
+                value={coproCode}
+                onChange={(e) => onRattacherCopro(e.target.value)}
+                aria-label="Copropriété du mail"
+                title={coproCode ? [coproCode, coproNom, coprosDispo.find((c) => c.code === coproCode)?.adresse].filter(Boolean).join(" · ") : "Rattacher à une copropriété"}
+                className="max-w-[360px]"
+              >
+                {/* Copro FACULTATIVE et reversible : l'option vide retire le rattachement. */}
+                <option value="">{coproCode ? "Retirer la copropriété" : "Copropriété…"}</option>
+                {coproCode && !coprosDispo.some((c) => c.code === coproCode) ? (
+                  <option value={coproCode}>
+                    {coproCode} · {coproNom}
+                  </option>
+                ) : null}
+                {coprosDispo.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {[c.code, c.nom, c.adresse].filter(Boolean).join(" · ")}
+                  </option>
+                ))}
+              </Select>
+            </span>
+            {ratt.intranet ? (
+              <Link href={`/dossiers/${ratt.dossierId}`} className="inline-flex items-center gap-1 text-meta text-info-700 hover:underline">
+                <Link2 strokeWidth={1.5} className="w-3.5 h-3.5 shrink-0" />
+                {ratt.dossierLabel}
+              </Link>
+            ) : null}
+            <Button onClick={onToggleChanger} aria-expanded={changer}>
+              {changer ? <X strokeWidth={1.5} /> : <FolderPlus strokeWidth={1.5} />}
+              {changer ? "Fermer" : ratt.intranet ? "Changer de dossier" : "Rattacher à un dossier"}
             </Button>
-          ) : null}
-        </div>
+            {/* Une note pour l'équipe (ADR-053), discrète : aucun clic de plus si on l'ignore. */}
+            {onNoteInterne ? (
+              <Button variant="ghost" size="sm" onClick={onNoteInterne} title="Une note pour l'équipe, jamais envoyée, jamais dans Outlook">
+                <StickyNote strokeWidth={1.5} />
+                Note interne
+              </Button>
+            ) : null}
+          </div>
+        )}
         {msgClasser ? (
           <p className="mt-1.5 text-meta text-ink-3">
             {msgClasser}
             {lienClasser ? <LienBrouillonOutlook href={lienClasser} /> : null}
           </p>
         ) : null}
-        {envoiPropose ? (
+        {envoiPropose && !horsDistribution ? (
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-2">
             <span className="text-meta text-ink-2">
               {envoiPropose.reference} est gérée par le binôme {envoiPropose.dossier}. Lui envoyer ce mail ?
