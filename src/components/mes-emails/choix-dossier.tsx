@@ -57,7 +57,7 @@ export function ChoixDossierOutlook({
         aria-label="Dossier Outlook où archiver le mail traité"
         title={choisi ? libelleDossier(choisi) : undefined}
         disabled={dossiers === null}
-        className="h-7 max-w-[200px] inline-flex items-center gap-1 rounded-md border border-line bg-surface pl-2 pr-1.5 text-meta text-ink hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:opacity-60"
+        className="h-7 max-w-[200px] inline-flex items-center gap-1 rounded-md bg-surface border border-line pl-2 pr-1.5 text-meta text-ink hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 disabled:opacity-60"
       >
         <span className="truncate">{dossiers === null ? "Chargement des dossiers…" : choisi ? choisi.nom : "Archiver dans…"}</span>
         <ChevronDown strokeWidth={1.75} className="w-3 h-3 shrink-0 text-ink-3" />
