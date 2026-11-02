@@ -14,7 +14,14 @@ const etat = vi.hoisted(() => ({
   ]),
   // Les brouillons que la liste montre, par boîte.
   brouillons: new Map<string, { id: string; objet: string; internetMessageId: string }[]>([
-    ["julie@real31.fr", [{ id: "d1", objet: "Devis", internetMessageId: "<d1@x>" }]],
+    [
+      "julie@real31.fr",
+      [
+        { id: "d1", objet: "Devis", internetMessageId: "<d1@x>" },
+        // Signature tapée dans Outlook, retrouvée seulement par son texte (02/11/2026).
+        { id: "d2", objet: "Relance", internetMessageId: "<d2@x>" },
+      ],
+    ],
   ]),
 }));
 const graph = vi.hoisted(() => ({
@@ -32,7 +39,16 @@ const graph = vi.hoisted(() => ({
           html: `<html><head></head><body><div>Bonjour,</div><br>${SIG}</body></html>`,
           pieces: [{ id: "pj1", nom: "devis.pdf", taille: 1000 }],
         }
-      : null,
+      : p.id === "d2"
+        ? {
+            objet: "Relance",
+            a: ["client@ex.fr"],
+            cc: [],
+            cci: [],
+            html: `<html><head></head><body><p>Bonjour,</p><p class="MsoNormal">Julie MARTIN, gestionnaire REAL31</p></body></html>`,
+            pieces: [],
+          }
+        : null,
   ),
   majBrouillon: vi.fn(async () => {}),
   retirerPieceJointe: vi.fn(async () => {}),
@@ -65,6 +81,7 @@ vi.mock("@/lib/services/mes-emails/composer-mail", () => ({ brouillonPossible: (
 vi.mock("@/lib/services/mes-emails/jeton-envoi", () => ({ DUREE_JETON_MS: 1000, scellerJeton: (j: unknown) => JSON.stringify(j) }));
 
 import {
+  brouillonModifiableAction,
   chargerBrouillonsAction,
   envoyerBrouillonAction,
   lireBrouillonAction,
@@ -83,7 +100,7 @@ beforeEach(() => {
 
 describe("actions des brouillons", () => {
   it("liste, lit, envoie et met à la corbeille un brouillon de ma boîte perso", async () => {
-    expect(await chargerBrouillonsAction({ boite: "julie@real31.fr" })).toMatchObject({ ok: true, donnees: [{ id: "d1" }] });
+    expect(await chargerBrouillonsAction({ boite: "julie@real31.fr" })).toMatchObject({ ok: true, donnees: [{ id: "d1" }, { id: "d2" }] });
     expect(await lireBrouillonAction({ boite: "julie@real31.fr", id: "d1" })).toEqual({ ok: true, donnees: "Bonjour" });
     expect(await envoyerBrouillonAction({ boite: "julie@real31.fr", id: "d1" })).toEqual({ ok: true, donnees: { objet: "Devis" } });
     expect(graph.envoyerBrouillon).toHaveBeenCalledWith({ boite: "julie@real31.fr", id: "d1" });
@@ -159,13 +176,26 @@ describe("rouvrir et mettre à jour un brouillon", () => {
     expect(JSON.parse((r.ok && r.donnees!.jeton) || "{}")).toMatchObject({ mode: "brouillon" });
   });
 
+  // 02/11/2026 (décision Sekou) : signature posée dans Outlook = on le finit dans Outlook.
+  it("signature posée dans Outlook : « Modifier » refusé à l'ouverture comme à l'enregistrement, rien n'est écrit", async () => {
+    const refus = { ok: false, erreur: "La signature de ce brouillon a été posée dans Outlook : finissez-le dans Outlook pour ne pas l'abîmer." };
+    expect(await brouillonModifiableAction({ boite: "julie@real31.fr", id: "d2" })).toEqual({ ok: true, donnees: { modifiable: false } });
+    expect(await brouillonModifiableAction({ boite: "julie@real31.fr", id: "d1" })).toEqual({ ok: true, donnees: { modifiable: true } });
+    expect(await ouvrirBrouillonEditionAction({ boite: "julie@real31.fr", id: "d2" })).toEqual(refus);
+    expect(await preparerEditionBrouillonAction(demande({ id: "d2", retirer: [] }))).toEqual(refus);
+    expect(graph.majBrouillon).not.toHaveBeenCalled();
+    expect(graph.retirerPieceJointe).not.toHaveBeenCalled();
+  });
+
   it("isolation : boîte partagée, déléguée ou d'un autre, brouillon absent : refusé sans rien lire ni écrire", async () => {
     for (const boite of ["syndic2@real31.fr", "fanny@real31.fr", "marc@real31.fr"]) {
+      expect(await brouillonModifiableAction({ boite, id: "d1" })).toEqual(REFUS);
       expect(await ouvrirBrouillonEditionAction({ boite, id: "d1" })).toEqual(REFUS);
       expect(await preparerEditionBrouillonAction(demande({ boite }))).toEqual(REFUS);
     }
     expect(await ouvrirBrouillonEditionAction({ boite: "julie@real31.fr", id: "recu-1" })).toEqual(ABSENT);
     expect(await preparerEditionBrouillonAction(demande({ id: "recu-1" }))).toEqual(ABSENT);
+    expect(await brouillonModifiableAction({ boite: "julie@real31.fr", id: "recu-1" })).toEqual(ABSENT);
     expect(graph.lireBrouillonComplet).not.toHaveBeenCalled();
     expect(graph.majBrouillon).not.toHaveBeenCalled();
     expect(graph.retirerPieceJointe).not.toHaveBeenCalled();

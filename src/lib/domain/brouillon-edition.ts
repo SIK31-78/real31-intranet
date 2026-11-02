@@ -12,9 +12,11 @@
 //
 // Signature : jamais ajoutée une deuxième fois. Retrouvée telle que l'intranet l'a posée
 // (après normalisation des blancs et des <br/>), elle reste dans [suite] ; retrouvée seulement
-// dans le texte (posée par Outlook, réécrite par Exchange), elle est « dans le texte » : on ne
-// l'ajoute pas, l'écran le dit ; absente, elle est ajoutée à l'enregistrement, comme pour un
-// mail neuf.
+// dans le texte (posée par Outlook, réécrite par Exchange), elle est « dans le texte » ;
+// absente, elle est ajoutée à l'enregistrement, comme pour un mail neuf.
+// 02/11/2026 (décision Sekou) : un brouillon dont la signature est « dans le texte » ne se
+// rouvre plus dans l'éditeur (brouillonModifiable) : l'éditeur lui ferait perdre sa mise en
+// page. On le finit dans Outlook ; l'écran remplace « Modifier » et le serveur refuse.
 
 /** Une pièce jointe d'un brouillon (les pièces « en ligne », images de signature, sont écartées). */
 export interface PieceBrouillon {
@@ -60,6 +62,15 @@ export interface BrouillonEdition {
   signatureAjoutee: boolean;
   citation: boolean;
   pieces: PieceBrouillon[];
+}
+
+/**
+ * Le brouillon peut-il passer par l'éditeur ? Non quand sa signature a été posée dans Outlook
+ * (retrouvée seulement par son texte) : elle perdrait sa mise en page (02/11/2026, décision
+ * Sekou). Signature de l'intranet (isolée) ou pas de signature : oui.
+ */
+export function brouillonModifiable(d: Pick<CorpsDecoupe, "signature">): boolean {
+  return d.signature !== "dans-le-texte";
 }
 
 /** Les blancs entre balises et les variantes de <br> ne comptent pas pour retrouver la signature. */

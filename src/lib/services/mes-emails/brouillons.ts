@@ -10,7 +10,7 @@ import { getMailboxProvider, getMailOutboundProvider, getRechercheMail } from "@
 import type { EchangeTrouve } from "@/lib/domain/echanges";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { nettoyerHtmlMail } from "@/lib/domain/mes-emails-html";
-import { decouperCorpsBrouillon, recomposerCorpsBrouillon, type BrouillonEdition } from "@/lib/domain/brouillon-edition";
+import { brouillonModifiable, decouperCorpsBrouillon, recomposerCorpsBrouillon, type BrouillonEdition } from "@/lib/domain/brouillon-edition";
 import { getSignatureGestionnaire } from "./get-signature";
 import { brouillonPossible, envoiDirectComposition } from "./composer-mail";
 import { DUREE_JETON_MS, scellerJeton } from "./jeton-envoi";
@@ -50,14 +50,29 @@ export async function envoyerBrouillonDeLaListe(boite: string, id: string): Prom
 // quels, la signature n'est ajoutée que si le brouillon n'en a pas (domain/brouillon-edition).
 // Puis le même chemin qu'un mail neuf : jeton « neuf » (marqué existant), dépôt des fichiers
 // par tranches, finaliserComposition qui envoie ou laisse le brouillon.
+// 02/11/2026 (décision Sekou) : un brouillon dont la signature a été posée dans Outlook
+// (retrouvée seulement par son texte) n'est ni rouvert ni réécrit : SIGNATURE_OUTLOOK, il se
+// finit dans Outlook pour ne pas perdre sa mise en page.
+
+/** Le brouillon a une signature posée dans Outlook : il ne passe pas par l'éditeur. */
+export const SIGNATURE_OUTLOOK = "signature-outlook" as const;
+
+/** « Modifier » est-il possible ? null si le brouillon n'est pas dans la liste (ou plus un brouillon). */
+export async function brouillonEstModifiable(g: Gestionnaire, boite: string, id: string): Promise<boolean | null> {
+  if (!(await brouillonVisible(boite, id))) return null;
+  const lu = await getRechercheMail().lireBrouillonComplet({ boite, id });
+  if (!lu) return null;
+  return brouillonModifiable(decouperCorpsBrouillon(lu.html, await getSignatureGestionnaire(g)));
+}
 
 /** Le brouillon rouvert pour l'éditeur ; null s'il n'est pas dans la liste (ou plus un brouillon). */
-export async function ouvrirBrouillonPourEdition(g: Gestionnaire, boite: string, id: string): Promise<BrouillonEdition | null> {
+export async function ouvrirBrouillonPourEdition(g: Gestionnaire, boite: string, id: string): Promise<BrouillonEdition | typeof SIGNATURE_OUTLOOK | null> {
   if (!(await brouillonVisible(boite, id))) return null;
   const lu = await getRechercheMail().lireBrouillonComplet({ boite, id });
   if (!lu) return null;
   const signatureHtml = await getSignatureGestionnaire(g);
   const d = decouperCorpsBrouillon(lu.html, signatureHtml);
+  if (!brouillonModifiable(d)) return SIGNATURE_OUTLOOK;
   return {
     boite,
     id,
@@ -98,17 +113,24 @@ export interface PreparationEdition {
 
 /**
  * Met à jour le brouillon (objet, destinataires, corps recomposé, pièces retirées) et rend le
- * jeton de la suite ; null s'il n'est plus dans la liste. Boîte perso : le mode « envoyer » suit
+ * jeton de la suite ; null s'il n'est plus dans la liste, SIGNATURE_OUTLOOK (rien n'est écrit) si
+ * sa signature a été posée dans Outlook. Boîte perso : le mode « envoyer » suit
  * la même règle que le nouveau mail depuis la boîte perso (envoiDirectComposition).
  */
-export async function preparerEditionBrouillon(g: Gestionnaire, boite: string, d: DemandeEditionBrouillon): Promise<PreparationEdition | null> {
+export async function preparerEditionBrouillon(
+  g: Gestionnaire,
+  boite: string,
+  d: DemandeEditionBrouillon,
+): Promise<PreparationEdition | typeof SIGNATURE_OUTLOOK | null> {
   if (!(await brouillonVisible(boite, d.id))) return null;
   const expediteur = { boite, personnelle: true };
   if (!brouillonPossible(expediteur)) return { simulation: true };
   const lu = await getRechercheMail().lireBrouillonComplet({ boite, id: d.id });
   if (!lu) return null;
   const signatureHtml = await getSignatureGestionnaire(g);
-  const corps = recomposerCorpsBrouillon(decouperCorpsBrouillon(lu.html, signatureHtml), d.corpsHtml, signatureHtml);
+  const decoupe = decouperCorpsBrouillon(lu.html, signatureHtml);
+  if (!brouillonModifiable(decoupe)) return SIGNATURE_OUTLOOK;
+  const corps = recomposerCorpsBrouillon(decoupe, d.corpsHtml, signatureHtml);
   const outbound = getMailOutboundProvider();
   await outbound.majBrouillon({ boite, id: d.id, sujet: d.objet, a: d.a, cc: d.cc, cci: d.cci, corpsHtml: corps });
   const pieces = new Set(lu.pieces.map((p) => p.id));

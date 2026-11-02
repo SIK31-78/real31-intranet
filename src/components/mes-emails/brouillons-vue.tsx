@@ -9,16 +9,25 @@
 // « Modifier » (02/11/2026, décision Sekou, option a) : le brouillon se rouvre dans une fenêtre
 // d'écriture avec l'éditeur riche (modifier-brouillon), seulement quand cet éditeur est ouvert
 // à la personne.
+// 02/11/2026 (décision Sekou) : un brouillon dont la signature a été posée dans Outlook ne se
+// rouvre pas dans l'éditeur (elle y perdrait sa mise en page) : « Modifier » laisse la place à
+// « Finir dans Outlook », et le serveur refuse de toute façon (actions-brouillons).
 
 import { useEffect, useState } from "react";
 import { ExternalLink, FilePen, Paperclip, PenLine, Send, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, classesBouton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Callout } from "@/components/ui/callout";
 import { useConfirm } from "@/components/ui/confirm";
 import { useToast } from "@/components/ui/toast";
 import type { EchangeTrouve } from "@/lib/domain/echanges";
-import { chargerBrouillonsAction, envoyerBrouillonAction, lireBrouillonAction, supprimerBrouillonAction } from "@/app/mes-emails/actions-brouillons";
+import {
+  brouillonModifiableAction,
+  chargerBrouillonsAction,
+  envoyerBrouillonAction,
+  lireBrouillonAction,
+  supprimerBrouillonAction,
+} from "@/app/mes-emails/actions-brouillons";
 import { TexteAvecLiens } from "@/components/mes-emails/texte-avec-liens";
 import { ModifierBrouillon } from "@/components/mes-emails/modifier-brouillon";
 
@@ -103,6 +112,8 @@ export function BrouillonsVue({ boite, editeurRiche = false }: { boite: string; 
   );
 }
 
+const TITRE_SIGNATURE_OUTLOOK = "La signature de ce brouillon a été posée dans Outlook : finissez-le dans Outlook pour ne pas l'abîmer";
+
 function DetailBrouillon({ e, onRetire, onModifie }: { e: EchangeTrouve; onRetire: () => void; /** Absent : pas d'éditeur riche, pas de « Modifier ». */ onModifie?: () => void }) {
   const toast = useToast();
   const confirmer = useConfirm();
@@ -110,6 +121,21 @@ function DetailBrouillon({ e, onRetire, onModifie }: { e: EchangeTrouve; onRetir
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
   const [edition, setEdition] = useState(false);
+  // « Modifier » possible ? null tant que le serveur n'a pas répondu (bouton grisé). Un échec de
+  // la vérification laisse « Modifier » : l'ouverture revérifie côté serveur.
+  const [modifiable, setModifiable] = useState<boolean | null>(null);
+  const avecModifier = Boolean(onModifie);
+
+  useEffect(() => {
+    if (!avecModifier) return;
+    let actif = true;
+    void brouillonModifiableAction({ boite: e.boite, id: e.id }).then((r) => {
+      if (actif) setModifiable(r.ok ? (r.donnees?.modifiable ?? true) : true);
+    });
+    return () => {
+      actif = false;
+    };
+  }, [e.boite, e.id, avecModifier]);
 
   useEffect(() => {
     let actif = true;
@@ -157,6 +183,8 @@ function DetailBrouillon({ e, onRetire, onModifie }: { e: EchangeTrouve; onRetir
     onRetire();
   }
 
+  const signatureOutlook = modifiable === false;
+
   return (
     <Card>
       {edition && onModifie ? (
@@ -165,8 +193,23 @@ function DetailBrouillon({ e, onRetire, onModifie }: { e: EchangeTrouve; onRetir
       <div className="px-5 pt-4 pb-3 border-b border-line">
         <div className="flex flex-wrap items-start gap-2">
           <h2 className="flex-1 min-w-[200px] text-title font-semibold text-ink leading-snug">{e.objet}</h2>
-          {onModifie ? (
-            <Button size="sm" onClick={() => setEdition(true)} disabled={enCours} title="Rouvre le brouillon dans l'éditeur : destinataires, objet, texte, pièces jointes">
+          {onModifie && signatureOutlook && e.lienOutlook ? (
+            <a href={e.lienOutlook} target="_blank" rel="noreferrer" className={classesBouton({ size: "sm" })} title={TITRE_SIGNATURE_OUTLOOK}>
+              <ExternalLink strokeWidth={1.75} />
+              Finir dans Outlook
+            </a>
+          ) : onModifie && signatureOutlook ? (
+            <Button size="sm" disabled title={TITRE_SIGNATURE_OUTLOOK}>
+              <ExternalLink strokeWidth={1.75} />
+              Finir dans Outlook
+            </Button>
+          ) : onModifie ? (
+            <Button
+              size="sm"
+              onClick={() => setEdition(true)}
+              disabled={enCours || modifiable === null}
+              title="Rouvre le brouillon dans l'éditeur : destinataires, objet, texte, pièces jointes"
+            >
               <PenLine strokeWidth={1.75} />
               Modifier
             </Button>
@@ -175,7 +218,7 @@ function DetailBrouillon({ e, onRetire, onModifie }: { e: EchangeTrouve; onRetir
             <Send strokeWidth={1.75} />
             Envoyer
           </Button>
-          {e.lienOutlook ? (
+          {e.lienOutlook && !(onModifie && signatureOutlook) ? (
             <a
               href={e.lienOutlook}
               target="_blank"

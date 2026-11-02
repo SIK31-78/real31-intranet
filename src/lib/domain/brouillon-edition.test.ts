@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decouperCorpsBrouillon, recomposerCorpsBrouillon } from "./brouillon-edition";
+import { brouillonModifiable, decouperCorpsBrouillon, recomposerCorpsBrouillon } from "./brouillon-edition";
 
 // Rouvrir un brouillon dans l'éditeur riche (02/11/2026) : seule la partie écrite passe par
 // l'éditeur ; signature et historique restent à l'octet près ; la signature n'est jamais
@@ -39,6 +39,15 @@ describe("decouperCorpsBrouillon", () => {
     const d = decouperCorpsBrouillon(html, SIG);
     expect(d.signature).toBe("dans-le-texte");
     expect(recomposerCorpsBrouillon(d, "<p>Bonjour</p>", SIG)).not.toContain("<table");
+  });
+
+  // 02/11/2026 (décision Sekou) : signature posée dans Outlook = pas d'éditeur, on finit dans Outlook.
+  it("brouillonModifiable : non si la signature a été posée dans Outlook, oui si elle vient de l'intranet ou manque", () => {
+    const outlook = doc('<p>Bonjour</p><p class="MsoNormal"><b>Julie MARTIN</b></p><p>Gestionnaire de copropriété, REAL31</p>');
+    expect(brouillonModifiable(decouperCorpsBrouillon(outlook, SIG))).toBe(false);
+    expect(brouillonModifiable(decouperCorpsBrouillon(doc(`<div>Bonjour</div><br>${SIG}`), SIG))).toBe(true);
+    expect(brouillonModifiable(decouperCorpsBrouillon(doc("<div>Bonjour</div>"), SIG))).toBe(true);
+    expect(brouillonModifiable(decouperCorpsBrouillon(outlook, null))).toBe(true);
   });
 
   it("une signature citée dans l'historique ne compte pas pour le nouveau texte", () => {

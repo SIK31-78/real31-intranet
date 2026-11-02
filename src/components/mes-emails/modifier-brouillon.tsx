@@ -5,7 +5,9 @@
 // nouveau mail (À, Cc, Cci avec l'annuaire, objet, trombone). Seule la partie écrite passe par
 // l'éditeur : la signature et l'historique d'une réponse restent tels quels dans Outlook, et la
 // signature n'est jamais ajoutée une deuxième fois (le serveur relit le brouillon à
-// l'enregistrement, domain/brouillon-edition).
+// l'enregistrement, domain/brouillon-edition). Un brouillon dont la signature a été posée dans
+// Outlook ne s'ouvre pas ici (02/11/2026, décision Sekou) : le serveur le refuse, la fenêtre
+// affiche le refus.
 // « Enregistrer » met à jour le brouillon sans l'envoyer ; « Envoyer » le met à jour puis
 // l'envoie. Pièces d'origine : on peut en retirer ; les fichiers ajoutés sont déposés par
 // tranches sur le brouillon, comme un mail neuf. Un dépôt raté ne supprime jamais le brouillon.
@@ -231,14 +233,10 @@ function Edition({ e, onFermer, onEnvoye, onEnregistre }: { e: BrouillonEdition;
           </div>
         ) : null}
       </div>
-      {e.signature === "dans-le-texte" ? (
-        <Callout ton="warn">La signature de ce brouillon fait partie du texte ci-dessus (écrite dans Outlook) : elle n&apos;est pas ajoutée une deuxième fois.</Callout>
-      ) : (
-        <p className="text-meta text-ink-3">
-          {e.signature === "isolee" ? "Votre signature reste sous le texte, telle quelle." : e.signatureAjoutee ? "Votre signature sera ajoutée sous le texte." : null}
-          {e.citation ? " L'historique de la conversation est gardé tel quel en dessous." : null}
-        </p>
-      )}
+      <p className="text-meta text-ink-3">
+        {e.signature === "isolee" ? "Votre signature reste sous le texte, telle quelle." : e.signatureAjoutee ? "Votre signature sera ajoutée sous le texte." : null}
+        {e.citation ? " L'historique de la conversation est gardé tel quel en dessous." : null}
+      </p>
       <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line pt-3">
         <Button type="button" variant="ghost" onClick={onFermer} disabled={enCours}>
           Annuler

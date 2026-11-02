@@ -13,6 +13,8 @@
 // « Modifier » (02/11/2026, décision Sekou, option a) : le brouillon se rouvre dans l'éditeur
 // riche, mêmes gardes ; l'enregistrement relit le brouillon côté serveur et ne remplace que la
 // partie écrite (signature et historique gardés, jamais de signature en double).
+// 02/11/2026 (décision Sekou) : refusé pour un brouillon dont la signature a été posée dans
+// Outlook (REFUS_SIGNATURE_OUTLOOK), à l'ouverture comme à l'enregistrement.
 
 import { z } from "zod";
 import { echec, echecDepuis, type Res } from "@/lib/actions/resultat";
@@ -24,11 +26,13 @@ import { NB_MAX_FICHIERS, TAILLE_MAX_FICHIER, TAILLE_MAX_TOTALE } from "@/lib/do
 import { corpsMisEnForme } from "@/lib/services/mes-emails/corps-mis-en-forme";
 import {
   brouillonALaCorbeille,
+  brouillonEstModifiable,
   envoyerBrouillonDeLaListe,
   lireBrouillon,
   listerBrouillons,
   ouvrirBrouillonPourEdition,
   preparerEditionBrouillon,
+  SIGNATURE_OUTLOOK,
   type BrouillonEdition,
   type PreparationEdition,
 } from "@/lib/services/mes-emails/brouillons";
@@ -40,6 +44,7 @@ const zId = z.string().trim().min(1).max(600);
 const INDISPONIBLE = "Le module e-mails n'est pas disponible.";
 const REFUS_BOITE_BROUILLONS = "Les brouillons ne s'affichent que pour votre boîte personnelle.";
 const BROUILLON_ABSENT = "Ce brouillon n'est plus dans vos brouillons.";
+const REFUS_SIGNATURE_OUTLOOK = "La signature de ce brouillon a été posée dans Outlook : finissez-le dans Outlook pour ne pas l'abîmer.";
 
 /** Ma boîte perso, si c'est bien elle qui est demandée ; sinon le refus à rendre. */
 async function maBoitePerso(boite: string): Promise<{ boite: string; g: Gestionnaire } | { ok: false; erreur: string }> {
@@ -104,6 +109,20 @@ export async function supprimerBrouillonAction(input: unknown): Promise<Res> {
   }
 }
 
+/** « Modifier » proposé pour ce brouillon ? Faux quand sa signature a été posée dans Outlook (02/11/2026). */
+export async function brouillonModifiableAction(input: unknown): Promise<Res<{ modifiable: boolean }>> {
+  const v = z.object({ boite: zBoite, id: zId }).safeParse(input);
+  if (!v.success) return echec("Brouillon invalide.");
+  const b = await maBoitePerso(v.data.boite);
+  if ("ok" in b) return b;
+  try {
+    const m = await brouillonEstModifiable(b.g, b.boite, v.data.id);
+    return m === null ? echec(BROUILLON_ABSENT) : { ok: true, donnees: { modifiable: m } };
+  } catch (e) {
+    return echecDepuis(e, "mes-emails");
+  }
+}
+
 /** « Modifier » : le brouillon rouvert pour l'éditeur riche (destinataires, objet, texte, pièces). */
 export async function ouvrirBrouillonEditionAction(input: unknown): Promise<Res<BrouillonEdition>> {
   const v = z.object({ boite: zBoite, id: zId }).safeParse(input);
@@ -112,6 +131,7 @@ export async function ouvrirBrouillonEditionAction(input: unknown): Promise<Res<
   if ("ok" in b) return b;
   try {
     const e = await ouvrirBrouillonPourEdition(b.g, b.boite, v.data.id);
+    if (e === SIGNATURE_OUTLOOK) return echec(REFUS_SIGNATURE_OUTLOOK);
     return e ? { ok: true, donnees: e } : echec(BROUILLON_ABSENT);
   } catch (e) {
     return echecDepuis(e, "mes-emails");
@@ -167,6 +187,7 @@ export async function preparerEditionBrouillonAction(input: unknown): Promise<Re
       retirer: d.retirer,
       brouillonSeul: d.brouillon,
     });
+    if (p === SIGNATURE_OUTLOOK) return echec(REFUS_SIGNATURE_OUTLOOK);
     return p ? { ok: true, donnees: p } : echec(BROUILLON_ABSENT);
   } catch (e) {
     return echecDepuis(e, "mes-emails");
