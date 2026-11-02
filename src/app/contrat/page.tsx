@@ -5,6 +5,11 @@ import {
   type LigneContratAPreparer,
 } from "@/lib/services/contrat/lister-contrats";
 import { getGestionnaireCourant } from "@/lib/auth/session";
+import { estSuperAdmin } from "@/lib/auth/roles";
+import { lireVueChoisie } from "@/lib/auth/vue-perimetre";
+import { vuesDisponibles } from "@/lib/services/coproprietes/vue-perimetre";
+import { definirVueRequete } from "@/lib/services/coproprietes/lister-copros-cache";
+import { SelecteurVue } from "@/components/layout/selecteur-vue";
 import { formatJour } from "@/lib/services/facturation/format";
 import { alerteMandat } from "@/lib/domain/contrat/alerte-mandat";
 import { AppShell } from "@/components/layout/app-shell";
@@ -40,6 +45,13 @@ export default async function ContratsPage() {
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
   const aujourdhuiISO = ancreDuJour();
+  // La vue (ADR-041), comme Copropriétés et Suivi des contrats (02/11/2026) : sans elle, la
+  // liste ne montrait que le portefeuille, et un remplaçant (délégation de portefeuille) ne
+  // trouvait pas les copros du titulaire (Titouan pour Delphine) ; un directeur ne voyait pas
+  // son agence (Emmanuel).
+  const dispo = await vuesDisponibles(g.id, estSuperAdmin(g.email));
+  const vue = await lireVueChoisie(dispo.vues);
+  definirVueRequete(vue);
   const lignes = await listerContratsAPreparer(g.id, aujourdhuiISO);
   const enCours = lignes.filter((l) => l.etat !== "a-planifier");
   const sansAg = lignes.filter((l) => l.etat === "a-planifier");
@@ -51,7 +63,8 @@ export default async function ContratsPage() {
       <Page largeur="travail">
         <PageHeader
           titre="Contrats de syndic"
-          eyebrow={`${enCours.length} en cours · ${sansAg.length} sans AG planifiée`}
+          eyebrow={`${enCours.length} en cours · ${sansAg.length} sans AG planifiée · ${dispo.libelles[vue]}`}
+          actions={<SelecteurVue vues={dispo.vues} libelles={dispo.libelles} active={vue} />}
         />
 
         {/* Le barème manquant est un blocage SILENCIEUX si on ne le dit pas ici : le
