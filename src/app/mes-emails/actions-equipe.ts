@@ -18,7 +18,8 @@ import { getGestionnaireCourant, incarnationEnCours } from "@/lib/auth/session";
 import { estSuperAdmin } from "@/lib/auth/roles";
 import type { EtatEquipeMail, LigneHistoriqueAttribution, MembreEquipe, NoteInterne } from "@/lib/domain/boite-equipe";
 import { oublierCompteurEmails } from "@/lib/services/mes-emails/compteur-emails";
-import { conversationsDistribuees } from "@/lib/services/mes-emails/boites-visibles";
+import { perimetreEnvoyes } from "@/lib/services/mes-emails/boites-visibles";
+import { listerEnvoyes } from "@/lib/services/mes-emails/envoyes";
 import {
   ajouterNoteMail,
   attribuerMail,
@@ -255,11 +256,16 @@ export async function relancerSiPasDeReponseAction(input: unknown): Promise<Res<
   if (!g) return echec("Non connecté.");
   const cible = await boiteCible(g, d.boite);
   if (!cible) return echec(REFUS_MAIL);
-  // Boîte partagée : un envoi dans une conversation de mes binômes (les Envoyés que je vois).
-  if ((await natureBoite(g, cible)) === "partagee" && !estSuperAdmin(g.email) && !(await conversationsDistribuees(g, cible)).has(d.conversationId)) {
-    return echec("Cet envoi n'est pas dans une conversation de ton binôme.");
-  }
   try {
+    // Boîte partagée : un envoi que la liste des Envoyés me montre (conversation distribuée ou
+    // copro de mon portefeuille dans l'objet). 02/11/2026 : le contrôle ne regardait que les
+    // conversations, et refusait la relance d'un mail neuf rangé par sa référence (Océane).
+    if ((await natureBoite(g, cible)) === "partagee" && !estSuperAdmin(g.email)) {
+      const visibles = await listerEnvoyes(cible, await perimetreEnvoyes(g, cible));
+      if (!visibles.some((e) => e.internetMessageId === d.emailId && e.conversationId === d.conversationId)) {
+        return echec("Cet envoi n'est pas dans les envoyés de ton binôme.");
+      }
+    }
     const jusquAu = await relancerSiPasDeReponse(g, { boite: cible, internetMessageId: d.emailId, conversationId: d.conversationId, envoyeLe: d.envoyeLe, choix: d.choix });
     oublierCompteurEmails(g.id);
     return { ok: true, donnees: { jusquAu } };
