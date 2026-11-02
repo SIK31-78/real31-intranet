@@ -265,6 +265,11 @@ export interface DemandeBrouillon {
    * (déjà contrôlé par domain envoisSepares : pas de Cc ni de Cci). `a` reste l'union, pour le journal.
    */
   envois?: string[][];
+  /**
+   * « Enregistrer en brouillon » (02/11/2026) : le mail reste dans les brouillons de la boîte,
+   * même quand elle peut envoyer. Ne fait que restreindre : jamais un envoi que la garde refuse.
+   */
+  brouillonSeul?: boolean;
 }
 
 export interface ResultatBrouillon {
@@ -350,7 +355,7 @@ export async function preparerComposition(
   const lots: { a: string[]; cci: string[] }[] = d.envois?.length
     ? d.envois.map((x) => ({ a: x, cci: [] }))
     : (d.cci?.length ? enLots(d.cci) : [[]]).map((cci) => ({ a, cci }));
-  const mode = envoiDirectComposition(expediteur) ? "envoyer" : "brouillon";
+  const mode = !d.brouillonSeul && envoiDirectComposition(expediteur) ? "envoyer" : "brouillon";
   const crees: { id: string; webLink?: string; internetMessageId?: string; conversationId?: string }[] = [];
   try {
     for (const { a, cci } of lots) {

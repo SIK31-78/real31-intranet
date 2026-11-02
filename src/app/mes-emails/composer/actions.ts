@@ -171,6 +171,8 @@ export async function preparerCompositionAction(input: unknown): Promise<Res<Pre
       envois: z.array(z.array(z.string().max(320).regex(ADRESSE_MAIL)).min(1).max(10)).max(ENVOIS_SEPARES_MAX + 1).optional(),
       // Le « De » choisi (29/10/2026) : contrôlé contre les boîtes de la personne, jamais cru tel quel.
       expediteur: z.string().trim().max(320).optional(),
+      // « Enregistrer en brouillon » (02/11/2026) : le mail reste dans les brouillons, même si la boîte peut envoyer.
+      brouillon: z.boolean().optional(),
     })
     .refine((v) => v.a.length > 0 || v.cci.length > 0)
     .safeParse(input);
@@ -214,6 +216,7 @@ export async function preparerCompositionAction(input: unknown): Promise<Res<Pre
           ...(cci.length ? { cci } : {}),
           ...(dossierId ? { dossierId } : {}),
           ...(envois ? { envois } : {}),
+          ...(d.data.brouillon ? { brouillonSeul: true } : {}),
         },
         g,
         expediteur,

@@ -483,7 +483,9 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
   const objetReduitACopro = Boolean(copro && !aUnSujet && (adresses(a).length || cci.length) && corps.trim());
   const adressesInvalides = [...adresses(a), ...adresses(cc)].filter((e) => !adresseMailValide(e));
 
-  async function creerBrouillon() {
+  // `brouillonSeul` : « Enregistrer en brouillon » (02/11/2026), le mail reste dans les brouillons de la boîte.
+  async function creerBrouillon(brouillonSeul = false) {
+    const envoiReel = envoiDirect && !brouillonSeul;
     if (adressesInvalides.length) {
       toast.err(`Adresse invalide : ${adressesInvalides.map((e) => `« ${e} »`).join(", ")}. À retirer ou corriger avant l'envoi.`);
       return;
@@ -516,11 +518,11 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
     if (envoisPrets && brouillonPossible) {
       const n = envoisPrets.length;
       const ok = await confirmer({
-        titre: envoiDirect ? `Envoyer ${n} mails séparés ?` : `Créer ${n} brouillons séparés ?`,
+        titre: envoiReel ? `Envoyer ${n} mails séparés ?` : `Créer ${n} brouillons séparés ?`,
         message:
-          phraseEnvoisSepares(n, envoiDirect) +
+          phraseEnvoisSepares(n, envoiReel) +
           (copro ? "" : " Aucune copropriété n'est choisie : ces mails ne seront rattachés à aucune copro." + suggestionCopro(proposees)),
-        confirmer: envoiDirect ? `Envoyer les ${n} mails` : `Créer les ${n} brouillons`,
+        confirmer: envoiReel ? `Envoyer les ${n} mails` : `Créer les ${n} brouillons`,
         ...(avertissementCollegue ? { avertissement: avertissementCollegue } : {}),
       });
       if (!ok) return;
@@ -531,11 +533,11 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
     // Toute la copropriété suppose une copro : les deux confirmations ne s'empilent jamais.
     if (!copro && brouillonPossible && !confirme) {
       const ok = await confirmer({
-        titre: envoiDirect ? "Envoyer sans copropriété ?" : "Créer le brouillon sans copropriété ?",
+        titre: envoiReel ? "Envoyer sans copropriété ?" : "Créer le brouillon sans copropriété ?",
         message:
           "Aucune copropriété n'est choisie : ce mail ne sera rattaché à aucune copro et le tri ne pourra pas le classer." +
           suggestionCopro(proposees),
-        confirmer: envoiDirect ? "Envoyer quand même" : "Créer le brouillon quand même",
+        confirmer: envoiReel ? "Envoyer quand même" : "Créer le brouillon quand même",
         ...(avertissementCollegue ? { avertissement: avertissementCollegue } : {}),
       });
       if (!ok) return;
@@ -545,14 +547,14 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
     if (cci.length && brouillonPossible) {
       const lots = enLots(cci).length;
       const ok = await confirmer({
-        titre: envoiDirect ? "Envoyer à toute la copropriété ?" : "Préparer le mail à toute la copropriété ?",
+        titre: envoiReel ? "Envoyer à toute la copropriété ?" : "Préparer le mail à toute la copropriété ?",
         message:
           (controleCopro
             ? `${controleCopro.resume}, en copie cachée : aucun ne verra les autres.`
             : `${cci.length} adresses en copie cachée : aucun copropriétaire ne verra les autres.`) +
           (lots > 1 ? ` Le mail partira en ${lots} envois, pour rester sous la limite de la messagerie.` : "") +
-          (envoiDirect ? " Il part tout de suite." : " Le brouillon se relit dans Outlook."),
-        confirmer: envoiDirect ? "Envoyer" : "Créer le brouillon",
+          (envoiReel ? " Il part tout de suite." : " Le brouillon se relit dans Outlook."),
+        confirmer: envoiReel ? "Envoyer" : "Créer le brouillon",
         ...(controleCopro?.alerte || avertissementCollegue
           ? { avertissement: [controleCopro?.alerte, avertissementCollegue].filter(Boolean).join(" ") }
           : {}),
@@ -565,7 +567,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
         titre: "Écrire à l'adresse personnelle d'un collègue ?",
         message: "Un destinataire porte le nom d'un collègue, mais l'adresse choisie n'est pas son adresse REAL31.",
         avertissement: avertissementCollegue,
-        confirmer: envoiDirect ? "Envoyer quand même" : brouillonPossible ? "Créer le brouillon quand même" : "Continuer",
+        confirmer: envoiReel ? "Envoyer quand même" : brouillonPossible ? "Créer le brouillon quand même" : "Continuer",
         annuler: "Corriger",
       });
       if (!ok) return;
@@ -586,6 +588,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
         fichiers: fichiers.map(({ nom, taille }) => ({ nom, taille })),
         // Le « De » choisi : le serveur le recontrôle contre les boîtes de la personne.
         ...(boite ? { expediteur: boite } : {}),
+        ...(brouillonSeul ? { brouillon: true } : {}),
       });
       if (!prep.ok) {
         setEnvoiEnCours(false);
@@ -612,7 +615,7 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
           }
         }
       }
-      const aRelancer = relancePossible ? relanceAEnvoyer(choixRelance) : undefined;
+      const aRelancer = relancePossible && !brouillonSeul ? relanceAEnvoyer(choixRelance) : undefined;
       const r = await finaliserCompositionAction({ jetons, ...(aRelancer ? { relance: aRelancer } : {}) });
       setEnvoiEnCours(false);
       majProgres(null, 0);
@@ -630,7 +633,9 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
       toast.ok(
         res.envoye
           ? `Mail envoyé à ${pour} depuis ${res.boite ?? "la boîte"}${plusieurs}.`
-          : `Brouillon pour ${pour} créé dans ${res.boite ?? "la boîte"}${plusieurs}, à relire puis envoyer dans Outlook.`,
+          : brouillonSeul
+            ? `Brouillon pour ${pour} enregistré dans ${res.boite ?? "la boîte"}${plusieurs}.`
+            : `Brouillon pour ${pour} créé dans ${res.boite ?? "la boîte"}${plusieurs}, à relire puis envoyer dans Outlook.`,
         !res.envoye && res.webLink ? { href: res.webLink, libelle: "Ouvrir le brouillon dans Outlook" } : undefined,
       );
       if (res.relance) {
@@ -882,6 +887,12 @@ export function Compositeur({ copros, gestionnaireNom, agence, expediteurs, expe
         {onTermine ? (
           <Button type="button" variant="ghost" onClick={() => void annuler()} disabled={envoiEnCours}>
             Annuler
+          </Button>
+        ) : null}
+        {/* La boîte peut envoyer : on peut aussi garder le mail en brouillon pour le finir plus tard (02/11/2026). */}
+        {brouillonPossible && envoiDirect ? (
+          <Button type="button" variant="ghost" disabled={!pretAEnvoyer || envoiEnCours || chargement} onClick={() => void creerBrouillon(true)} title={`Garde le mail dans les brouillons de ${boite}, sans l'envoyer`}>
+            Enregistrer en brouillon
           </Button>
         ) : null}
         {/* type="button" : le compositeur a vécu dans le <form> « Actualiser » (27/10/2026) ; aucun de ses boutons ne soumet. */}

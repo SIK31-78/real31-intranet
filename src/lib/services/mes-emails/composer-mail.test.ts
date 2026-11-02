@@ -237,6 +237,18 @@ describe("rechercherDestinataires : prestataires ESTALE (02/11/2026)", () => {
   });
 });
 
+describe("preparerComposition : « Enregistrer en brouillon » (02/11/2026)", () => {
+  const g = { id: "g1", nomComplet: "Moi", initiales: "MO", email: "moi@real31.fr" };
+  const perso = { boite: "moi@real31.fr", personnelle: true };
+  it("la boîte perso envoie ; demandé en brouillon, le mail reste en brouillon", async () => {
+    const envoi = await preparerComposition({ objet: "x", corps: "y", a: ["a@x.fr"], cc: [] }, g, perso);
+    expect(envoi.envoi).toBe(true);
+    const brouillon = await preparerComposition({ objet: "x", corps: "y", a: ["a@x.fr"], cc: [], brouillonSeul: true }, g, perso);
+    expect(brouillon.envoi).toBe(false);
+    expect(JSON.parse(brouillon.jetons![0]!)).toMatchObject({ mode: "brouillon", boite: "moi@real31.fr" });
+  });
+});
+
 describe("preparerComposition : envoi séparé (décision 10)", () => {
   const g = { id: "g1", nomComplet: "Moi", initiales: "MO", email: "moi@real31.fr" };
   const config = { boite: "syndic2@real31.fr", agences: ["LGC"] } as never;
