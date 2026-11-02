@@ -5,63 +5,117 @@
 
 import type { DossierBoite, MailboxProvider, PieceJointeRef, ResultatCorbeille } from "@/lib/ports/mailbox-provider";
 import { PieceJointeIntrouvable } from "@/lib/domain/piece-jointe-flux";
+import { estDossierSysteme } from "@/lib/domain/mes-emails";
 import { GRAPH, graphFetch, jetonGraph, resoudreMessageId } from "./graph-auth";
 
-type Folder = { id: string; displayName: string };
+type Folder = { id: string; displayName: string; childFolderCount?: number };
+
+async function pages(tk: string, url0: string, quoi: string): Promise<Folder[]> {
+  const out: Folder[] = [];
+  let url = url0;
+  while (url) {
+    const r = await graphFetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+    if (!r.ok) throw new Error(`Graph ${quoi} ${r.status} : ${(await r.text()).slice(0, 200)}`);
+    const j = (await r.json()) as { value?: Folder[]; "@odata.nextLink"?: string };
+    out.push(...(j.value ?? []));
+    url = j["@odata.nextLink"] ?? "";
+  }
+  return out;
+}
 
 // Dossiers racine de la boite (Boite de reception, Archive, et tout dossier cree a
 // la racine : "Communication agence", "Spam", "Perso"...). Q1 du handoff resolue en
 // listant racine ET sous-inbox -> aucune hypothese sur l'emplacement des generiques.
-async function rootFolders(tk: string, boite: string): Promise<Folder[]> {
-  const out: Folder[] = [];
-  let url: string =
-    `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders` + `?$top=100&$select=id,displayName`;
-  while (url) {
-    const r = await graphFetch(url, { headers: { Authorization: `Bearer ${tk}` } });
-    if (!r.ok) throw new Error(`Graph dossiers racine ${r.status} : ${(await r.text()).slice(0, 200)}`);
-    const j = (await r.json()) as { value?: Folder[]; "@odata.nextLink"?: string };
-    out.push(...(j.value ?? []));
-    url = j["@odata.nextLink"] ?? "";
-  }
-  return out;
+function rootFolders(tk: string, boite: string): Promise<Folder[]> {
+  return pages(tk, `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders?$top=100&$select=id,displayName,childFolderCount`, "dossiers racine");
 }
 
-async function childFolders(tk: string, boite: string, folderId: string): Promise<Folder[]> {
-  const out: Folder[] = [];
-  let url: string =
-    `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/${folderId}/childFolders` +
-    `?$top=100&$select=id,displayName`;
-  while (url) {
-    const r = await graphFetch(url, { headers: { Authorization: `Bearer ${tk}` } });
-    if (!r.ok) throw new Error(`Graph dossiers ${r.status} : ${(await r.text()).slice(0, 200)}`);
-    const j = (await r.json()) as { value?: Folder[]; "@odata.nextLink"?: string };
-    out.push(...(j.value ?? []));
-    url = j["@odata.nextLink"] ?? "";
-  }
-  return out;
+function childFolders(tk: string, boite: string, folderId: string): Promise<Folder[]> {
+  return pages(
+    tk,
+    `${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/${folderId}/childFolders?$top=100&$select=id,displayName,childFolderCount`,
+    "dossiers",
+  );
+}
+
+/** L'id de la boite de reception (le dossier racine ne dit pas lequel c'est). */
+async function idReception(tk: string, boite: string): Promise<string> {
+  const r = await graphFetch(`${GRAPH}/users/${encodeURIComponent(boite)}/mailFolders/inbox?$select=id`, {
+    headers: { Authorization: `Bearer ${tk}` },
+  });
+  if (!r.ok) throw new Error(`Graph boite de reception ${r.status} : ${(await r.text()).slice(0, 200)}`);
+  return ((await r.json()) as { id: string }).id;
 }
 
 /**
- * Tous les dossiers sous la boite de reception, en descendant les niveaux : les
- * sous-dossiers copro sont souvent ranges sous un dossier parent (ex. "Boite de
- * reception > copropriete > S234 ..."). Profondeur bornee (defaut 2 niveaux).
+ * Toute l'arborescence de la boite (02/11/2026 : Julie range dans des sous-dossiers copro,
+ * le menu ne proposait que le premier niveau). Bornee : PROFONDEUR_MAX niveaux sous un dossier
+ * racine et DOSSIERS_MAX dossiers en tout ; au-dela, on garde ce qui est lu (journalise).
  */
-async function dossiersSousInbox(tk: string, boite: string, profondeur = 2): Promise<Folder[]> {
-  let niveau = await childFolders(tk, boite, "inbox");
-  const tous: Folder[] = [...niveau];
-  for (let d = 1; d < profondeur && niveau.length > 0; d++) {
-    // Par paquets de 4 (la limite de requêtes simultanées par boîte chez Graph), plutôt qu'un
-    // par un : 0,5 s par dossier mis bout à bout chez Mahaut (Sentry, 16/10/2026).
-    const suivant: Folder[] = [];
-    for (let i = 0; i < niveau.length; i += 4) {
-      const lots = await Promise.all(niveau.slice(i, i + 4).map((f) => childFolders(tk, boite, f.id)));
-      suivant.push(...lots.flat());
+export const PROFONDEUR_MAX = 6;
+export const DOSSIERS_MAX = 800;
+
+type Noeud = { folder: Folder; chemin: string; sousReception: boolean; profondeur: number };
+
+/**
+ * Parcours en largeur, par paquets de 4 (la limite de requetes simultanees par boite chez
+ * Graph ; 0,5 s par dossier mis bout a bout chez Mahaut, Sentry 16/10/2026). Un dossier sans
+ * sous-dossier (`childFolderCount` a 0) ne coute aucun appel ; les dossiers systeme
+ * (supprimes, envoyes…) ne sont pas parcourus. Exporte pour le test.
+ */
+export async function parcourirArborescence(
+  racines: readonly Folder[],
+  reception: string,
+  enfants: (folderId: string) => Promise<Folder[]>,
+  bornes: { profondeur: number; max: number } = { profondeur: PROFONDEUR_MAX, max: DOSSIERS_MAX },
+): Promise<{ dossiers: DossierBoite[]; tronque: boolean }> {
+  const dossiers: DossierBoite[] = [];
+  const vus = new Set<string>();
+  let tronque = false;
+  let niveau: Noeud[] = [];
+  for (const f of racines) {
+    if (vus.has(f.id) || dossiers.length >= bornes.max) continue;
+    vus.add(f.id);
+    dossiers.push({ id: f.id, nom: f.displayName, niveau: 0 });
+    if (!estDossierSysteme(f.displayName)) {
+      // Sous la reception, le chemin part de ses sous-dossiers ; ailleurs, du dossier racine.
+      const estReception = f.id === reception;
+      niveau.push({ folder: f, chemin: estReception ? "" : f.displayName, sousReception: estReception, profondeur: 0 });
     }
-    tous.push(...suivant);
-    niveau = suivant;
   }
-  return tous;
+  while (niveau.length > 0) {
+    const aOuvrir = niveau.filter((n) => n.folder.childFolderCount !== 0);
+    const ouvrables = aOuvrir.filter((n) => n.profondeur < bornes.profondeur);
+    if (ouvrables.length < aOuvrir.length) tronque = true;
+    const suivant: Noeud[] = [];
+    paquets: for (let i = 0; i < ouvrables.length; i += 4) {
+      const lot = ouvrables.slice(i, i + 4);
+      const lus = await Promise.all(lot.map((n) => enfants(n.folder.id)));
+      for (let k = 0; k < lot.length; k++) {
+        const parent = lot[k]!;
+        for (const f of lus[k]!) {
+          if (vus.has(f.id)) continue;
+          if (dossiers.length >= bornes.max) {
+            tronque = true;
+            break paquets;
+          }
+          vus.add(f.id);
+          const chemin = parent.chemin ? `${parent.chemin} / ${f.displayName}` : f.displayName;
+          const profondeur = parent.profondeur + 1;
+          dossiers.push({ id: f.id, nom: f.displayName, niveau: parent.sousReception ? profondeur : 0, chemin });
+          suivant.push({ folder: f, chemin, sousReception: parent.sousReception, profondeur });
+        }
+      }
+    }
+    niveau = tronque && dossiers.length >= bornes.max ? [] : suivant;
+  }
+  return { dossiers, tronque };
 }
+
+// Cache court par boite : le menu se rouvre a chaque mail, l'arborescence change rarement.
+// Vide pour la boite quand l'intranet y cree un dossier.
+const TTL_DOSSIERS_MS = 2 * 60 * 1000;
+const cacheDossiers = new Map<string, { valeur: DossierBoite[]; expire: number }>();
 
 export class GraphMailboxProvider implements MailboxProvider {
   async creerDossier(boite: string, nom: string): Promise<DossierBoite> {
@@ -82,29 +136,22 @@ export class GraphMailboxProvider implements MailboxProvider {
         return (await r.json()) as Folder;
       })());
 
-    return { id: f.id, nom: f.displayName, niveau: 1 };
+    cacheDossiers.delete(boite.trim().toLowerCase());
+    return { id: f.id, nom: f.displayName, niveau: 1, chemin: f.displayName };
   }
 
   async listerDossiers(boite: string): Promise<DossierBoite[]> {
     if (!boite) throw new Error("Liste dossiers : boite manquante.");
+    const cle = boite.trim().toLowerCase();
+    const enCache = cacheDossiers.get(cle);
+    if (enCache && Date.now() < enCache.expire) return enCache.valeur;
     const tk = await jetonGraph();
-    const [racine, sousInbox] = await Promise.all([
-      rootFolders(tk, boite),
-      dossiersSousInbox(tk, boite),
-    ]);
-    const vus = new Set<string>();
-    const out: DossierBoite[] = [];
-    for (const f of racine) {
-      if (vus.has(f.id)) continue;
-      vus.add(f.id);
-      out.push({ id: f.id, nom: f.displayName, niveau: 0 });
-    }
-    for (const f of sousInbox) {
-      if (vus.has(f.id)) continue;
-      vus.add(f.id);
-      out.push({ id: f.id, nom: f.displayName, niveau: 1 });
-    }
-    return out.sort((a, b) => a.nom.localeCompare(b.nom));
+    const [racines, reception] = await Promise.all([rootFolders(tk, boite), idReception(tk, boite)]);
+    const { dossiers, tronque } = await parcourirArborescence(racines, reception, (id) => childFolders(tk, boite, id));
+    if (tronque) console.warn(`[mailbox] arborescence de ${boite} tronquee (${dossiers.length} dossiers, ${PROFONDEUR_MAX} niveaux au plus).`);
+    const valeur = dossiers.sort((a, b) => (a.chemin ?? a.nom).localeCompare(b.chemin ?? b.nom));
+    cacheDossiers.set(cle, { valeur, expire: Date.now() + TTL_DOSSIERS_MS });
+    return valeur;
   }
 
   async classerDansDossier(p: {

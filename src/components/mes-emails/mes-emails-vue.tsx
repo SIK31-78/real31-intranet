@@ -29,6 +29,7 @@ import {
   StickyNote,
   Undo2,
 } from "lucide-react";
+import { ChoixDossierOutlook } from "./choix-dossier";
 import type {
   ContexteCopro,
   Correspondant,
@@ -41,7 +42,6 @@ import type {
 } from "@/lib/domain/mes-emails";
 import {
   dossierOutlookSuggere,
-  grouperDossiersBoite,
   libelleCorrespondant,
   nomDossierCopro,
   mailsDeLaBoite,
@@ -2349,41 +2349,8 @@ function AnalysePane({
   // le titre du mail (jamais une deuxième ligne de boutons dans la barre, 29/10/2026).
   const choixDossier = classementOutlook ? (
     <>
-      <Select
-        largeur="auto"
-        value={dossierIdChoisi}
-        onChange={(e) => onChoisirDossier(e.target.value)}
-        aria-label="Dossier Outlook où archiver le mail traité"
-        className="max-w-[200px]"
-      >
-        <option value="">{dossiers === null ? "Chargement des dossiers…" : "Archiver dans…"}</option>
-        {dossiers &&
-          (() => {
-            const { reception, autres } = grouperDossiersBoite(dossiers);
-            return (
-              <>
-                {reception.length > 0 && (
-                  <optgroup label="Sous-dossiers de la réception">
-                    {reception.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.nom}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {autres.length > 0 && (
-                  <optgroup label="Autres dossiers">
-                    {autres.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.nom}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </>
-            );
-          })()}
-      </Select>
+      {/* Toute l'arborescence, avec recherche (02/11/2026). */}
+      <ChoixDossierOutlook dossiers={dossiers} valeur={dossierIdChoisi} onChoisir={onChoisirDossier} />
       {dossierACreer ? (
         <Button size="sm" variant="ghost" onClick={onCreerDossierOutlook} title="Crée le sous-dossier dans votre boîte de réception">
           <FolderPlus strokeWidth={1.5} />

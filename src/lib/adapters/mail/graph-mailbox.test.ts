@@ -13,7 +13,7 @@ vi.mock("./graph-auth", () => ({
   },
 }));
 
-import { GraphMailboxProvider } from "./graph-mailbox";
+import { GraphMailboxProvider, parcourirArborescence } from "./graph-mailbox";
 
 type Appel = { url: string; methode: string; corps?: unknown };
 let appels: Appel[];
@@ -98,5 +98,47 @@ describe("GraphMailboxProvider.lireEtatsLu", () => {
       "https://graph/page2",
     ]);
     expect(Object.fromEntries(lus)).toEqual({ "<a>": true, "<b>": false });
+  });
+});
+
+// Toute l'arborescence de la boîte perso (02/11/2026) : chemins, bornes, dossiers système.
+describe("parcourirArborescence", () => {
+  const f = (id: string, displayName: string, childFolderCount = 0) => ({ id, displayName, childFolderCount });
+  const arbre: Record<string, ReturnType<typeof f>[]> = {
+    inbox: [f("copros", "Copros", 2), f("sk", "SK-CP")],
+    copros: [f("s270", "S270 - Le Cyrano", 1), f("s300", "S300 - Moulin")],
+    s270: [f("s270-2025", "2025")],
+    perso: [f("fact", "Factures")],
+    del: [f("vieux", "Vieux")],
+  };
+  const racines = [f("inbox", "Boîte de réception", 2), f("perso", "Perso", 1), f("del", "Éléments supprimés", 1), f("vide", "Vide")];
+
+  it("rend les chemins « Parent / Enfant », la profondeur sous la réception, sans ouvrir les dossiers système ni les feuilles", async () => {
+    const appels: string[] = [];
+    const { dossiers, tronque } = await parcourirArborescence(racines, "inbox", async (id) => {
+      appels.push(id);
+      return arbre[id] ?? [];
+    });
+    expect(tronque).toBe(false);
+    expect(appels.sort()).toEqual(["copros", "inbox", "perso", "s270"]);
+    const vue = Object.fromEntries(dossiers.map((d) => [d.id, [d.chemin ?? d.nom, d.niveau]]));
+    expect(vue).toMatchObject({
+      sk: ["SK-CP", 1],
+      s270: ["Copros / S270 - Le Cyrano", 2],
+      "s270-2025": ["Copros / S270 - Le Cyrano / 2025", 3],
+      fact: ["Perso / Factures", 0],
+      del: ["Éléments supprimés", 0],
+    });
+    expect(vue.vieux).toBeUndefined();
+  });
+
+  it("borne la profondeur et le nombre de dossiers", async () => {
+    const enfants = async (id: string) => arbre[id] ?? [];
+    const court = await parcourirArborescence(racines, "inbox", enfants, { profondeur: 1, max: 100 });
+    expect(court.tronque).toBe(true);
+    expect(court.dossiers.some((d) => d.id === "s270")).toBe(false);
+    const peu = await parcourirArborescence(racines, "inbox", enfants, { profondeur: 6, max: 5 });
+    expect(peu.dossiers).toHaveLength(5);
+    expect(peu.tronque).toBe(true);
   });
 });

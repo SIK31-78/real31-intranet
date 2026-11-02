@@ -10,12 +10,44 @@ import { cleDeReference, referencesCitees } from "@/lib/domain/tri-emails";
 export interface DossierBoite {
   id: string;
   nom: string;
-  /** 0 = dossier racine de la boite, 1 = sous-dossier de la boite de reception. */
+  /**
+   * 0 = hors de la boite de reception (un dossier racine, ou l'un de ses sous-dossiers) ;
+   * 1 et plus = profondeur sous la boite de reception (1 = sous-dossier direct).
+   */
   niveau: number;
+  /**
+   * Le chemin affiche, « Parent / Enfant » (02/11/2026 : toute l'arborescence de la boite
+   * perso, Julie range dans des sous-dossiers copro). Sous la reception, il part de ses
+   * sous-dossiers (« Copros / S234 ») ; ailleurs, du dossier racine. Absent : le nom seul.
+   */
+  chemin?: string;
 }
 
 // Dossiers systeme d'Outlook : on n'y « classe » pas un mail (supprimer, ce n'est pas ranger).
 const DOSSIERS_SYSTEME = /^(éléments supprimés|deleted items|courrier indésirable|junk e-?mail|brouillons|drafts|éléments envoyés|sent items|boîte d'envoi|outbox|historique des conversations|conversation history|archive|flux rss|rss feeds|problèmes de synchronisation|sync issues)$/i;
+
+/** Un dossier systeme d'Outlook (supprimes, envoyes, indesirables…) : ni rangement, ni parcours. */
+export function estDossierSysteme(nom: string): boolean {
+  return DOSSIERS_SYSTEME.test(nom.trim());
+}
+
+/** Ce que le selecteur affiche d'un dossier : son chemin, sinon son nom. */
+export function libelleDossier(d: Pick<DossierBoite, "nom" | "chemin">): string {
+  return d.chemin || d.nom;
+}
+
+/**
+ * La recherche du menu « Archiver dans… » (02/11/2026) : chaque mot tape doit se trouver dans
+ * le chemin, sans casse ni accents (« cyr s270 » trouve « Copros / S270 - Le Cyrano »).
+ */
+export function filtrerDossiers<T extends Pick<DossierBoite, "nom" | "chemin">>(dossiers: readonly T[], recherche: string): T[] {
+  const mots = sansAccents(recherche).split(" ").filter(Boolean);
+  if (!mots.length) return [...dossiers];
+  return dossiers.filter((d) => {
+    const texte = sansAccents(libelleDossier(d));
+    return mots.every((m) => texte.includes(m));
+  });
+}
 
 /**
  * Le selecteur « Classer dans… » range les dossiers en deux groupes au lieu d'un tri
@@ -24,10 +56,12 @@ const DOSSIERS_SYSTEME = /^(éléments supprimés|deleted items|courrier indési
  * dossiers systeme (supprimes, envoyes, indesirables…) sont retires. Tri francais.
  */
 export function grouperDossiersBoite(dossiers: readonly DossierBoite[]): { reception: DossierBoite[]; autres: DossierBoite[] } {
-  const tri = (a: DossierBoite, b: DossierBoite) => a.nom.localeCompare(b.nom, "fr", { sensitivity: "base" });
+  const tri = (a: DossierBoite, b: DossierBoite) => libelleDossier(a).localeCompare(libelleDossier(b), "fr", { sensitivity: "base" });
+  // Un sous-dossier d'un dossier systeme (une « Archive / 2024 ») est ecarte avec lui.
+  const racine = (d: DossierBoite) => (d.chemin ? d.chemin.split(" / ")[0]! : d.nom);
   return {
     reception: dossiers.filter((d) => d.niveau > 0).sort(tri),
-    autres: dossiers.filter((d) => d.niveau === 0 && !DOSSIERS_SYSTEME.test(d.nom.trim())).sort(tri),
+    autres: dossiers.filter((d) => d.niveau === 0 && !estDossierSysteme(d.nom) && !estDossierSysteme(racine(d))).sort(tri),
   };
 }
 

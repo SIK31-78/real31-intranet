@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { destinatairesDeReponse, dossierOutlookSuggere, grouperDossiersBoite, mailsDeLaBoite, nomDossierCopro, sujetDeReponse, type MailEntrant } from "./mes-emails";
+import { destinatairesDeReponse, dossierOutlookSuggere, filtrerDossiers, grouperDossiersBoite, mailsDeLaBoite, nomDossierCopro, sujetDeReponse, type MailEntrant } from "./mes-emails";
 import { construireBoites, regrouperPartagees } from "./boites-mail";
 
 // Les regles de la reponse a un mail vivaient dans 1 500 lignes de JSX, sans test.
@@ -71,6 +71,28 @@ describe("grouperDossiersBoite", () => {
     ]);
     expect(g.reception.map((d) => d.nom)).toEqual(["Comptabilité", "SK-CP"]);
     expect(g.autres.map((d) => d.nom)).toEqual(["Archives 2025", "Boîte de réception"]);
+  });
+});
+
+describe("toute l'arborescence de la boîte perso (02/11/2026)", () => {
+  const dossiers = [
+    { id: "1", nom: "S270 - Le Cyrano", niveau: 2, chemin: "Copros / S270 - Le Cyrano" },
+    { id: "2", nom: "2024", niveau: 0, chemin: "Archive / 2024" },
+    { id: "3", nom: "Factures", niveau: 0, chemin: "Perso / Factures" },
+    { id: "4", nom: "Copros", niveau: 1, chemin: "Copros" },
+  ];
+  it("groupe et trie par chemin, écarte les sous-dossiers d'un dossier système", () => {
+    const g = grouperDossiersBoite(dossiers);
+    expect(g.reception.map((d) => d.chemin)).toEqual(["Copros", "Copros / S270 - Le Cyrano"]);
+    expect(g.autres.map((d) => d.chemin)).toEqual(["Perso / Factures"]);
+  });
+  it("cherche chaque mot dans le chemin, sans casse ni accents", () => {
+    expect(filtrerDossiers(dossiers, "cyr S270").map((d) => d.id)).toEqual(["1"]);
+    expect(filtrerDossiers(dossiers, "copros").map((d) => d.id)).toEqual(["1", "4"]);
+    expect(filtrerDossiers(dossiers, "  ")).toHaveLength(4);
+  });
+  it("suggère le dossier de la copro même rangé en sous-dossier", () => {
+    expect(dossierOutlookSuggere({ coproCode: "S0270", coproNom: "x" }, dossiers)).toBe("1");
   });
 });
 
