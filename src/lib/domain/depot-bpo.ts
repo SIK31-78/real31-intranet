@@ -114,3 +114,28 @@ export function nomFichierBpo(nom: string): string {
   const propre = nom.replace(/[\\/:*?"<>|#%]/g, " ").replace(/\s+/g, " ").trim().replace(/^\.+/, "");
   return (propre || "piece-jointe").slice(0, 200);
 }
+
+/** Où la pièce partira, tel que l'écran le montre avant le dépôt. */
+export interface CibleBpo {
+  /** Le dossier daté choisi, ex « Compta/LGC/2026/11-novembre/04-11 ». */
+  dossier: string;
+  /** « 04-11 » : le dossier du jour, ou le prochain. */
+  jour: string;
+  /** Le dossier du jour existe (sinon c'est le prochain). */
+  duJour: boolean;
+  /** Les sous-dossiers d'initiales qui existent dans le dossier daté. */
+  sousDossiers: string[];
+  /** Celui des initiales de la personne, s'il existe ; null : à choisir. */
+  parDefaut: string | null;
+  /** La copro du mail est dans ESTALE : ses factures vont dans ESTALE, pas chez BPO. */
+  estale: boolean;
+  /** false : le dépôt réel est coupé (droit SharePoint à accorder). */
+  ecritureActive: boolean;
+}
+
+export interface PieceDeposee {
+  nom: string;
+  depose: boolean;
+  /** Nom réel quand SharePoint a renommé (un fichier du même nom était déjà là), ou la raison de l'échec. */
+  detail?: string;
+}

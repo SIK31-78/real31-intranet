@@ -102,6 +102,7 @@ import { NB_MAX_FICHIERS, TAILLE_MAX_FICHIER, TAILLE_MAX_TOTALE, typePieceJointe
 import { ResultatsFouille, type Fouille } from "./resultats-fouille";
 import { EnvoyesVue } from "./envoyes-vue";
 import { BrouillonsVue } from "./brouillons-vue";
+import { PourBpo } from "./pour-bpo";
 import { TransfererMail } from "./transferer-mail";
 import { ecrireDansLaReponse } from "./focus-reponse";
 import { BoutonJoindre, EditeurRiche, LigneSousChamp } from "./editeur-riche";
@@ -2771,6 +2772,10 @@ function AnalysePane({
           {m.attachments.length > 0 && adresseFactures && onTransmettreFacture && (
             <TransmettreFacture destinataire={adresseFactures} coproChoisie={Boolean(coproCode)} onTransmettre={onTransmettreFacture} />
           )}
+          {/* « Pour BPO » (02/11/2026) : déposer des pièces dans le dossier daté de la compta. */}
+          {m.attachments.length > 0 && piecesJointes && piecesJointes.length > 0 ? (
+            <PourBpo key={`bpo-${m.id}`} boite={boiteDuMail} emailId={m.id} coproCode={coproCode} piecesJointes={piecesJointes} />
+          ) : null}
           {(statut === "repondu" || m.reponseOutlook === "repondu") && <ReponseEnvoyee key={`reponse-${m.id}`} emailId={m.id} boite={boiteDuMail} />}
       </div>
 

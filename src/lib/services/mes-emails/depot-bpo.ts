@@ -18,27 +18,13 @@ import {
   moisALire,
   nomFichierBpo,
   sousDossierParDefaut,
+  type CibleBpo,
   type DossierDate,
+  type PieceDeposee,
 } from "@/lib/domain/depot-bpo";
 import type { DepotBpoProvider } from "@/lib/ports/depot-bpo-provider";
 
-/** Où la pièce partira, tel que l'écran le montre avant le dépôt. */
-export interface CibleBpo {
-  /** Le dossier daté choisi, ex « Compta/LGC/2026/11-novembre/04-11 ». */
-  dossier: string;
-  /** « 04-11 » : le dossier du jour, ou le prochain. */
-  jour: string;
-  /** Le dossier du jour existe (sinon c'est le prochain). */
-  duJour: boolean;
-  /** Les sous-dossiers d'initiales qui existent dans le dossier daté. */
-  sousDossiers: string[];
-  /** Celui des initiales de la personne, s'il existe ; null : à choisir. */
-  parDefaut: string | null;
-  /** La copro du mail est dans ESTALE : ses factures vont dans ESTALE, pas chez BPO. */
-  estale: boolean;
-  /** false : le dépôt réel est coupé (droit SharePoint à accorder). */
-  ecritureActive: boolean;
-}
+export type { CibleBpo, PieceDeposee };
 
 export type ResultatCibleBpo = { ok: true; cible: CibleBpo } | { ok: false; motif: string };
 
@@ -116,12 +102,6 @@ export async function cibleBpo(
   }
 }
 
-export interface PieceDeposee {
-  nom: string;
-  depose: boolean;
-  /** Nom réel quand SharePoint a renommé (un fichier du même nom était déjà là), ou la raison de l'échec. */
-  detail?: string;
-}
 
 /**
  * Dépose les pièces jointes choisies du mail dans « <dossier daté>/<sousDossier> ». Le dossier
