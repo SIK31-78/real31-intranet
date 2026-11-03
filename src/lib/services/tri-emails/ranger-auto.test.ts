@@ -651,3 +651,34 @@ describe("rangerAutomatiquement : recommandé AR24 non délivré (03/11/2026)", 
     expect(vu.suggestion.raison.startsWith(RAISON_AR24)).toBe(true);
   });
 });
+
+describe("rangerAutomatiquement : formulaire de l'extranet Crypto (03/11/2026)", () => {
+  const formulaire = (email: string, objet = "Autre demande - Badge") =>
+    brut({ from: "no-reply@crypto-extranet.com", subject: objet, bodyText: `Expéditeur:	DUPONT Jean (coproprietaire)
+Email:	${email}<mailto:${email}>
+Sujet:	${objet}
+Message:	Bonjour` });
+
+  it("le client qui a rempli le formulaire est l'expéditeur : rangé au binôme de sa copro", async () => {
+    const connu = formulaire("proprio@exemple.fr");
+    const inconnu = formulaire("personne@exemple.fr");
+    const { passer, repo } = monter([connu, inconnu]);
+    expect(await passer()).toMatchObject({ ranges: 1, refus: { "pas-sure": 1 } });
+    const [e] = await repo.journalDepuis(SYNDIC4);
+    expect(e).toMatchObject({ internetMessageId: connu.internetMessageId, coproReference: "S0297", signal: "sure", par: "automatique" });
+    // L'écran voit la même piste ; l'expéditeur affiché reste l'extranet.
+    const vu = mailDeLaFile(connu, SYNDIC4, REF, null);
+    expect(vu.deAdresse).toBe("no-reply@crypto-extranet.com");
+    expect(vu.suggestion).toMatchObject({ nature: "sure", candidats: ["S0297"] });
+  });
+
+  it("client d'une autre agence : bascule proposée, jamais faite seule sur l'adresse e-mail", async () => {
+    const AUTRES: ReferentielTri = { copros: [copro("S0178", { agence: "ML" })], expediteurs: { "voisin@exemple.fr": [{ reference: "S0178", qualite: "copropriétaire" }] } };
+    const m = formulaire("voisin@exemple.fr", "Demande de changement d'information de DUPONT Jean");
+    const basculer = vi.fn(async () => {});
+    const { passer } = monter([m]);
+    await passer({ autres: async () => AUTRES, basculer });
+    expect(basculer).not.toHaveBeenCalled();
+    expect(avecPropositionAutreAgence(mailDeLaFile(m, SYNDIC4, REF, null), m, AUTRES).suggestion.autreAgence).toEqual({ reference: "S0178", agence: "ML" });
+  });
+});

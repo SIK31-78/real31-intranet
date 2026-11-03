@@ -21,6 +21,7 @@ import {
   destinationDe,
   dossiersChoisissables,
   estAvisNonRemis,
+  estFormulaireExtranet,
   estMailInterne,
   estRecommandeAr24NonDelivre,
   expediteursPublicite,
@@ -30,6 +31,7 @@ import {
   type DossierChoisissable,
   suggererCopro,
   suggererCoproAr24,
+  suggererCoproFormulaire,
   suggererCoproNonRemis,
   proposerAutreAgence,
   suggestionCorbeille,
@@ -165,7 +167,8 @@ export function mailDeLaFile(
   const suggestion = avecMemeConversation(
     // Plusieurs candidates : celles du gestionnaire que l'echange designe d'abord (28/10/2026).
     departagerParGestionnaire(
-      nonRemis ? suggererCoproNonRemis(analyse, ref) : suggererCopro(analyse, ref),
+      // Formulaire de l'extranet Crypto (03/11/2026) : le client qui l'a rempli est l'expediteur.
+      nonRemis ? suggererCoproNonRemis(analyse, ref) : estFormulaireExtranet(m.from) ? suggererCoproFormulaire(analyse, ref) : suggererCopro(analyse, ref),
       `${base.objet}\n${texte}`,
       ref,
       initialesParEmail,
@@ -200,10 +203,14 @@ export function avecPropositionAutreAgence(mail: MailDeLaFile, m: RawMail, autre
   const texte = m.bodyText.replace(/\r\n/g, "\n").trim();
   // Recommande AR24 non delivre : l'adresse du destinataire, cherchee dans les autres agences
   // (une proposition : un avis de non-remise n'est jamais bascule seul, basculeAutomatique).
-  const ar24 = estRecommandeAr24NonDelivre({ deAdresse: m.from, objet: m.subject })
+  // Formulaire de l'extranet : la meme piste que dans la boite (suggererCoproFormulaire).
+  const lu = { ...mail, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte };
+  const piste = estRecommandeAr24NonDelivre({ deAdresse: m.from, objet: m.subject })
     ? (r: ReferentielTri) => suggererCoproAr24(adressesRecommandeAr24(texte, m.attachments.map((p) => p.name)), r)
-    : undefined;
-  const suggestion = proposerAutreAgence(mail.suggestion, { ...mail, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, autres, ar24);
+    : estFormulaireExtranet(m.from)
+      ? (r: ReferentielTri) => suggererCoproFormulaire(lu, r)
+      : undefined;
+  const suggestion = proposerAutreAgence(mail.suggestion, lu, autres, piste);
   return suggestion === mail.suggestion ? mail : { ...mail, suggestion };
 }
 

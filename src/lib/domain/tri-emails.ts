@@ -1070,6 +1070,52 @@ export function avecMentionNonRemis(s: Suggestion): Suggestion {
   return { ...s, raison: `${RAISON_NON_REMIS} ${s.raison}` };
 }
 
+// Formulaires de l'extranet Crypto (decision Sekou du 03/11/2026) : no-reply@crypto-extranet.com
+// relaie la demande d'un client ; son adresse est la ligne « Email: » du corps.
+const EMAIL_FORMULAIRE = /^[ \t]*E-?mail[ \t]*:[ \t]*<?([^\s<>"]+@[^\s<>"]+?)>?(?=[\s<]|$)/im;
+const OBJET_CHANGEMENT_INFORMATION = /\bchangement d.informations?\b/;
+
+/** Mail relaye par l'extranet Crypto (formulaire rempli par un client). */
+export function estFormulaireExtranet(deAdresse: string): boolean {
+  return /@crypto-extranet\.com$/i.test(deAdresse.trim());
+}
+
+/** L'adresse e-mail du client qui a rempli le formulaire (ligne « Email: »), en minuscules ; null sinon. */
+export function expediteurDuFormulaire(corps: string): string | null {
+  const e = (EMAIL_FORMULAIRE.exec(corps)?.[1] ?? "").toLowerCase().replace(/[.,;]+$/, "");
+  return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(e) && !/@(?:real31\.fr|crypto-extranet\.com)$/.test(e) ? e : null;
+}
+
+/**
+ * La piste d'un formulaire de l'extranet (decision Sekou du 03/11/2026) : le moteur ordinaire,
+ * avec l'adresse e-mail du client (expediteurDuFormulaire) pour expediteur, en plus des autres
+ * indices du corps. L'expediteur passe avant une adresse postale (suggererCopro) : pour une
+ * « Demande de changement d'information », l'adresse citee est souvent le NOUVEAU domicile du
+ * client, pas sa copro, elle ne l'emporte jamais sur l'e-mail ; seule, elle ne bascule rien
+ * (pisteAutreAgenceStricte exige le nom ET l'adresse).
+ *   - L'e-mail et le corps designent la meme copro, seule : la piste du corps, en « sure »
+ *     (elle garde son origine, donc la bascule stricte d'un nom et d'une adresse complete).
+ *   - Client de plusieurs copros : celle que le corps designe seule par une piste rangeable,
+ *     si elle en fait partie (deux indices d'accord) ; jamais pour un changement d'information.
+ */
+export function suggererCoproFormulaire(
+  mail: Pick<MailATrier, "deAdresse" | "objet" | "apercu"> & { corps?: string },
+  ref: ReferentielTri,
+): Suggestion {
+  const client = expediteurDuFormulaire(mail.corps ?? mail.apercu);
+  const parCorps = suggererCopro(mail, ref);
+  if (!client) return parCorps;
+  const s = suggererCopro({ ...mail, deAdresse: client }, ref);
+  const seule = parCorps.candidats.length === 1 && pisteRangeable(parCorps) ? parCorps.candidats[0]! : null;
+  if (!seule || !s.candidats.includes(seule)) return s;
+  const corps = parCorps.raison.replace(/,? à confirmer\.?$/, "").replace(/\.$/, "");
+  if (s.nature === "sure" && s.candidats.length === 1) return { ...parCorps, nature: "sure", raison: `${s.raison} ${corps}.` };
+  if (s.nature === "plusieurs" && !OBJET_CHANGEMENT_INFORMATION.test(normaliser(mail.objet))) {
+    return { nature: "sure", candidats: [seule], raison: `${s.raison.replace(/\.$/, "")} ; le formulaire désigne ${seule} (${corps}).` };
+  }
+  return s;
+}
+
 /** Cle du dossier « corbeille » dans le journal (supprimerMail). */
 export const DOSSIER_CORBEILLE = "corbeille";
 

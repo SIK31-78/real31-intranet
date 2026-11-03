@@ -11,6 +11,9 @@ import {
   estRecommandeAr24NonDelivre,
   adressesRecommandeAr24,
   suggererCoproAr24,
+  suggererCoproFormulaire,
+  expediteurDuFormulaire,
+  estFormulaireExtranet,
   avecMemeConversation,
   rangeableAutomatiquement,
   rangeableParPiecesJointes,
@@ -1034,6 +1037,47 @@ describe("avis de non-remise : la copro du mail d'origine (décision du 03/11/20
   it("l'adresse technique d'Exchange du cabinet n'est pas un mail interne", () => {
     expect(estMailInterne("MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@real31.fr", "syndic4@real31.fr")).toBe(false);
     expect(estMailInterne("postmaster@real31.fr", "syndic4@real31.fr")).toBe(false);
+  });
+});
+
+describe("formulaires de l'extranet Crypto : le client est l'expéditeur (décision du 03/11/2026)", () => {
+  const REF_F: ReferentielTri = {
+    copros: [copro("S0297"), copro("S0305"), { ...copro("S0410"), nom: "LES TILLEULS", adresse: "4 allée des Tilleuls 78800 Houilles" }],
+    expediteurs: {
+      ...REF.expediteurs,
+      "multi@exemple.fr": [
+        { reference: "S0297", qualite: "copropriétaire" },
+        { reference: "S0410", qualite: "copropriétaire" },
+      ],
+    },
+  };
+  const formulaire = (email: string, objet: string, message = "Bonjour") => ({
+    deAdresse: "no-reply@crypto-extranet.com",
+    objet,
+    apercu: `Expéditeur:\tDUPONT Jean (coproprietaire)\nEmail:\t${email}<mailto:${email}>\nSujet:\t${objet}\nMessage:\t${message}`,
+  });
+
+  it("reconnaît le formulaire et l'adresse du client (ligne « Email: »)", () => {
+    expect(estFormulaireExtranet("no-reply@crypto-extranet.com")).toBe(true);
+    expect(estFormulaireExtranet("proprio@exemple.fr")).toBe(false);
+    expect(expediteurDuFormulaire(formulaire("Proprio@Exemple.fr", "Autre demande - Badge").apercu)).toBe("proprio@exemple.fr");
+    expect(expediteurDuFormulaire("Message: écrivez-moi à proprio@exemple.fr")).toBeNull();
+  });
+
+  it("l'adresse du client désigne sa copro ; l'adresse postale d'un changement d'information ne l'emporte pas", () => {
+    expect(suggererCoproFormulaire(formulaire("proprio@exemple.fr", "Autre demande - Badge"), REF_F)).toMatchObject({ nature: "sure", candidats: ["S0297"] });
+    // Le nouveau domicile cité est l'adresse d'une autre copro : l'e-mail gagne.
+    const chgt = formulaire("proprio@exemple.fr", "Demande de changement d'information de DUPONT Jean", "Ma nouvelle adresse : 4 allée des Tilleuls 78800 Houilles");
+    expect(suggererCoproFormulaire(chgt, REF_F)).toMatchObject({ nature: "sure", candidats: ["S0297"] });
+    // Client inconnu : le moteur ordinaire sur le corps.
+    expect(suggererCoproFormulaire(formulaire("inconnu@exemple.fr", "Autre demande - Badge", "Badge pour le 4 allée des Tilleuls 78800 Houilles"), REF_F)).toMatchObject({ candidats: ["S0410"], origine: "nom-adresse" });
+  });
+
+  it("client de plusieurs copros : celle que le corps désigne, sauf pour un changement d'information", () => {
+    const badge = formulaire("multi@exemple.fr", "Autre demande - Badge", "Badge pour le 4 allée des Tilleuls 78800 Houilles");
+    expect(suggererCoproFormulaire(badge, REF_F)).toMatchObject({ nature: "sure", candidats: ["S0410"] });
+    const chgt = formulaire("multi@exemple.fr", "Demande de changement d'information de DUPONT Jean", "Nouvelle adresse : 4 allée des Tilleuls 78800 Houilles");
+    expect(suggererCoproFormulaire(chgt, REF_F)).toMatchObject({ nature: "plusieurs", candidats: ["S0297", "S0410"] });
   });
 });
 
