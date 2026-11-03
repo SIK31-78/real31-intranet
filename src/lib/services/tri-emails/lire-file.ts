@@ -24,6 +24,7 @@ import {
   expediteursPublicite,
   lignesBinomes,
   motifCorbeille,
+  publiciteProbable,
   type DossierChoisissable,
   suggererCopro,
   suggererCoproNonRemis,
@@ -164,6 +165,21 @@ export function mailDeLaFile(
     coproConversation,
     ref,
   );
+  // Publicite probable des le premier mail (03/11/2026, R1c) : seulement un mail SANS aucune
+  // piste (sinon le rejeu perdait 4 mails bien ranges) ; proposee, comme toute corbeille.
+  const probable =
+    !interne &&
+    !nonRemis &&
+    suggestion.nature === "aucune" &&
+    suggestion.candidats.length === 0 &&
+    publiciteProbable({
+      deAdresse: m.from,
+      objet: m.subject,
+      corps: texte,
+      aPdf: m.attachments.some((p) => /\.pdf$/i.test(p.name) || /pdf/i.test(p.contentType ?? "")),
+      connu: m.from.trim().toLowerCase() in ref.expediteurs,
+    });
+  if (probable) return { ...base, corbeille: "publicite-probable", suggestion: suggestionCorbeille("publicite-probable") };
   return { ...base, suggestion: nonRemis ? avecMentionNonRemis(suggestion) : suggestion };
 }
 

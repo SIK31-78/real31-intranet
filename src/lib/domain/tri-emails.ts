@@ -844,7 +844,25 @@ export function estMailInterne(deAdresse: string, boite: string): boolean {
  * du journal (expediteursPublicite). Plus d'avis de non-remise depuis le 03/11/2026 (ils vont
  * au binome : estAvisNonRemis).
  */
-export type MotifCorbeille = "reponse-auto" | "publicite";
+export type MotifCorbeille = "reponse-auto" | "publicite" | "publicite-probable";
+
+// Publicite des le premier mail (etude du tri v2, R1c, 03/11/2026 : 24 justes sur 25) : un envoi
+// de masse (domaine d'emailing, lien de desinscription) qui ne parle pas metier et n'a pas de PDF.
+// Proposee seulement, comme toute corbeille. Plus large (tout « List-Unsubscribe »), la regle
+// envoyait 19 a 47 factures et avis utiles a la corbeille : d'ou les deux garde-fous.
+const DOMAINE_ENVOI_MASSE = /(?:brevosend|hubspotemail|sendibt|sendinblue|mailchimp|mcsv\.net|mailjet|sendgrid|mktomail|emarsys|aproxeml|newsletter|@news\.|@info\.|@notification\.|@notify\.|@communication\.|@marketing\.|@email\.|@e\.|@mail\.|@mails\.|@dm\.|@relationclient\.|actu)/i;
+const LIEN_DESINSCRIPTION = /se d[ée]sinscrire|d[ée]sabonn|d[ée]sinscription|unsubscribe|ne (?:plus|pas) recevoir|si (?:ce|cet) (?:message|e-?mail|courriel) ne s.affiche pas|afficher dans (?:le|votre) navigateur|version en ligne/i;
+const OBJET_METIER = /factur|avoir|relev|devis|sinistre|\bAG\b|assembl|r[èe]glement|commande|intervention|rapport|contrat|anomalie|alerte|rejet|quittance|[ée]ch[ée]ance|r[ée]clamation/i;
+
+/**
+ * Publicite probable des le premier mail : envoi de masse (domaine d'emailing, ou lien de
+ * desinscription dans le corps), sans mot metier dans l'objet (facture, devis, AG, sinistre…),
+ * sans PDF, d'un expediteur que ni ESTALE ni Crypto ne connait. Jamais un collegue.
+ */
+export function publiciteProbable(m: { deAdresse: string; objet: string; corps: string; aPdf: boolean; connu: boolean }): boolean {
+  if (m.connu || m.aPdf || /@real31\.fr$/i.test(m.deAdresse.trim()) || OBJET_METIER.test(m.objet)) return false;
+  return DOMAINE_ENVOI_MASSE.test(m.deAdresse) || LIEN_DESINSCRIPTION.test(m.corps);
+}
 
 // Objets des avis de non-remise et des reponses automatiques (Outlook en francais et en
 // anglais, serveurs de messagerie). Ancres en tete : « RE: Non remis… » est une vraie reponse.
@@ -913,7 +931,9 @@ export function suggestionCorbeille(motif: MotifCorbeille): Suggestion {
     raison:
       motif === "reponse-auto"
         ? "Réponse automatique (absence, accusé de réception) : proposée à la corbeille."
-        : "Expéditeur déjà mis à la corbeille au moins deux fois, jamais rangé : proposé à la corbeille.",
+        : motif === "publicite-probable"
+          ? "Envoi de masse sans facture ni objet métier, d'un expéditeur inconnu : publicité probable, proposée à la corbeille."
+          : "Expéditeur déjà mis à la corbeille au moins deux fois, jamais rangé : proposé à la corbeille.",
   };
 }
 

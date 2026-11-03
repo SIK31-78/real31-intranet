@@ -4,10 +4,12 @@ import {
   objetPourLaComptabilite,
   pisteRangeable,
   proposerAutreAgence,
+  publiciteProbable,
   rangeableAutomatiquement,
   recollerLettres,
   retirerEnteteCabinet,
   suggererCopro,
+  suggestionCorbeille,
   variantesEcriture,
   type CoproTri,
   type Suggestion,
@@ -230,5 +232,26 @@ describe("proposerAutreAgence (R3, proposition seulement)", () => {
     expect(proposer(mail("SDC LES ROSIERS", { corbeille: "reponse-auto" })).autreAgence).toBeUndefined();
     expect(proposer(mail("SDC LES ROSIERS", { interne: true })).autreAgence).toBeUndefined();
     expect(proposer(mail("Bonjour")).autreAgence).toBeUndefined();
+  });
+});
+
+describe("publiciteProbable (R1c, proposition seulement)", () => {
+  const pub = (o: Partial<Parameters<typeof publiciteProbable>[0]> = {}) =>
+    publiciteProbable({ deAdresse: "x@10540841.brevosend.com", objet: "Invitation Salon de la Copropriété 2026", corps: "", aPdf: false, connu: false, ...o });
+  it("envoi de masse ou lien de désinscription, sans objet métier ni PDF : publicité probable", () => {
+    expect(pub()).toBe(true);
+    expect(pub({ deAdresse: "contact@salon-exemple.fr", corps: "Si ce message ne s'affiche pas correctement, cliquez ici. Se désinscrire." })).toBe(true);
+  });
+  it("jamais une facture, un avis métier, un PDF, un expéditeur connu ni un collègue", () => {
+    expect(pub({ objet: "Votre facture d'électricité" })).toBe(false);
+    expect(pub({ objet: "Votre AG a bien été importée" })).toBe(false);
+    expect(pub({ aPdf: true })).toBe(false);
+    expect(pub({ connu: true })).toBe(false);
+    expect(pub({ deAdresse: "collegue@real31.fr" })).toBe(false);
+    expect(pub({ deAdresse: "contact@artisan-exemple.fr", corps: "Bonjour, voici notre passage de mardi." })).toBe(false);
+  });
+  it("proposée à la corbeille, jamais rangée seule", () => {
+    expect(suggestionCorbeille("publicite-probable").raison).toContain("publicité probable");
+    expect(rangeableAutomatiquement({ corbeille: "publicite-probable", suggestion: suggestionCorbeille("publicite-probable") }, ctx())).toEqual({ ok: false, motif: "corbeille" });
   });
 });

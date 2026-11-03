@@ -81,6 +81,7 @@ const LIBELLE_SIGNAL: Record<SignalTri, string> = {
 const LIBELLE_CORBEILLE: Record<MotifCorbeille, string> = {
   "reponse-auto": "Réponse auto",
   publicite: "Publicité",
+  "publicite-probable": "Publicité ?",
 };
 
 function pastille(m: MailDeLaFile): string {
@@ -555,6 +556,10 @@ function DetailMail({
             {mail.interne ? (
               <>
                 <strong className="font-medium">Mail interne</strong> : réponse d&apos;un collègue, la boîte partagée est restée en copie. Sans utilité : à mettre en corbeille.
+              </>
+            ) : mail.corbeille === "publicite-probable" ? (
+              <>
+                <strong className="font-medium">Publicité probable</strong> : envoi de masse sans facture ni objet métier, d&apos;un expéditeur inconnu. Proposé à la corbeille ; rien n&apos;est supprimé sans votre clic.
               </>
             ) : mail.corbeille === "publicite" ? (
               <>
