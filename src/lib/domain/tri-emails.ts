@@ -968,7 +968,63 @@ export function suggererCopro(
   },
   ref: ReferentielTri,
 ): Suggestion {
-  return plafonnerInactives(suggestionBrute(mail, ref), ref);
+  const brute = suggestionBrute(mail, ref);
+  // Les variantes d'ecriture ne servent qu'a un mail sans aucune piste : depliees partout, elles
+  // cassaient une piste juste (« SDC 21 REPUBLIQUE », nom Crypto REPUBLIQ21, lu « 21 boulevard
+  // REPUBLIQUE », rejeu du 03/11/2026).
+  if (brute.nature !== "aucune") return plafonnerInactives(brute, ref);
+  const v = (t: string) => variantesEcriture(t, ref.copros);
+  const lu = { ...mail, objet: v(mail.objet), apercu: v(mail.apercu), ...(mail.corps !== undefined ? { corps: v(mail.corps) } : {}) };
+  if (lu.objet === mail.objet && lu.apercu === mail.apercu && lu.corps === mail.corps) return plafonnerInactives(brute, ref);
+  return plafonnerInactives(suggestionBrute(lu, ref), ref);
+}
+
+// Variantes d'ecriture courantes dans les mails (etude du tri v2, 03/11/2026, 7 justes sur 7) :
+//   - « LGC » pour La Garenne-Colombes (« Chauffage 57 rue mederic LGC »), et « Garennes » ;
+//   - un code colle a la suite (« Vos Réf : OR/4439079 - S128FUIT ») ;
+//   - une rue sans son type (« 5 MURGERS », « 51 Foch », « 9 Mederic »), quand le mot est la
+//     rue d'une copro du referentiel, sous un seul type de voie.
+const VILLE_ABREGEE = /\bLGC\b/gi;
+const GARENNES = /\bgarennes\b/gi;
+const CODE_COLLE = /\b(SE|S)(\d{3,4})(?=[A-Za-z])/g;
+const MOIS = new Set(["janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre", "decembre"]);
+const NUMERO_PUIS_MOT = /\b(\d{1,4}(?:\s?(?:bis|ter))?)\s+((?:de la |de l'|des |du |de |d')?)([A-Za-zÀ-ÿ'-]{4,})/gi;
+
+// Mot de rue (dernier mot porteur de la voie) -> son type, quand le referentiel ne lui en
+// connait qu'un. Memoise par referentiel.
+const cacheTypesDeRue = new WeakMap<CoproTri[], Map<string, string>>();
+
+function typesDeRue(copros: CoproTri[]): Map<string, string> {
+  const deja = cacheTypesDeRue.get(copros);
+  if (deja) return deja;
+  const types = new Map<string, Set<string>>();
+  for (const c of copros) {
+    for (const a of [c.adresse, ...(c.adressesSecondaires ?? [])]) {
+      for (const v of voiesDe(a)) {
+        const mot = v.mots[v.mots.length - 1]!;
+        (types.get(mot) ?? types.set(mot, new Set()).get(mot)!).add(v.type);
+      }
+    }
+  }
+  const uniques = new Map([...types].filter(([, t]) => t.size === 1).map(([m, t]) => [m, [...t][0]!]));
+  cacheTypesDeRue.set(copros, uniques);
+  return uniques;
+}
+
+/** Le texte avec les variantes d'ecriture courantes depliees (ville abregee, code colle, rue sans type). */
+export function variantesEcriture(texte: string, copros: CoproTri[]): string {
+  if (!texte) return texte;
+  const types = typesDeRue(copros);
+  return texte
+    .replace(VILLE_ABREGEE, "La Garenne-Colombes")
+    .replace(GARENNES, "Garenne")
+    .replace(CODE_COLLE, "$1$2 ")
+    .replace(NUMERO_PUIS_MOT, (tout, numero: string, article: string, mot: string) => {
+      const m = normaliser(mot);
+      const type = types.get(m);
+      // « l'AG du 11 septembre » n'est pas la rue du 11 Septembre (rejeu du 03/11/2026).
+      return type && !TYPES_VOIE.includes(m) && !MOIS.has(m) ? `${numero} ${type} ${article}${mot}` : tout;
+    });
 }
 
 /**
