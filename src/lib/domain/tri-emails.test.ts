@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   AUCUN_BINOME,
   motifCorbeille,
+  estAvisNonRemis,
+  objetSansNonRemis,
+  suggererCoproNonRemis,
+  avecMentionNonRemis,
+  RAISON_NON_REMIS,
   avecMemeConversation,
   rangeableAutomatiquement,
   rangeableParPiecesJointes,
@@ -888,17 +893,25 @@ describe("copros inactives : reconnues, au plus une piste faible", () => {
   });
 });
 
-describe("motifCorbeille (non remis, réponses automatiques)", () => {
+describe("motifCorbeille (réponses automatiques ; plus les non-remis depuis le 03/11/2026)", () => {
   const m = (objet: string, deAdresse = "quelquun@exemple.fr") => ({ objet, deAdresse });
 
-  it("reconnaît les avis de non-remise, par l'objet ou l'expéditeur", () => {
-    expect(motifCorbeille(m("Non remis : Convocation AG"))).toBe("non-remis");
-    expect(motifCorbeille(m("Undeliverable: Appel de fonds"))).toBe("non-remis");
-    expect(motifCorbeille(m("Delivery Status Notification (Failure)"))).toBe("non-remis");
-    expect(motifCorbeille(m("Échec de la remise du message"))).toBe("non-remis");
-    expect(motifCorbeille(m("Votre message", "MAILER-DAEMON@exemple.fr"))).toBe("non-remis");
-    expect(motifCorbeille(m("Votre message", "postmaster@exemple.fr"))).toBe("non-remis");
-    expect(motifCorbeille(m("Message", "MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@exemple.fr"))).toBe("non-remis");
+  it("reconnaît les avis de non-remise, par l'objet ou l'expéditeur, sans leur proposer la corbeille", () => {
+    const avis = [
+      m("Non remis : Convocation AG"),
+      m("Undeliverable: Appel de fonds"),
+      m("Delivery Status Notification (Failure)"),
+      m("Échec de la remise du message"),
+      m("Votre message", "MAILER-DAEMON@exemple.fr"),
+      m("Votre message", "postmaster@exemple.fr"),
+      m("Message", "MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@exemple.fr"),
+    ];
+    for (const a of avis) {
+      expect(estAvisNonRemis(a)).toBe(true);
+      expect(motifCorbeille(a)).toBeNull();
+    }
+    // Même appris comme « publicité » (journal d'avant le 03/11) : pas de corbeille.
+    expect(motifCorbeille(m("Votre message", "postmaster@exemple.fr"), new Set(["postmaster@exemple.fr"]))).toBeNull();
   });
 
   it("reconnaît les réponses automatiques", () => {
@@ -910,8 +923,47 @@ describe("motifCorbeille (non remis, réponses automatiques)", () => {
 
   it("ne touche ni une vraie réponse ni un objet qui en parle", () => {
     expect(motifCorbeille(m("RE: Non remis : Convocation AG"))).toBeNull();
+    expect(estAvisNonRemis(m("RE: Non remis : Convocation AG"))).toBe(false);
+    expect(estAvisNonRemis(m("Courrier non remis au gardien, que faire ?"))).toBe(false);
     expect(motifCorbeille(m("Courrier non remis au gardien, que faire ?"))).toBeNull();
     expect(motifCorbeille(m("Fuite au 3e étage"))).toBeNull();
+  });
+});
+
+describe("avis de non-remise : la copro du mail d'origine (décision du 03/11/2026)", () => {
+  it("l'objet du mail d'origine, sans l'en-tête de non-remise", () => {
+    expect(objetSansNonRemis("Non remis : Convocation AG S0297")).toBe("Convocation AG S0297");
+    expect(objetSansNonRemis("[EXTERNE] Undeliverable: RE: Appel de fonds S0305")).toBe("RE: Appel de fonds S0305");
+    expect(objetSansNonRemis("Delivery Status Notification (Failure)")).toBe("");
+    expect(objetSansNonRemis("RE: Non remis : S0297")).toBe("RE: Non remis : S0297");
+  });
+
+  it("code de la copro dans l'objet d'origine : piste sûre, rangeable comme un mail normal", () => {
+    const s = suggererCoproNonRemis({ objet: "Non remis : Convocation AG S0297", apercu: "" }, REF);
+    expect(s).toMatchObject({ nature: "sure", candidats: ["S0297"], identifiant: true });
+    const ctx = { automatique: true, dejaPasse: false, copros: [copro("S0297")], initialesParEmail: { "g@real31.fr": "GG" } };
+    expect(rangeableAutomatiquement({ suggestion: avecMentionNonRemis(s) }, ctx)).toEqual({ ok: true, reference: "S0297" });
+  });
+
+  it("le corps qui cite le mail d'origine compte ; l'expéditeur technique jamais", () => {
+    const corps = suggererCoproNonRemis({ objet: "Undeliverable: Appel de fonds", apercu: "Votre message concernant S0305 n'a pas pu être remis." }, REF);
+    expect(corps.candidats).toEqual(["S0305"]);
+    // postmaster serait-il connu d'une copro dans le référentiel, il n'est pas un indice.
+    const ref: ReferentielTri = { ...REF, expediteurs: { ...REF.expediteurs, "postmaster@exemple.fr": [{ reference: "S0297", qualite: "copropriétaire" }] } };
+    expect(suggererCoproNonRemis({ objet: "Delivery Status Notification (Failure)", apercu: "" }, ref)).toMatchObject({ nature: "aucune", candidats: [] });
+  });
+
+  it("sans indice : aucune piste, pas de corbeille, la raison dit de rappeler le copropriétaire", () => {
+    const s = avecMentionNonRemis(suggererCoproNonRemis({ objet: "Non remis : Bonjour", apercu: "" }, REF));
+    expect(s.nature).toBe("aucune");
+    expect(s.raison.startsWith(RAISON_NON_REMIS)).toBe(true);
+    const ctx = { automatique: true, dejaPasse: false, copros: [copro("S0297")], initialesParEmail: { "g@real31.fr": "GG" } };
+    expect(rangeableAutomatiquement({ suggestion: s }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
+  });
+
+  it("l'adresse technique d'Exchange du cabinet n'est pas un mail interne", () => {
+    expect(estMailInterne("MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@real31.fr", "syndic4@real31.fr")).toBe(false);
+    expect(estMailInterne("postmaster@real31.fr", "syndic4@real31.fr")).toBe(false);
   });
 });
 
@@ -934,7 +986,7 @@ describe("rangeableAutomatiquement (tri automatique, piste sûre)", () => {
   });
 
   it("refuse quand la corbeille est proposée ou que le mail est interne", () => {
-    expect(rangeableAutomatiquement({ corbeille: "non-remis", suggestion: suggestionCorbeille("non-remis") }, ctx())).toEqual({ ok: false, motif: "corbeille" });
+    expect(rangeableAutomatiquement({ corbeille: "reponse-auto", suggestion: suggestionCorbeille("reponse-auto") }, ctx())).toEqual({ ok: false, motif: "corbeille" });
     // Même avec une piste sûre par ailleurs : la corbeille prime.
     expect(rangeableAutomatiquement({ corbeille: "reponse-auto", suggestion: sure() }, ctx())).toEqual({ ok: false, motif: "corbeille" });
     expect(rangeableAutomatiquement({ interne: true, suggestion: sure() }, ctx())).toEqual({ ok: false, motif: "interne" });
@@ -1071,7 +1123,7 @@ describe("rangeableParPiecesJointes (PDF lus par la tâche planifiée, 26/10/202
 
   it("mêmes garde-fous que la piste sûre", () => {
     expect(rangeableParPiecesJointes({ suggestion: rien }, ["S0305"], { ...ctx, automatique: false })).toEqual({ ok: false, motif: "automatique-coupe" });
-    expect(rangeableParPiecesJointes({ corbeille: "non-remis", suggestion: rien }, ["S0305"], ctx)).toEqual({ ok: false, motif: "corbeille" });
+    expect(rangeableParPiecesJointes({ corbeille: "reponse-auto", suggestion: rien }, ["S0305"], ctx)).toEqual({ ok: false, motif: "corbeille" });
     expect(rangeableParPiecesJointes({ interne: true, suggestion: rien }, ["S0305"], ctx)).toEqual({ ok: false, motif: "interne" });
     expect(rangeableParPiecesJointes({ suggestion: rien }, ["S0305"], { ...ctx, dejaPasse: true })).toEqual({ ok: false, motif: "deja-passe" });
     const hors = { nature: "hors-estale" as const, candidats: [], raison: "" };
@@ -1123,6 +1175,18 @@ describe("expediteursPublicite (corbeille proposée, apprise du journal, 26/10/2
     expect(expediteursPublicite([ligne("proprio@exemple.fr"), ligne("proprio@exemple.fr")], { "proprio@exemple.fr": [] }).size).toBe(0);
     const absences = [ligne("x@exemple.fr", { objet: "Réponse automatique : AG" }), ligne("x@exemple.fr", { objet: "Non remis : PV" })];
     expect(expediteursPublicite(absences).size).toBe(0);
+  });
+
+  it("jamais un expéditeur d'avis de non-remise, même mis à la corbeille avant le 03/11/2026", () => {
+    const avis = [
+      ligne("postmaster@exemple.fr", { objet: "Votre message" }),
+      ligne("postmaster@exemple.fr", { objet: "Votre message" }),
+      ligne("MAILER-DAEMON@exemple.fr", { objet: "Returned mail" }),
+      ligne("MAILER-DAEMON@exemple.fr", { objet: "Returned mail" }),
+      ligne("serveur@exemple.fr", { objet: "Undeliverable: AG" }),
+      ligne("serveur@exemple.fr", { objet: "Undeliverable: PV" }),
+    ];
+    expect(expediteursPublicite(avis).size).toBe(0);
   });
 
   it("la publicité bloque l'automatique comme les autres corbeilles", () => {

@@ -182,8 +182,14 @@ export interface MailATrier {
   a?: string[];
   /** Mail interne : réponse d'un collègue où la boîte partagée est restée en copie. À corbeille. */
   interne?: boolean;
-  /** Avis de non-remise ou reponse automatique : le tri propose la corbeille (motifCorbeille). */
+  /** Reponse automatique ou publicite apprise : le tri propose la corbeille (motifCorbeille). */
   corbeille?: MotifCorbeille;
+  /**
+   * Avis de non-remise d'un mail envoye (estAvisNonRemis) : un coproprietaire a une adresse
+   * mail fausse. Plus jamais propose a la corbeille (decision Sekou du 03/11/2026) : il part au
+   * binome de la copro concernee, qui rappelle le coproprietaire.
+   */
+  nonRemis?: true;
   objet: string;
   /** ISO 8601. */
   recuLe: string;
@@ -780,14 +786,17 @@ export function coprosDansPdf(texte: string, copros: CoproTri[]): string[] {
  */
 export function estMailInterne(deAdresse: string, boite: string): boolean {
   const de = deAdresse.trim().toLowerCase();
-  return /@real31\.fr$/.test(de) && de !== boite.trim().toLowerCase();
+  // L'adresse technique d'Exchange (« MicrosoftExchange…@real31.fr ») envoie les avis de
+  // non-remise : ce n'est pas un collegue (03/11/2026).
+  return /@real31\.fr$/.test(de) && de !== boite.trim().toLowerCase() && !EXPEDITEUR_NON_REMIS.test(de);
 }
 
 /**
  * Pourquoi le tri propose la corbeille plutot qu'une copro. « publicite » : expediteur appris
- * du journal (expediteursPublicite).
+ * du journal (expediteursPublicite). Plus d'avis de non-remise depuis le 03/11/2026 (ils vont
+ * au binome : estAvisNonRemis).
  */
-export type MotifCorbeille = "non-remis" | "reponse-auto" | "publicite";
+export type MotifCorbeille = "reponse-auto" | "publicite";
 
 // Objets des avis de non-remise et des reponses automatiques (Outlook en francais et en
 // anglais, serveurs de messagerie). Ancres en tete : « RE: Non remis… » est une vraie reponse.
@@ -806,18 +815,44 @@ const OBJET_REPONSE_AUTO = new RegExp(
 // d'Exchange Online (« MicrosoftExchange329e71ec…@… »).
 const EXPEDITEUR_NON_REMIS = /^(?:postmaster|mailer-daemon|microsoftexchange[0-9a-f]*)@/i;
 
+/** L'adresse technique d'un avis de non-remise (postmaster, MAILER-DAEMON, MicrosoftExchange…). */
+export function estExpediteurNonRemis(deAdresse: string): boolean {
+  return EXPEDITEUR_NON_REMIS.test(deAdresse.trim());
+}
+
 /**
- * Avis de non-remise ou reponse automatique : le tri propose la corbeille au lieu d'une copro
+ * Avis de non-remise d'un mail envoye, par son expediteur technique ou son objet (« Non
+ * remis : … », « Undeliverable: … » ; pas « RE: Non remis… », une vraie reponse).
+ */
+export function estAvisNonRemis(m: { deAdresse: string; objet: string }): boolean {
+  return estExpediteurNonRemis(m.deAdresse) || OBJET_NON_REMIS.test(normaliser(m.objet));
+}
+
+/**
+ * L'objet du mail d'origine, cite par l'avis de non-remise : « Non remis : Convocation AG
+ * S0297 » -> « Convocation AG S0297 ». Il porte souvent le code de la copro ou son adresse.
+ * Objet sans « : » apres l'en-tete (« Delivery Status Notification (Failure) ») : vide.
+ * Un objet qui n'est pas celui d'un avis de non-remise est rendu tel quel.
+ */
+export function objetSansNonRemis(objet: string): string {
+  if (!OBJET_NON_REMIS.test(normaliser(objet))) return objet;
+  const i = objet.indexOf(":");
+  return i >= 0 ? objet.slice(i + 1).trim() : "";
+}
+
+/**
+ * Reponse automatique ou publicite apprise : le tri propose la corbeille au lieu d'une copro
  * (decision Sekou du 19/10/2026). Ce n'est qu'une proposition : rien n'est supprime sans clic.
+ * Avis de non-remise (decision Sekou du 03/11/2026, remplace celle du 19/10) : JAMAIS de
+ * corbeille, ni comme publicite apprise ; il part au binome de la copro (estAvisNonRemis).
  */
 export function motifCorbeille(
   m: { deAdresse: string; objet: string },
   /** Expediteurs appris du journal (expediteursPublicite), en minuscules. */
   publicites?: ReadonlySet<string>,
 ): MotifCorbeille | null {
-  const objet = normaliser(m.objet);
-  if (EXPEDITEUR_NON_REMIS.test(m.deAdresse.trim()) || OBJET_NON_REMIS.test(objet)) return "non-remis";
-  if (OBJET_REPONSE_AUTO.test(objet)) return "reponse-auto";
+  if (estAvisNonRemis(m)) return null;
+  if (OBJET_REPONSE_AUTO.test(normaliser(m.objet))) return "reponse-auto";
   if (publicites?.has(cleExpediteur(m.deAdresse))) return "publicite";
   return null;
 }
@@ -828,12 +863,33 @@ export function suggestionCorbeille(motif: MotifCorbeille): Suggestion {
     nature: "aucune",
     candidats: [],
     raison:
-      motif === "non-remis"
-        ? "Avis de non-remise d'un mail envoyé : proposé à la corbeille."
-        : motif === "reponse-auto"
-          ? "Réponse automatique (absence, accusé de réception) : proposée à la corbeille."
-          : "Expéditeur déjà mis à la corbeille au moins deux fois, jamais rangé : proposé à la corbeille.",
+      motif === "reponse-auto"
+        ? "Réponse automatique (absence, accusé de réception) : proposée à la corbeille."
+        : "Expéditeur déjà mis à la corbeille au moins deux fois, jamais rangé : proposé à la corbeille.",
   };
+}
+
+/** Debut de la raison affichee pour un avis de non-remise (avecMentionNonRemis). */
+export const RAISON_NON_REMIS = "Avis de non-remise : un copropriétaire a une adresse mail fausse, à rappeler.";
+
+/**
+ * La piste d'un avis de non-remise (decision Sekou du 03/11/2026) : le moteur ordinaire
+ * (suggererCopro), mais sur l'objet du mail d'origine (objetSansNonRemis) et SANS
+ * l'expediteur technique (postmaster… n'est l'indice de rien). Le corps, qui cite le mail
+ * d'origine (« Immeuble concerné », code, adresse), compte comme pour un autre mail. La
+ * conversation (avecMemeConversation) s'applique ensuite, comme pour tout mail, puis
+ * avecMentionNonRemis.
+ */
+export function suggererCoproNonRemis(
+  mail: Pick<MailATrier, "objet" | "apercu"> & { corps?: string },
+  ref: ReferentielTri,
+): Suggestion {
+  return suggererCopro({ ...mail, deAdresse: "", objet: objetSansNonRemis(mail.objet) }, ref);
+}
+
+/** La raison d'un avis de non-remise commence par RAISON_NON_REMIS : l'equipe sait qui rappeler. */
+export function avecMentionNonRemis(s: Suggestion): Suggestion {
+  return { ...s, raison: `${RAISON_NON_REMIS} ${s.raison}` };
 }
 
 /** Cle du dossier « corbeille » dans le journal (supprimerMail). */
@@ -852,6 +908,9 @@ export function cleExpediteur(adresse: string): string {
  * 26/10/2026), appris du journal du tri : mis a la corbeille au moins CORBEILLES_PUBLICITE fois
  * et JAMAIS ranges dans une copro ni un dossier de binome (Comptabilité et Divers ne comptent
  * pas). Une proposition, jamais une suppression automatique.
+ *   - Jamais un expediteur d'avis de non-remise (postmaster, MAILER-DAEMON, MicrosoftExchange…),
+ *     et un avis de non-remise mis a la corbeille ne compte pour personne : jusqu'au
+ *     03/11/2026 la corbeille leur etait proposee, le journal en garde.
  *   - Par ADRESSE exacte, pas par domaine : mesure du 26/10 sur syndic4, les 5 expediteurs
  *     publicitaires ont chacun une adresse fixe (newsletter@…, marketing@…), alors qu'un
  *     domaine regroupe souvent un prestataire (veolia.com : 3 adresses, dont des factures).
@@ -868,10 +927,12 @@ export function expediteursPublicite(
   const compte = new Map<string, { corbeille: number; range: boolean }>();
   for (const e of historique) {
     const cle = cleExpediteur(e.expediteur);
-    if (!cle || /@real31\.fr$/.test(cle)) continue;
+    if (!cle || /@real31\.fr$/.test(cle) || estExpediteurNonRemis(cle)) continue;
     const c = compte.get(cle) ?? { corbeille: 0, range: false };
     if (e.coproReference || e.copros.length > 0 || e.dossierCle?.startsWith("binome:")) c.range = true;
-    else if (e.dossierCle === DOSSIER_CORBEILLE && !motifCorbeille({ deAdresse: e.expediteur, objet: e.objet })) c.corbeille++;
+    else if (e.dossierCle === DOSSIER_CORBEILLE && !estAvisNonRemis({ deAdresse: e.expediteur, objet: e.objet }) && !motifCorbeille({ deAdresse: e.expediteur, objet: e.objet })) {
+      c.corbeille++;
+    }
     compte.set(cle, c);
   }
   const out = new Set<string>();
@@ -1549,7 +1610,9 @@ export function pisteRangeable(s: Suggestion): boolean {
  * l'automatique signal par signal ») ? Seulement si TOUT est reuni :
  *   - l'automatique est ouvert pour la boite (`ctx.automatique` : drapeau `automatique` de
  *     sa config ET MAIL_TRI_AUTO ; jusqu'au 27/10/2026, une constante syndic4 en dur) ;
- *   - ni corbeille proposee (non remis, reponse automatique) ni mail interne ;
+ *   - ni corbeille proposee (reponse automatique, publicite apprise) ni mail interne. Un avis
+ *     de non-remise (03/11/2026) n'a pas de corbeille : il suit les regles d'un mail normal,
+ *     sur la piste de suggererCoproNonRemis ;
  *   - piste rangeable (pisteRangeable), sur UNE seule copro : « sure », ou « faible » par le
  *     nom de l'immeuble ou son adresse. Pas « plusieurs », pas un code dans le corps, pas un
  *     fournisseur seul, pas l'historique de la conversation ;

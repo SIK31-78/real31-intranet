@@ -15,15 +15,18 @@
 import {
   AUCUN_BINOME,
   avecMemeConversation,
+  avecMentionNonRemis,
   departagerParGestionnaire,
   destinationDe,
   dossiersChoisissables,
+  estAvisNonRemis,
   estMailInterne,
   expediteursPublicite,
   lignesBinomes,
   motifCorbeille,
   type DossierChoisissable,
   suggererCopro,
+  suggererCoproNonRemis,
   suggestionCorbeille,
   type CoproTri,
   type Destination,
@@ -123,9 +126,12 @@ export function mailDeLaFile(
   initialesParEmail: Record<string, string> = {},
 ): MailDeLaFile {
   const texte = m.bodyText.replace(/\r\n/g, "\n").trim();
-  // Non remis, reponse automatique, publicite apprise : la corbeille est proposee a la place
-  // d'une copro. Un mail interne garde son propre motif (« Interne »).
+  // Reponse automatique, publicite apprise : la corbeille est proposee a la place d'une copro.
+  // Un mail interne garde son propre motif (« Interne »). Un avis de non-remise n'a plus de
+  // corbeille (decision Sekou du 03/11/2026) : il part au binome de sa copro, trouvee sur
+  // l'objet du mail d'origine et le corps, jamais par l'expediteur technique.
   const interne = estMailInterne(m.from, boite);
+  const nonRemis = estAvisNonRemis({ deAdresse: m.from, objet: m.subject });
   const corbeille = motifCorbeille({ deAdresse: m.from, objet: m.subject }, interne ? undefined : publicites);
   const base: MailATrier = {
     id: m.id,
@@ -136,29 +142,28 @@ export function mailDeLaFile(
     ...(m.to.length ? { a: m.to } : {}),
     ...(interne ? { interne: true } : {}),
     ...(corbeille ? { corbeille } : {}),
+    ...(nonRemis ? { nonRemis: true as const } : {}),
     objet: m.subject || "(sans objet)",
     recuLe: m.receivedAt,
     apercu: texte.slice(0, APERCU),
     aPiecesJointes: m.attachments.length > 0,
     ...(m.webLink ? { lienOutlook: m.webLink } : {}),
   };
-  return {
-    ...base,
-    // Le corps entier sert a « Immeuble concerné », souvent loin dans l'historique cite.
-    suggestion: corbeille
-      ? suggestionCorbeille(corbeille)
-      : avecMemeConversation(
-          // Plusieurs candidates : celles du gestionnaire que l'echange designe d'abord (28/10/2026).
-          departagerParGestionnaire(
-            suggererCopro({ ...base, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, ref),
-            `${base.objet}\n${texte}`,
-            ref,
-            initialesParEmail,
-          ),
-          coproConversation,
-          ref,
-        ),
-  };
+  // Le corps entier sert a « Immeuble concerné », souvent loin dans l'historique cite.
+  const analyse = { ...base, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte };
+  if (corbeille) return { ...base, suggestion: suggestionCorbeille(corbeille) };
+  const suggestion = avecMemeConversation(
+    // Plusieurs candidates : celles du gestionnaire que l'echange designe d'abord (28/10/2026).
+    departagerParGestionnaire(
+      nonRemis ? suggererCoproNonRemis(analyse, ref) : suggererCopro(analyse, ref),
+      `${base.objet}\n${texte}`,
+      ref,
+      initialesParEmail,
+    ),
+    coproConversation,
+    ref,
+  );
+  return { ...base, suggestion: nonRemis ? avecMentionNonRemis(suggestion) : suggestion };
 }
 
 export async function lireFileATrier(config: BoiteTriConfig): Promise<FileATrier> {

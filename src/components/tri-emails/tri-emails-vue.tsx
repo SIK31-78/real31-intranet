@@ -79,7 +79,6 @@ const LIBELLE_SIGNAL: Record<SignalTri, string> = {
 };
 
 const LIBELLE_CORBEILLE: Record<MotifCorbeille, string> = {
-  "non-remis": "Non remis",
   "reponse-auto": "Réponse auto",
   publicite: "Publicité",
 };
@@ -397,6 +396,7 @@ function FileVue({
                 <span className="col-span-2 mt-1 flex flex-wrap gap-1.5">
                   {m.interne && <Badge ton="err">Interne</Badge>}
                   {!m.interne && m.corbeille && <Badge ton="err">{LIBELLE_CORBEILLE[m.corbeille]}</Badge>}
+                  {m.nonRemis && <Badge ton="warn">Non remis</Badge>}
                   <Badge ton={TON[m.suggestion.nature]}>{pastille(m)}</Badge>
                   {m.suggestion.candidats.length === 1 && parRef.get(m.suggestion.candidats[0]!)?.inactive && <Badge ton="outline">copro inactive</Badge>}
                 </span>
@@ -467,7 +467,8 @@ function DetailMail({
   );
   // « En cours » se déduit : une analyse est due et ce mail n'a pas encore de réponse.
   const [analyseFinie, setAnalyseFinie] = useState<string | null>(null);
-  // Mail interne, non remis, réponse automatique : la corbeille est proposée, pas de lecture des PDF.
+  // Mail interne, réponse automatique, publicité : la corbeille est proposée, pas de lecture des PDF.
+  // Un avis de non-remise n'en fait plus partie (03/11/2026) : il part à l'équipe de la copro.
   const aCorbeille = Boolean(mail.interne || mail.corbeille);
   const analyseDue = !aCorbeille && mail.aPiecesJointes && s.nature !== "sure" && !ANALYSE_PJ.has(mail.internetMessageId);
   const pjEnCours = analyseDue && analyseFinie !== mail.internetMessageId;
@@ -541,16 +542,19 @@ function DetailMail({
         {mail.aPiecesJointes && <PiecesJointes internetMessageId={mail.internetMessageId} />}
       </section>
 
+      {mail.nonRemis && !aCorbeille && (
+        <div className="rounded-xl border border-warn-500/40 bg-warn-50 p-4 sm:p-5 text-body text-ink">
+          <strong className="font-medium">Avis de non-remise</strong> : un copropriétaire a une adresse mail fausse, à rappeler. Rangez-le dans
+          la copropriété concernée : l&apos;équipe rappellera le copropriétaire et corrigera son adresse.
+        </div>
+      )}
+
       {aCorbeille && (
         <div className="rounded-xl border border-err-200 bg-err-50 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
           <span className="text-body text-ink">
             {mail.interne ? (
               <>
                 <strong className="font-medium">Mail interne</strong> : réponse d&apos;un collègue, la boîte partagée est restée en copie. Sans utilité : à mettre en corbeille.
-              </>
-            ) : mail.corbeille === "non-remis" ? (
-              <>
-                <strong className="font-medium">Non remis</strong> : avis de non-remise d&apos;un mail envoyé. Proposé à la corbeille ; rien n&apos;est supprimé sans votre clic.
               </>
             ) : mail.corbeille === "publicite" ? (
               <>

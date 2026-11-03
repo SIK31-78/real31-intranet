@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { AUCUN_BINOME, type CoproTri, type EntreeJournalTri, type ReferentielTri } from "@/lib/domain/tri-emails";
+import { AUCUN_BINOME, RAISON_NON_REMIS, type CoproTri, type EntreeJournalTri, type ReferentielTri } from "@/lib/domain/tri-emails";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import type { PositionMail, RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 import type { NouvelleEntreeJournal, OptionsDejaRange, TriRepository } from "@/lib/ports/tri-repository";
 import { annulerRangement, type DepsRangement } from "./ranger";
 import { rangerAutomatiquement } from "./ranger-auto";
+import { mailDeLaFile } from "./lire-file";
 import type { ReceptionIndex } from "@/lib/ports/reception-index";
 
 // Donnees inventees.
@@ -227,7 +228,7 @@ describe("rangerAutomatiquement (cron, piste sûre)", () => {
       brut({ subject: "S0297 et S0305 : deux immeubles" }), // plusieurs
       brut({ subject: "Bonjour", bodyText: "Voir S0305." }), // faible
       brut({ subject: "Ancien immeuble", bodyText: "Voir S0410." }), // inactive, code dans le corps : faible
-      brut({ from: "postmaster@exemple.fr", subject: "Non remis : S0297" }), // corbeille
+      brut({ subject: "Réponse automatique : S0297" }), // corbeille
       brut({ from: "collegue@real31.fr", subject: "RE: S0297 - fuite" }), // interne
     ];
     const { passer, repo, rangement } = monter(mails);
@@ -249,6 +250,42 @@ describe("rangerAutomatiquement (cron, piste sûre)", () => {
       simulation: false,
     });
     expect(rangement.etiqueter).toHaveBeenCalledWith(SYNDIC4, expect.any(String), { ajouter: ["S0297"] });
+  });
+
+  it("avis de non-remise (03/11/2026) : rangé au binôme si la copro est sûre, sinon laissé à la main sans corbeille", async () => {
+    const avecCode = brut({ from: "postmaster@exemple.fr", subject: "Non remis : Convocation AG S0297" });
+    const exchange = brut({ from: "MicrosoftExchange329e71ec88ae4615bbc36ab6ce41109e@real31.fr", subject: "Undeliverable: Appel de fonds" });
+    const { passer, repo } = monter([avecCode, exchange]);
+    const bilan = await passer();
+    expect(bilan).toMatchObject({ examines: 2, ranges: 1 });
+    // L'avis d'Exchange, sans indice : ni corbeille, ni « interne » (adresse technique @real31.fr).
+    expect(bilan.refus).toEqual({ "pas-sure": 1 });
+    const journal = await repo.journalDepuis(SYNDIC4);
+    expect(journal).toHaveLength(1);
+    expect(journal[0]).toMatchObject({ internetMessageId: avecCode.internetMessageId, coproReference: "S0297", dossierNom: "GG", signal: "sure" });
+  });
+
+  it("mailDeLaFile : un avis de non-remise est signalé, sans corbeille ; une réponse automatique garde la corbeille", () => {
+    const avis = mailDeLaFile(brut({ from: "postmaster@exemple.fr", subject: "Non remis : Bonjour" }), SYNDIC4, REF, null);
+    expect(avis.nonRemis).toBe(true);
+    expect(avis.corbeille).toBeUndefined();
+    expect(avis.suggestion).toMatchObject({ nature: "aucune", candidats: [] });
+    expect(avis.suggestion.raison.startsWith(RAISON_NON_REMIS)).toBe(true);
+    // La conversation du mail envoyé (même conversationId) : piste faible, mention gardée.
+    const fil = mailDeLaFile(brut({ from: "postmaster@exemple.fr", subject: "Non remis : Bonjour", conversationId: "c1" }), SYNDIC4, REF, "S0297");
+    expect(fil.suggestion).toMatchObject({ nature: "faible", candidats: ["S0297"], origine: "conversation" });
+    expect(fil.suggestion.raison.startsWith(RAISON_NON_REMIS)).toBe(true);
+    // Une vraie réponse à un avis : un mail ordinaire.
+    const reponse = mailDeLaFile(brut({ subject: "RE: Non remis : Convocation AG" }), SYNDIC4, REF, null);
+    expect(reponse.nonRemis).toBeUndefined();
+    expect(reponse.corbeille).toBeUndefined();
+    // Publicité apprise ou réponse automatique : la corbeille, comme avant.
+    const absence = mailDeLaFile(brut({ subject: "Réponse automatique : S0297" }), SYNDIC4, REF, null);
+    expect(absence.corbeille).toBe("reponse-auto");
+    expect(absence.suggestion.candidats).toEqual([]);
+    const pub = mailDeLaFile(brut({ from: "postmaster@exemple.fr", subject: "Non remis : S0297" }), SYNDIC4, REF, null, new Set(["postmaster@exemple.fr"]));
+    expect(pub.corbeille).toBeUndefined();
+    expect(pub.suggestion).toMatchObject({ nature: "sure", candidats: ["S0297"] });
   });
 
   it("range une piste faible par le nom de l'immeuble, et journalise « faible »", async () => {
@@ -431,7 +468,7 @@ describe("rangerAutomatiquement : lecture des PDF (26/10/2026)", () => {
     const deja = avecPj({ subject: "Facture" });
     const mails = [
       avecPj({ subject: "S0297 - facture" }),
-      avecPj({ from: "postmaster@exemple.fr", subject: "Non remis : facture" }),
+      avecPj({ subject: "Réponse automatique : facture" }),
       avecPj({ from: "collegue@real31.fr", subject: "Facture" }),
       deja,
     ];
