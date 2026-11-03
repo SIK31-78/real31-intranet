@@ -21,10 +21,11 @@ type GraphMessage = {
   hasAttachments?: boolean;
   bodyPreview?: string;
   webLink?: string;
+  isDraft?: boolean;
 };
 
 const SELECT =
-  "id,internetMessageId,conversationId,subject,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,bodyPreview,webLink";
+  "id,internetMessageId,conversationId,subject,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,bodyPreview,webLink,isDraft";
 /** Plafond de sécurité des envoyés lus en une fois (fenêtre de 14 jours d'une boîte partagée, 30/10/2026). */
 const ENVOYES_MAX = 1000;
 /** Taille d'une page d'envoyés : 1 000 messages en 4 appels au plus. */
@@ -46,6 +47,7 @@ function versEchange(boite: string, m: GraphMessage): EchangeTrouve {
     aPiecesJointes: Boolean(m.hasAttachments),
     apercu: m.bodyPreview ?? "",
     ...(m.webLink ? { lienOutlook: m.webLink } : {}),
+    ...(m.isDraft ? { brouillon: true as const } : {}),
   };
 }
 

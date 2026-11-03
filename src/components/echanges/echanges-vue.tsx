@@ -7,7 +7,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowDownLeft, ArrowUpRight, ExternalLink, Paperclip, Reply, Users } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ExternalLink, Paperclip, PencilLine, Reply, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, classesBouton } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
@@ -25,10 +25,11 @@ import {
 } from "@/app/echanges/actions";
 import { TexteAvecLiens } from "@/components/mes-emails/texte-avec-liens";
 
-const SENS: Record<Sens, { libelle: string; Icone: typeof ArrowDownLeft; ton: "info" | "ok" | "neutral" }> = {
+const SENS: Record<Sens, { libelle: string; Icone: typeof ArrowDownLeft; ton: "info" | "ok" | "neutral" | "warn" }> = {
   recu: { libelle: "Reçu", Icone: ArrowDownLeft, ton: "info" },
   envoye: { libelle: "Envoyé", Icone: ArrowUpRight, ton: "ok" },
   interne: { libelle: "Interne", Icone: Users, ton: "neutral" },
+  brouillon: { libelle: "Brouillon, pas envoyé", Icone: PencilLine, ton: "warn" },
 };
 
 const date = (iso: string) =>
@@ -58,7 +59,7 @@ export function EchangesVue({
         {echanges.map((e) => {
           const s = SENS[sensDe(e)];
           const actif = choisi?.boite === e.boite && choisi.id === e.id;
-          const qui = sensDe(e) === "envoye" ? `À ${e.a.join(", ") || "?"}` : e.deNom || e.deAdresse;
+          const qui = sensDe(e) === "envoye" || sensDe(e) === "brouillon" ? `À ${e.a.join(", ") || "?"}` : e.deNom || e.deAdresse;
           return (
             <li key={`${e.boite}|${e.id}`}>
               <button
@@ -112,7 +113,7 @@ function Detail({ e, coproParDefaut, repondre }: { e: EchangeTrouve; coproParDef
       <div className="flex items-center gap-2 flex-wrap">
         <Badge ton={s.ton}>{s.libelle}</Badge>
         <span className="text-meta text-ink-3">{date(e.date)} · {e.boite}</span>
-        {repondre ? (
+        {repondre && !e.brouillon ? (
           <Link
             href={lienRepondre(e)}
             className={classesBouton({ variant: "secondary", size: "sm" }, "ml-auto")}
@@ -123,7 +124,7 @@ function Detail({ e, coproParDefaut, repondre }: { e: EchangeTrouve; coproParDef
           </Link>
         ) : null}
         {e.lienOutlook && (
-          <a href={e.lienOutlook} target="_blank" rel="noreferrer" className={`${repondre ? "" : "ml-auto "}inline-flex items-center gap-1 text-meta text-green-700 hover:underline`}>
+          <a href={e.lienOutlook} target="_blank" rel="noreferrer" className={`${repondre && !e.brouillon ? "" : "ml-auto "}inline-flex items-center gap-1 text-meta text-green-700 hover:underline`}>
             Ouvrir dans Outlook <ExternalLink strokeWidth={1.5} className="w-3.5 h-3.5" aria-hidden="true" />
           </a>
         )}

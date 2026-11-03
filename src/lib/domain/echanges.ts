@@ -160,6 +160,11 @@ export interface EchangeTrouve {
   aPiecesJointes: boolean;
   apercu: string;
   lienOutlook?: string;
+  /**
+   * Brouillon jamais envoyé : la recherche parcourt tous les dossiers, Brouillons compris
+   * (03/11/2026, un brouillon du portefeuille d'Emmanuel s'affichait « Envoyé »).
+   */
+  brouillon?: true;
 }
 
 /** Une réponse envoyée depuis la boîte dans le fil d'un mail reçu (bloc « Réponse envoyée »). */
@@ -237,10 +242,11 @@ export class BoiteNonLisible extends Error {
   }
 }
 
-export type Sens = "recu" | "envoye" | "interne";
+export type Sens = "recu" | "envoye" | "interne" | "brouillon";
 
-/** Envoyé depuis la boîte lue, échangé entre collègues, ou reçu de l'extérieur. */
-export function sensDe(e: Pick<EchangeTrouve, "boite" | "deAdresse">): Sens {
+/** Brouillon jamais parti, envoyé depuis la boîte lue, échangé entre collègues, ou reçu de l'extérieur. */
+export function sensDe(e: Pick<EchangeTrouve, "boite" | "deAdresse" | "brouillon">): Sens {
+  if (e.brouillon) return "brouillon";
   const de = e.deAdresse.toLowerCase();
   if (de === e.boite.toLowerCase()) return "envoye";
   return de.endsWith(DOMAINE_INTERNE) ? "interne" : "recu";
@@ -265,9 +271,9 @@ export function lienEchange(boite: string, internetMessageId: string): string {
 }
 
 /** La ligne du journal du dossier : qui, quand, quoi. */
-export function resumeEchange(e: Pick<EchangeTrouve, "boite" | "deAdresse" | "deNom" | "a" | "objet">): string {
+export function resumeEchange(e: Pick<EchangeTrouve, "boite" | "deAdresse" | "deNom" | "a" | "objet" | "brouillon">): string {
   const s = sensDe(e);
-  const qui = s === "envoye" ? `Envoyé à ${e.a.slice(0, 2).join(", ") || "?"}` : `${s === "interne" ? "Message interne" : "Reçu"} de ${e.deNom || e.deAdresse}`;
+  const qui = s === "brouillon" ? `Brouillon pour ${e.a.slice(0, 2).join(", ") || "?"}` : s === "envoye" ? `Envoyé à ${e.a.slice(0, 2).join(", ") || "?"}` : `${s === "interne" ? "Message interne" : "Reçu"} de ${e.deNom || e.deAdresse}`;
   return `${qui} : ${e.objet}`;
 }
 

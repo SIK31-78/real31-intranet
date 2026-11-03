@@ -112,6 +112,8 @@ describe("codes, sens et fusion", () => {
     expect(sensDe(e({}))).toBe("recu");
     expect(sensDe(e({ deAdresse: "syndic4@real31.fr" }))).toBe("envoye");
     expect(sensDe(e({ deAdresse: "mylene@real31.fr" }))).toBe("interne");
+    // Un brouillon de la boîte n'est pas un envoyé (03/11/2026).
+    expect(sensDe(e({ deAdresse: "syndic4@real31.fr", brouillon: true }))).toBe("brouillon");
   });
 
   it("fusionne sans doublon, du plus récent au plus ancien", () => {
