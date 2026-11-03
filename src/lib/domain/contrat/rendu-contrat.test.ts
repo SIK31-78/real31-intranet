@@ -360,6 +360,23 @@ describe("annexes : tableaux coupes par le classeur", () => {
     expect(cellules.some((c) => c.texte.startsWith("de ces mêmes structures"))).toBe(false);
   });
 
+  it("le NOTA de l'annexe 2 suit le 19° qu'il conclut, a gauche, et n'est plus a droite", () => {
+    const estNota = (n: NoeudContrat) => n.type === "paragraphe" && n.texte.startsWith("NOTA : Conformément au IV de l’article 53");
+    const iNota = a.gauche.findIndex(estNota);
+    expect(iNota).toBeGreaterThan(0);
+    const avant = a.gauche[iNota - 1]!;
+    expect(avant.type === "tableau" && avant.lignes.some((l) => l.cellules.some((c) => c.texte.includes("19° Opérations de liquidation")))).toBe(true);
+    expect(a.droite.some(estNota)).toBe(false);
+    // Juste sous le tableau, dans une rangee a lui : pas dans celle de la fiche d'information,
+    // qui ouvre la page suivante.
+    const g = grilleAlignee(a);
+    const tableau = g.gauche.find((p) => p.noeud === avant)!;
+    expect(g.gauche.find((p) => p.noeud === a.gauche[iNota])!.rangee).toBe(tableau.rangee + tableau.etendue);
+    const rangee = rangeesVisAVis(a).find((r) => r.gauche.some(estNota))!;
+    expect(rangee.nouvellePage).toBeFalsy();
+    expect(rangee.gauche.some((n) => n.type === "titre" && n.texte.startsWith("FICHE D'INFORMATION"))).toBe(false);
+  });
+
   it("une categorie qui deborde est reprise, nommee, sur toutes ses lignes", () => {
     const vi = cellules.find((c) => c.texte === "VI. - Gestion du personnel (suite)")!;
     expect(vi.portee).toBe(5);

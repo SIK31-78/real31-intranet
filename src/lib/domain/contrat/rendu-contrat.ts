@@ -386,6 +386,31 @@ export function recollerCellulesCoupees(gauche: NoeudContrat[], droite: NoeudCon
 }
 
 /**
+ * Le NOTA de l'annexe 2 conclut le 19°. Le classeur le met en haut de la colonne de droite,
+ * sous la suite du 15° ; depuis que cette suite est recollee a gauche (RECOLLEMENTS_CELLULES),
+ * il restait seul en face du debut de l'annexe, AVANT les IV a VI qu'il conclut, la page
+ * suivante ayant sa colonne de droite vide (S118, annote par la presidente du CS, 03/11/2026).
+ * Il suit desormais le tableau du 19°, a une demi-ligne classeur de sa fin : une rangee a
+ * lui, avant la fiche d'information qui ouvre la page suivante (sans position, il partageait
+ * la rangee de la fiche et partait avec elle en haut de page).
+ */
+const DEBUT_NOTA_ANNEXE_2 = "NOTA : Conformement au IV de l'article 53 du decret";
+const FIN_ANNEXE_2 = "en application du dernier alinea de l'article 46-1 de la loi du 10 juillet 1965.";
+
+export function rapatrierNotaAnnexe2(gauche: NoeudContrat[], droite: NoeudContrat[]): { gauche: NoeudContrat[]; droite: NoeudContrat[] } {
+  const id = droite.findIndex((n) => n.type === "paragraphe" && repere(n.texte).startsWith(DEBUT_NOTA_ANNEXE_2));
+  const ig = gauche.findIndex((n) => n.type === "tableau" && n.lignes.some((l) => l.cellules.some((c) => repere(c.texte).endsWith(FIN_ANNEXE_2))));
+  if (id === -1 || ig === -1) return { gauche, droite };
+  const tableau = gauche[ig]!;
+  const ligne = tableau.a ?? tableau.de;
+  const nota: NoeudContrat = { ...droite[id]!, de: ligne === undefined ? undefined : ligne + 0.5, a: undefined };
+  return {
+    gauche: [...gauche.slice(0, ig + 1), nota, ...gauche.slice(ig + 1)],
+    droite: droite.filter((_, i) => i !== id),
+  };
+}
+
+/**
  * Une categorie de l'annexe 1 qui deborde sur la page suivante : le classeur reprend les
  * prestations (« VI-24° », « VI-25° »...) sous une case de categorie VIDE et d'une seule ligne,
  * les lignes suivantes comptant sur une cellule haute qui n'existe pas. Elles s'imprimaient
@@ -459,6 +484,7 @@ export function arbreContrat(champs: ChampsContrat): ArbreContrat {
   }
   const phrases = recollerPhrasesCoupees(colonne(GABARIT_GAUCHE, table, options, CASES_PAR_COLONNE, LIGNES_GAUCHE), droite);
   const cellules = recollerCellulesCoupees(phrases.gauche, phrases.droite);
-  const recolle = completerCategoriesSuite(cellules.gauche, cellules.droite);
+  const nota = rapatrierNotaAnnexe2(cellules.gauche, cellules.droite);
+  const recolle = completerCategoriesSuite(nota.gauche, nota.droite);
   return { titre: titre ?? "", enTete, gauche: recolle.gauche, droite: recolle.droite };
 }
