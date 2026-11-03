@@ -163,7 +163,7 @@ describe("emission - reference du sinistre sur le PDF", () => {
 });
 
 describe("emission - marqueur hors BPO des copros ESTALE", () => {
-  it("copro ESTALE : « *** » en fin de texte libre, quelle que soit la prestation", async () => {
+  it("copro ESTALE : « *** » en tête du texte libre, quelle que soit la prestation", async () => {
     etat.coprosEstale.add("S297");
     etat.aEmettre = [
       facture({ id: "f1", coproCode: "S297", typePrestation: "etat_date", details: null }),
@@ -172,8 +172,8 @@ describe("emission - marqueur hors BPO des copros ESTALE", () => {
 
     await emettreFacturesEnAttente(["f1", "f2"]);
 
-    expect(construirePayloadFacture(etat.demandes[0]!).pdf_invoice_free_text).toBe("S297 ***");
-    expect(construirePayloadFacture(etat.demandes[1]!).pdf_invoice_free_text).toBe("S297 - S297DDE ***");
+    expect(construirePayloadFacture(etat.demandes[0]!).pdf_invoice_free_text).toBe("*** - S297");
+    expect(construirePayloadFacture(etat.demandes[1]!).pdf_invoice_free_text).toBe("*** - S297 - S297DDE");
   });
 
   it("copro CRYPTO : aucun marqueur, BPO la ramasse comme avant", async () => {

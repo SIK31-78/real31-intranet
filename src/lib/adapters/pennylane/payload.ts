@@ -80,11 +80,11 @@ export function construirePayloadFacture(demande: DemandeEmission): PennylaneInv
     // legacy, omis par erreur au premier portage.
     // La mention libre s'imprime a sa suite ("S072 - S072DODUPINDDE") : c'est
     // ce qui permet a la compta de codifier une facture de suivi de sinistre.
-    // Copro tenue dans ESTALE : « *** » a la fin exclut la facture du ramassage BPO
-    // (cf. domain/facturation/marqueur-bpo).
+    // Copro tenue dans ESTALE : « *** » EN TETE exclut la facture du ramassage BPO
+    // ("*** - S302"), cf. domain/facturation/marqueur-bpo.
     pdf_invoice_free_text:
-      (demande.mentionLibre ? `${demande.codeEntite} - ${demande.mentionLibre}` : demande.codeEntite) +
-      (demande.horsTransfertBpo ? ` ${MARQUEUR_HORS_BPO}` : ""),
+      (demande.horsTransfertBpo ? `${MARQUEUR_HORS_BPO} - ` : "") +
+      (demande.mentionLibre ? `${demande.codeEntite} - ${demande.mentionLibre}` : demande.codeEntite),
     currency: "EUR",
     language: "fr_FR",
     // label = titre court de la ligne, description = detail dessous. C'est la
