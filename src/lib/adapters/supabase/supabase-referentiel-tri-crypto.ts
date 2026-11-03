@@ -3,7 +3,8 @@
 //   - les copros de l'agence (actives, et inactives marquees comme telles) et leur equipe :
 //     table Copropriete + User ;
 //   - les adresses connues : intranet_crypto_annuaire, synchronise chaque nuit depuis
-//     l'export Crypto (scripts/sync-annuaire-crypto.mjs, REA-291) ;
+//     l'export Crypto (scripts/sync-annuaire-crypto.mjs, REA-291) ; ses noms aussi, pour
+//     trouver la copro d'un client en tapant son nom (03/11/2026) ;
 //   - les noms d'usage et autres adresses au registre national : intranet_registre_copros
 //     (scripts/importer-registre-copros.mjs), joint par l'immatriculation.
 // Agences : celles de la boite triee (nom court de la table Agency, ex. « HLS », ou
@@ -12,6 +13,7 @@
 
 import type { CoproTri, LienExpediteur, MembreTri, QualiteExpediteur, ReferentielTri } from "@/lib/domain/tri-emails";
 import type { ReferentielTriProvider } from "@/lib/ports/referentiel-tri-provider";
+import { cleRecherche } from "@/lib/domain/recherche-copro-tolerante";
 import { signalerException } from "@/lib/observabilite";
 import { createSupabasePublicClient } from "./public-client";
 
@@ -32,7 +34,7 @@ type RowCopro = {
   status: string;
 };
 type RowUser = { id: string; name: string; email: string | null };
-type RowAnnuaire = { email: string; qualite: string; copro_code: string };
+type RowAnnuaire = { email: string; nom: string | null; qualite: string; copro_code: string };
 type RowRegistre = {
   immatriculation: string;
   nom_usage: string | null;
@@ -80,6 +82,37 @@ const QUALITE: Record<string, QualiteExpediteur | undefined> = {
   conseil_syndical: "conseil syndical",
   locataire: "locataire",
 };
+
+/**
+ * Les noms des clients de chaque copro, lus dans l'annuaire (03/11/2026) : copropriétaires et
+ * conseil syndical d'un côté, locataires de l'autre, sans doublon (« DUPONT Jean » = « Dupont
+ * Jean ») ; un copropriétaire aussi locataire n'est compté que copropriétaire. Jamais un
+ * professionnel ni « autre » : un plombier ne doit pas faire sortir 40 copros.
+ */
+export function nomsDesClients(lignes: { nom: string | null; qualite: string; reference: string }[]): Map<string, { coproprietaires?: string[]; locataires?: string[] }> {
+  const parRef = new Map<string, { proprio: Map<string, string>; locataire: Map<string, string> }>();
+  for (const l of lignes) {
+    const nom = l.nom?.replace(/\s+/g, " ").trim();
+    const qualite = QUALITE[l.qualite];
+    if (!nom || !qualite) continue;
+    const cle = cleRecherche(nom);
+    if (!cle) continue;
+    let noms = parRef.get(l.reference);
+    if (!noms) parRef.set(l.reference, (noms = { proprio: new Map(), locataire: new Map() }));
+    if (qualite === "locataire") {
+      if (!noms.locataire.has(cle)) noms.locataire.set(cle, nom);
+    } else if (!noms.proprio.has(cle)) noms.proprio.set(cle, nom);
+  }
+  const resultat = new Map<string, { coproprietaires?: string[]; locataires?: string[] }>();
+  for (const [reference, { proprio, locataire }] of parRef) {
+    const locataires = [...locataire].filter(([cle]) => !proprio.has(cle)).map(([, nom]) => nom);
+    resultat.set(reference, {
+      ...(proprio.size ? { coproprietaires: [...proprio.values()] } : {}),
+      ...(locataires.length ? { locataires } : {}),
+    });
+  }
+  return resultat;
+}
 
 /** Cache par liste d'agences (cle : codes tries, joints) : deux boites ne se marchent pas dessus. */
 const cache = new Map<string, { valeur: ReferentielTri; expire: number }>();
@@ -155,16 +188,18 @@ export class SupabaseReferentielTriCrypto implements ReferentielTriProvider {
     await this.completerParLeRegistre(sb, copros);
 
     const expediteurs: Record<string, LienExpediteur[]> = {};
+    const nomsLus: { nom: string | null; qualite: string; reference: string }[] = [];
     const codes = [...referenceDuCodeCrypto.keys()];
     try {
       for (let debut = 0; codes.length; debut += PAGE) {
-        const qa = sb.from("intranet_crypto_annuaire").select("email, qualite, copro_code").not("copro_code", "is", null).in("copro_code", codes);
+        const qa = sb.from("intranet_crypto_annuaire").select("email, nom, qualite, copro_code").not("copro_code", "is", null).in("copro_code", codes);
         const { data, error: e } = await qa.order("email").range(debut, debut + PAGE - 1).returns<RowAnnuaire[]>();
         if (e) throw new Error(e.message);
         for (const a of data ?? []) {
           const qualite = QUALITE[a.qualite];
           const reference = referenceDuCodeCrypto.get(a.copro_code);
           if (!qualite || !reference) continue;
+          nomsLus.push({ nom: a.nom, qualite: a.qualite, reference });
           const liste = (expediteurs[a.email] ??= []);
           if (!liste.some((l) => l.reference === reference && l.qualite === qualite)) liste.push({ reference, qualite, source: "crypto" });
         }
@@ -175,6 +210,8 @@ export class SupabaseReferentielTriCrypto implements ReferentielTriProvider {
       avertissements.push("L'annuaire des expéditeurs Crypto est indisponible : seuls les codes cités servent pour les copros Crypto.");
       console.error("[tri-emails] annuaire Crypto :", e instanceof Error ? e.message : e);
     }
+    const noms = nomsDesClients(nomsLus);
+    for (const c of copros) Object.assign(c, noms.get(c.reference));
 
     return { copros, expediteurs, avertissements };
   }

@@ -8,7 +8,7 @@
 
 import type { EntreeJournalTri } from "@/lib/domain/tri-emails";
 import { boiteTri, type BoiteTriConfig } from "@/lib/domain/mail-gate";
-import type { CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
+import { coprosParEmail, type CoproDestination, type TrouveeParEmail } from "@/lib/domain/recherche-copro-tolerante";
 import {
   annulerRangement,
   depsParDefaut,
@@ -108,13 +108,29 @@ export async function coprosPourReaffecter(config: BoiteTriConfig | null, deps: 
   if (!deps.boite) return [];
   const { copros } = await deps.referentiel.charger();
   return copros
-    // Les noms des copropriétaires (pas leurs adresses) : « Dupont » trouve sa copro.
+    // Les noms des copropriétaires et des locataires (pas leurs adresses) : « Dupont » trouve sa copro.
     .map((c) => ({
       reference: c.reference,
       nom: c.nom,
       adresse: c.adresse,
       gestionnaire: c.gestionnaire?.nomComplet ?? null,
       ...(c.coproprietaires?.length ? { coproprietaires: c.coproprietaires } : {}),
+      ...(c.locataires?.length ? { locataires: c.locataires } : {}),
     }))
     .sort((a, b) => a.reference.localeCompare(b.reference));
+}
+
+/**
+ * Les copros de la boîte triée dont un client (copropriétaire, conseil syndical, locataire) a
+ * une adresse qui commence par la recherche (03/11/2026). Les adresses restent ici : l'index
+ * pèse ~300 Ko pour syndic2, trop pour l'envoyer au navigateur. Sans boîte : rien.
+ */
+export async function coprosParEmailDeLaBoite(
+  config: BoiteTriConfig | null,
+  recherche: string,
+  deps: DepsRangement = depsParDefaut(config),
+): Promise<TrouveeParEmail[]> {
+  if (!deps.boite) return [];
+  const { expediteurs } = await deps.referentiel.charger();
+  return coprosParEmail(expediteurs, recherche);
 }

@@ -789,6 +789,35 @@ describe("fusionnerReferentiels (ESTALE + Crypto, 12/10/2026)", () => {
   });
 });
 
+describe("fusionnerReferentiels : noms des clients ESTALE et Crypto (03/11/2026)", () => {
+  const base = { adresse: "", gestionnaire: null, assistant: null };
+  it("réunit les noms des deux sources sans doublon, ESTALE d'abord", () => {
+    const estale: ReferentielTri = { copros: [{ ...base, reference: "S0300", nom: "A", coproprietaires: ["Dupont Jean", "Martin Paul"] }], expediteurs: {} };
+    const crypto: ReferentielTri = {
+      copros: [{ ...base, reference: "S300", nom: "A", source: "crypto", coproprietaires: ["DUPONT JEAN", "Durand Léa"], locataires: ["Petit Max"] }],
+      expediteurs: {},
+    };
+    const c = fusionnerReferentiels(estale, crypto, null).copros[0]!;
+    expect(c.coproprietaires).toEqual(["Dupont Jean", "Martin Paul", "Durand Léa"]);
+    expect(c.locataires).toEqual(["Petit Max"]);
+  });
+
+  it("une copro Crypto seule garde ses noms ; aucune liste vide ajoutée", () => {
+    const crypto: ReferentielTri = {
+      copros: [
+        { ...base, reference: "S247", nom: "B", source: "crypto", coproprietaires: ["Durand Léa"] },
+        { ...base, reference: "S248", nom: "C", source: "crypto" },
+      ],
+      expediteurs: {},
+    };
+    const estale: ReferentielTri = { copros: [{ ...base, reference: "S0248", nom: "C" }], expediteurs: {} };
+    const r = fusionnerReferentiels(estale, crypto, null);
+    expect(r.copros.find((c) => c.reference === "S247")?.coproprietaires).toEqual(["Durand Léa"]);
+    const c = r.copros.find((x) => x.reference === "S0248")!;
+    expect("coproprietaires" in c || "locataires" in c).toBe(false);
+  });
+});
+
 describe("fusionnerReferentiels : prestataires ESTALE (02/11/2026)", () => {
   const p = { nom: "Jean", entreprise: "DGP NETTOYAGE", email: "jean@dgp.fr" };
   const estale: ReferentielTri = {

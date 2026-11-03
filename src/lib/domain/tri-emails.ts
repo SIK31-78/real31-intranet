@@ -9,6 +9,8 @@
 // hors de ce perimetre est signale « hors périmètre », jamais rattache. Le code de nature
 // reste "hors-estale" : il est deja ecrit dans le journal.
 
+import { cleRecherche } from "./recherche-copro-tolerante";
+
 /** Une personne de l'equipe ESTALE d'une copro. */
 export interface MembreTri {
   nomComplet: string;
@@ -43,8 +45,11 @@ export interface CoproTri {
   /**
    * Noms des coproprietaires ESTALE (« Dupont Jean »), pour retrouver la copro en tapant l'un
    * d'eux dans le choix de copro (28/10/2026). Les noms seuls : jamais leurs adresses e-mail.
+   * Depuis le 03/11/2026, aussi ceux de l'annuaire Crypto (coproprietaires et conseil syndical).
    */
   coproprietaires?: string[];
+  /** Noms des locataires de l'annuaire Crypto (03/11/2026), pour la meme recherche. */
+  locataires?: string[];
   /**
    * Copro INACTIVE dans l'intranet (mandat termine) : on recoit encore des mails de l'ancien
    * syndic, de coproprietaires, de locataires. Reconnue, mais au plus en piste faible.
@@ -134,6 +139,10 @@ export function fusionnerReferentiels(
             nomsUsage: deja.nomsUsage ?? c.nomsUsage,
             adressesSecondaires: deja.adressesSecondaires ?? c.adressesSecondaires,
             agence: deja.agence ?? c.agence,
+            // Les noms des deux sources, sans doublon (03/11/2026) : ESTALE ne connait que les
+            // coproprietaires des copros migrees, l'annuaire Crypto les autres et les locataires.
+            ...unirNoms("coproprietaires", deja.coproprietaires, c.coproprietaires),
+            ...unirNoms("locataires", deja.locataires, c.locataires),
           }
         : { ...c, source: "crypto" },
     );
@@ -168,6 +177,22 @@ export function fusionnerReferentiels(
     ...(Object.keys(prestataires).length ? { prestataires } : {}),
     avertissements: [...(estale?.avertissements ?? []), ...(crypto?.avertissements ?? [])],
   };
+}
+
+/**
+ * Deux listes de noms reunies sans doublon (« Dupont Jean » = « DUPONT JEAN »), la premiere
+ * d'abord ; rien si les deux sont vides, pour ne pas alourdir la copro d'une liste vide.
+ */
+function unirNoms<K extends "coproprietaires" | "locataires">(cle: K, a: string[] | undefined, b: string[] | undefined): Partial<Record<K, string[]>> {
+  const vus = new Set<string>();
+  const noms: string[] = [];
+  for (const n of [...(a ?? []), ...(b ?? [])]) {
+    const k = cleRecherche(n);
+    if (!k || vus.has(k)) continue;
+    vus.add(k);
+    noms.push(n);
+  }
+  return noms.length ? ({ [cle]: noms } as Partial<Record<K, string[]>>) : {};
 }
 
 /** Un mail de la file a trier (boite de reception de la generique). */

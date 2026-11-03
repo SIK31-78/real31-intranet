@@ -5,7 +5,8 @@
 // portefeuille de la personne. Pas de « rendre au tri » (Sekou, 16/10/2026) : l'équipe
 // connaît ses copros mieux que le tri, elle choisit la bonne. La recherche est tolérante :
 // « St Martin » trouve STMARTIN, la ville compte, S109 = S0109, « Dupont » trouve les copros
-// de ce copropriétaire (28/10/2026).
+// de ce copropriétaire (28/10/2026), ou de ce locataire, copros Crypto comprises, et
+// « dupont@… » les copros de cette adresse (03/11/2026).
 // Autre agence (ADR-050, 28/10/2026) : la liste propose aussi les copros des AUTRES boîtes
 // triées ; en choisir une recopie le mail dans la boîte de cette agence (rangé chez le binôme
 // de la copro) et retire l'original d'ici. « Envoyer à syndicN » le dépose dans la réception
@@ -14,14 +15,15 @@
 // Boîte « destination seulement » (syndic1 pour ML, 28/10/2026, relevée par Crypto) : ses copros
 // sont proposées de même, mais le mail arrive seulement dans sa réception, sans rangement.
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Modal, ModalBody } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-import { chercherCopros, type CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
-import { coprosPourReaffecterAction, envoyerABonneCoproAction } from "@/app/mes-emails/actions";
+import { avecTrouveesParEmail, chercherCopros, type CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
+import { chercherCoprosParEmailAction, coprosPourReaffecterAction, envoyerABonneCoproAction } from "@/app/mes-emails/actions";
+import { useCoprosParEmail } from "@/components/tri-emails/use-copros-par-email";
 import { basculerMailAction, destinationsBasculeAction } from "@/app/mes-emails/actions-bascule";
 import type { CoproAutreBoite, DestinationBascule } from "@/lib/services/tri-emails/basculer";
 
@@ -38,11 +40,15 @@ export function PasPourMoi({ emailId, boite, onParti, compact = false }: { email
   const [ailleurs, setAilleurs] = useState<{ boites: DestinationBascule[]; copros: CoproAutreBoite[] }>({ boites: [], copros: [] });
   const [recherche, setRecherche] = useState("");
   const [enCours, demarrer] = useTransition();
+  // « dupont@… » (03/11/2026) : les copros de cette adresse dans la boîte du mail, demandées au
+  // serveur (les adresses n'arrivent pas jusqu'ici). Pas dans les autres boîtes.
+  const chercherParEmail = useCallback((debut: string) => chercherCoprosParEmailAction(boite, debut), [boite]);
+  const parEmail = useCoprosParEmail(ouvert ? recherche : "", chercherParEmail);
   // Les copros de la boîte du mail d'abord, puis celles des autres boîtes.
-  const resultats = useMemo(
-    () => chercherCopros<Choix>([...(copros ?? []), ...ailleurs.copros], recherche),
-    [copros, ailleurs.copros, recherche],
-  );
+  const resultats = useMemo(() => {
+    const toutes: Choix[] = [...(copros ?? []), ...ailleurs.copros];
+    return avecTrouveesParEmail<Choix>(chercherCopros<Choix>(toutes, recherche), copros ?? [], parEmail);
+  }, [copros, ailleurs.copros, recherche, parEmail]);
 
   function ouvrir() {
     setOuvert(true);
@@ -115,7 +121,7 @@ export function PasPourMoi({ emailId, boite, onParti, compact = false }: { email
               <Input
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
-                placeholder="Nom, adresse, ville, code ou copropriétaire (ex. St Martin, Bezons, S109, Dupont)"
+                placeholder="Nom, adresse, ville, code, copropriétaire, locataire ou son e-mail (ex. St Martin, Bezons, S109, Dupont)"
                 aria-label="Rechercher la copropriété"
                 autoFocus
               />
@@ -136,9 +142,7 @@ export function PasPourMoi({ emailId, boite, onParti, compact = false }: { email
                         <span className="text-body text-ink">
                           <span className="font-mono">{c.reference}</span> · {c.nom}
                         </span>
-                        {c.coproprietaireTrouve && (
-                          <span className="block text-meta text-ink-2">{c.coproprietaireTrouve} · copropriétaire</span>
-                        )}
+                        {c.raisonTrouvee && <span className="block text-meta text-ink-2">{c.raisonTrouvee}</span>}
                         <span className="block text-meta text-ink-3">
                           {c.adresse || "Adresse inconnue"}
                           {c.gestionnaire ? ` · gérée par ${c.gestionnaire}` : ""}

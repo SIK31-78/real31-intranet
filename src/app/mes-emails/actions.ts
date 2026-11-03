@@ -33,8 +33,8 @@ import { classerDansDossier, creerDossierBoite, listerDossiersBoite } from "@/li
 import { listerImagesMail, listerPiecesJointesMail } from "@/lib/services/mes-emails/pieces-jointes";
 import { reponsesEnvoyees } from "@/lib/services/mes-emails/reponses-envoyees";
 import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
-import { coprosPourReaffecter, envoyerABonneCopro } from "@/lib/services/tri-emails/reaffecter";
-import type { CoproDestination } from "@/lib/domain/recherche-copro-tolerante";
+import { coprosParEmailDeLaBoite, coprosPourReaffecter, envoyerABonneCopro } from "@/lib/services/tri-emails/reaffecter";
+import type { CoproDestination, TrouveeParEmail } from "@/lib/domain/recherche-copro-tolerante";
 import { mettreALaCorbeille, type ResultatCorbeille } from "@/lib/services/mes-emails/corbeille";
 import { envoyeVisible, lireEnvoye, listerEnvoyes } from "@/lib/services/mes-emails/envoyes";
 import { transfererMail } from "@/lib/services/mes-emails/transferer";
@@ -355,6 +355,23 @@ export async function coprosPourReaffecterAction(boite?: string): Promise<Res<Co
     const demandee = (boite ?? "").trim().toLowerCase();
     const visible = demandee ? (await boitesDe(g)).find((b) => b.id === demandee && !b.personnelle) : undefined;
     return { ok: true, donnees: await coprosPourReaffecter(visible ? boiteTri(visible.id) : await boiteDe(g)) };
+  } catch (e) {
+    return echecDepuis(e, "mes-emails");
+  }
+}
+
+/**
+ * « dupont@… » dans « Pas pour moi » (03/11/2026) : les copros de la boîte du mail dont un client
+ * a cette adresse, avec la même garde que la liste des copros. Les adresses restent au serveur.
+ */
+export async function chercherCoprosParEmailAction(boite: string, recherche: string): Promise<Res<TrouveeParEmail[]>> {
+  if (!zBoite.safeParse(boite).success || !z.string().max(320).safeParse(recherche).success) return echec("Données invalides.");
+  const g = await getGestionnaireCourant();
+  if (!g) return echec("Non connecté.");
+  try {
+    const demandee = boite.trim().toLowerCase();
+    const visible = (await boitesDe(g)).find((b) => b.id === demandee && !b.personnelle);
+    return { ok: true, donnees: await coprosParEmailDeLaBoite(visible ? boiteTri(visible.id) : await boiteDe(g), recherche) };
   } catch (e) {
     return echecDepuis(e, "mes-emails");
   }

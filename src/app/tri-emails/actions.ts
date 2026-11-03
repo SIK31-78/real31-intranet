@@ -23,6 +23,8 @@ import { coproDepuisPiecesJointes, type CoproDepuisPj } from "@/lib/services/tri
 import type { PieceJointeRef } from "@/lib/domain/mes-emails";
 import { historiqueDuMail } from "@/lib/services/mes-emails/historique-mail";
 import { basculerMail, depsBascule, type ResultatBascule } from "@/lib/services/tri-emails/basculer";
+import { coprosParEmailDeLaBoite } from "@/lib/services/tri-emails/reaffecter";
+import type { TrouveeParEmail } from "@/lib/domain/recherche-copro-tolerante";
 
 const zTexte = (max: number) => z.string().max(max);
 // « pj » : copro proposee par la lecture des pieces jointes (journal du tri, 19/10/2026) ;
@@ -200,6 +202,19 @@ export async function preciserCoproAction(input: unknown): Promise<Res> {
       await preciserCopro(d.journalId, d.reference, depsParDefaut(config));
     },
   );
+}
+
+// --- Recherche d'une copro par l'adresse e-mail d'un client (03/11/2026) -------------
+
+/**
+ * « dupont@… » dans le choix de copro : les copros de la boîte dont un client a cette adresse.
+ * Côté serveur (les adresses ne vont pas au navigateur), même garde que le reste du tri.
+ */
+export async function chercherCoprosParEmailAction(input: unknown): Promise<Res<TrouveeParEmail[]>> {
+  return actionGestionnaire(z.object({ boite: zBoite, recherche: z.string().max(320) }), input, "tri-emails-recherche-email", async (d, g) => {
+    const config = await gardeTri(g, d.boite);
+    return coprosParEmailDeLaBoite(config, d.recherche);
+  });
 }
 
 // --- Historique de la conversation (REA-352) -----------------------------------------

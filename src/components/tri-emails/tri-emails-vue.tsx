@@ -5,8 +5,9 @@
 // d'un clic (dossier du binome, Comptabilité, Divers) et on peut annuler. Sans
 // MAIL_TRI_ECRITURE=on, tout rangement est simule (le mail ne bouge pas).
 
-import { chercherCopros } from "@/lib/domain/recherche-copro-tolerante";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { avecTrouveesParEmail, chercherCopros } from "@/lib/domain/recherche-copro-tolerante";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCoprosParEmail } from "@/components/tri-emails/use-copros-par-email";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Paperclip } from "lucide-react";
 import type { CoproDeLaFile, FileATrier, MailDeLaFile } from "@/lib/services/tri-emails/lire-file";
@@ -33,6 +34,7 @@ import {
   preciserCoproAction,
   coproDepuisPjAction,
   rangerMailAction,
+  chercherCoprosParEmailAction,
   retirerAssistantAction,
   supprimerMailAction,
   basculerMailAction,
@@ -496,11 +498,15 @@ function DetailMail({
     };
   }, [boite, mail.internetMessageId, mail.aPiecesJointes, aCorbeille, s.nature]);
 
+  // « dupont@… » : les copros de cette adresse, demandées au serveur (03/11/2026).
+  const chercherParEmail = useCallback((debut: string) => chercherCoprosParEmailAction({ boite, recherche: debut }), [boite]);
+  const parEmail = useCoprosParEmail(recherche, chercherParEmail);
   const resultats = useMemo(() => {
     // Tolérante : « St Martin » trouve STMARTIN, la ville compte, S109 = S0109 (REA-327) ;
-    // « Dupont » trouve les copros de ce copropriétaire (28/10/2026).
-    return chercherCopros(copros, recherche);
-  }, [copros, recherche]);
+    // « Dupont » trouve les copros de ce copropriétaire (28/10/2026), ou de ce locataire, et
+    // les copros Crypto aussi (03/11/2026).
+    return avecTrouveesParEmail(chercherCopros(copros, recherche), copros, parEmail);
+  }, [copros, recherche, parEmail]);
 
   return (
     <div className="flex flex-col gap-4 min-w-0">
@@ -651,7 +657,7 @@ function DetailMail({
               type="search"
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
-              placeholder="Chercher une copropriété : code, nom, adresse, copropriétaire"
+              placeholder="Chercher une copropriété : code, nom, adresse, copropriétaire, locataire ou son e-mail"
               autoComplete="off"
               className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-body focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
             />
@@ -669,7 +675,7 @@ function DetailMail({
                     >
                       <span className="font-mono text-meta text-green-700 min-w-[52px]">{c.reference}</span>
                       <span className="text-ink">{c.nom}</span>
-                      {c.coproprietaireTrouve && <span className="text-meta text-ink-2">{c.coproprietaireTrouve} · copropriétaire</span>}
+                      {c.raisonTrouvee && <span className="text-meta text-ink-2">{c.raisonTrouvee}</span>}
                       {c.source === "crypto" && <span className="text-meta text-ink-3">Crypto</span>}
                       <MentionInactive copro={c} />
                       <span className="ml-auto text-meta text-ink-3 truncate">{c.adresse}</span>

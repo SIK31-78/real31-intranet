@@ -4,14 +4,26 @@
 // sans ses zéros (S109 = S0109). Domaine pur.
 // Par un copropriétaire (28/10/2026) : « Dupont » trouve la ou les copros où il a un lot, et le
 // résultat dit pourquoi (« Dupont Jean · copropriétaire »).
+// Par un client des copros Crypto (03/11/2026) : les noms viennent aussi de l'annuaire Crypto
+// (copropriétaires, conseil syndical, locataires ; jamais les professionnels), et une adresse
+// e-mail tapée (« dupont@… ») trouve la copro de cette adresse. Les adresses restent côté
+// serveur (index des expéditeurs, ~300 Ko pour syndic2) : le serveur répond par une action,
+// la vue fusionne avec avecTrouveesParEmail.
+
+import type { QualiteExpediteur } from "./tri-emails";
 
 export interface CoproCherchable {
   reference: string;
   nom: string;
   /** Adresse sur une ligne, ville comprise ; "" si inconnue. */
   adresse: string;
-  /** Noms des copropriétaires (ESTALE, « Dupont Jean ») ; absent si la source ne les donne pas. */
+  /**
+   * Noms des copropriétaires (ESTALE, « Dupont Jean » ; Crypto, conseil syndical compris) ;
+   * absent si la source ne les donne pas.
+   */
   coproprietaires?: string[];
+  /** Noms des locataires (annuaire Crypto, 03/11/2026) ; absent si la source ne les donne pas. */
+  locataires?: string[];
 }
 
 /** Un nom de copropriétaire ne se cherche qu'à partir de 3 lettres : « du » en sortirait des dizaines. */
@@ -61,12 +73,16 @@ export function nomCorrespond(nom: string, recherche: string): boolean {
   return mots.some((_, i) => mots.slice(i).join("").startsWith(colle));
 }
 
-/** Une copro trouvée ; `coproprietaireTrouve` = le copropriétaire qui l'a fait sortir, si c'est par lui. */
-export type CoproTrouvee<T> = T & { coproprietaireTrouve?: string };
+/**
+ * Une copro trouvée. `coproprietaireTrouve` = le nom (copropriétaire ou locataire) qui l'a fait
+ * sortir, si c'est par lui ; `raisonTrouvee` = ce que l'écran affiche à côté
+ * (« Dupont Jean · copropriétaire », « dupont@exemple.fr · locataire »).
+ */
+export type CoproTrouvee<T> = T & { coproprietaireTrouve?: string; raisonTrouvee?: string };
 
 /**
  * Les copros qui correspondent, dans l'ordre donné, au plus `max` : d'abord par code, nom ou
- * adresse, puis par le nom d'un de leurs copropriétaires (3 lettres au moins).
+ * adresse, puis par le nom d'un de leurs copropriétaires ou locataires (3 lettres au moins).
  */
 export function chercherCopros<T extends CoproCherchable>(copros: T[], recherche: string, max = 8): CoproTrouvee<T>[] {
   if (!recherche.trim()) return [];
@@ -76,10 +92,90 @@ export function chercherCopros<T extends CoproCherchable>(copros: T[], recherche
   for (const c of copros) {
     if (directes.length + parNom.length >= max) break;
     if (directes.includes(c)) continue;
-    const nom = c.coproprietaires?.find((n) => nomCorrespond(n, recherche));
-    if (nom) parNom.push({ ...c, coproprietaireTrouve: nom });
+    const proprio = c.coproprietaires?.find((n) => nomCorrespond(n, recherche));
+    const locataire = proprio ? undefined : c.locataires?.find((n) => nomCorrespond(n, recherche));
+    const nom = proprio ?? locataire;
+    if (nom) parNom.push({ ...c, coproprietaireTrouve: nom, raisonTrouvee: `${nom} · ${proprio ? "copropriétaire" : "locataire"}` });
   }
   return [...directes, ...parNom];
+}
+
+// --- Par l'adresse e-mail d'un client (03/11/2026) ---------------------------------------
+
+/** Une adresse ne se cherche qu'à partir de 5 caractères : « du@ » en sortirait des dizaines. */
+export const MIN_RECHERCHE_EMAIL = 5;
+
+/**
+ * Les qualités qui font trouver une copro par l'adresse : ses clients. Jamais un fournisseur,
+ * un notaire ou un mandataire : un plombier ne doit pas faire sortir 40 copros.
+ */
+const QUALITES_CLIENT: ReadonlySet<QualiteExpediteur> = new Set<QualiteExpediteur>(["copropriétaire", "conseil syndical", "locataire"]);
+
+/**
+ * Le début d'adresse à chercher (minuscules, sans espaces autour) si la recherche ressemble à
+ * une adresse e-mail : elle contient « @ », ou elle a la forme « jean.dupont » (mots collés par
+ * des points, sans espace). null sinon, ou si elle est trop courte.
+ */
+export function debutEmailRecherche(recherche: string): string | null {
+  const q = recherche.trim().toLowerCase();
+  if (q.length < MIN_RECHERCHE_EMAIL || /\s/.test(q)) return null;
+  if (/^[^@]+@[^@]*$/.test(q)) return q;
+  return /^[a-z0-9_+-]*[a-z][a-z0-9_+-]*(\.[a-z0-9_+-]+)+$/.test(q) ? q : null;
+}
+
+/** Une copro trouvée par l'adresse d'un de ses clients. */
+export interface TrouveeParEmail {
+  reference: string;
+  email: string;
+  qualite: QualiteExpediteur;
+}
+
+/**
+ * Les copros des adresses qui COMMENCENT par la recherche (index des expéditeurs : adresse en
+ * minuscules -> copros), clients seulement, une ligne par copro, au plus `max`. L'adresse
+ * exacte passe d'abord, puis l'ordre alphabétique.
+ */
+export function coprosParEmail(
+  expediteurs: Record<string, { reference: string; qualite: QualiteExpediteur }[]>,
+  recherche: string,
+  max = 8,
+): TrouveeParEmail[] {
+  const q = debutEmailRecherche(recherche);
+  if (!q) return [];
+  const adresses = Object.keys(expediteurs)
+    .filter((e) => e.startsWith(q))
+    .sort((a, b) => Number(b === q) - Number(a === q) || a.localeCompare(b));
+  const trouvees: TrouveeParEmail[] = [];
+  for (const email of adresses) {
+    for (const l of expediteurs[email] ?? []) {
+      if (trouvees.length >= max) return trouvees;
+      if (!QUALITES_CLIENT.has(l.qualite) || trouvees.some((t) => t.reference === l.reference)) continue;
+      trouvees.push({ reference: l.reference, email, qualite: l.qualite });
+    }
+  }
+  return trouvees;
+}
+
+/**
+ * Les copros trouvées par l'adresse d'abord (la recherche est une adresse : c'est ce qu'on
+ * cherche), puis celles de chercherCopros, sans doublon, au plus `max`. Une référence absente
+ * de `copros` est ignorée.
+ */
+export function avecTrouveesParEmail<T extends CoproCherchable>(
+  trouvees: CoproTrouvee<T>[],
+  copros: T[],
+  parEmail: TrouveeParEmail[],
+  max = 8,
+): CoproTrouvee<T>[] {
+  if (!parEmail.length) return trouvees;
+  const parRef = new Map(copros.map((c) => [c.reference, c]));
+  const resultat: CoproTrouvee<T>[] = [];
+  for (const t of parEmail) {
+    const c = parRef.get(t.reference);
+    if (c && !resultat.some((r) => r.reference === c.reference)) resultat.push({ ...c, raisonTrouvee: `${t.email} · ${t.qualite}` });
+  }
+  for (const c of trouvees) if (!resultat.some((r) => r.reference === c.reference)) resultat.push(c);
+  return resultat.slice(0, max);
 }
 
 /** Une copro où envoyer un mail rangé à tort (REA-327) : avec son gestionnaire au mandat. */

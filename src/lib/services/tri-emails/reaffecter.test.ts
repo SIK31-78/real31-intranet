@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { AUCUN_BINOME, type EntreeJournalTri } from "@/lib/domain/tri-emails";
 import type { DepsRangement } from "./ranger";
-import { coprosPourReaffecter, envoyerABonneCopro, envoyerEnComptabilite } from "./reaffecter";
+import { coprosParEmailDeLaBoite, coprosPourReaffecter, envoyerABonneCopro, envoyerEnComptabilite } from "./reaffecter";
 
 const BOITE = "syndic4@real31.fr";
 
@@ -153,7 +153,7 @@ describe("les copros proposées par « Pas pour moi »", () => {
       referentiel: {
         charger: async () => ({
           copros: [
-            { reference: "S0109", nom: "STMARTIN", adresse: "Bezons", gestionnaire: null, assistant: null, coproprietaires: ["Dupont Jean"] },
+            { reference: "S0109", nom: "STMARTIN", adresse: "Bezons", gestionnaire: null, assistant: null, coproprietaires: ["Dupont Jean"], locataires: ["Petit Max"] },
             { reference: "S0178", nom: "LESROSIERS", adresse: "Sartrouville", gestionnaire: null, assistant: null },
           ],
           expediteurs: { "jean.dupont@exemple.fr": [{ reference: "S0109", qualite: "copropriétaire" as const }] },
@@ -162,9 +162,37 @@ describe("les copros proposées par « Pas pour moi »", () => {
     } as DepsRangement;
     const copros = await coprosPourReaffecter(null, avecNoms);
     expect(copros).toEqual([
-      { reference: "S0109", nom: "STMARTIN", adresse: "Bezons", gestionnaire: null, coproprietaires: ["Dupont Jean"] },
+      { reference: "S0109", nom: "STMARTIN", adresse: "Bezons", gestionnaire: null, coproprietaires: ["Dupont Jean"], locataires: ["Petit Max"] },
       { reference: "S0178", nom: "LESROSIERS", adresse: "Sartrouville", gestionnaire: null },
     ]);
     expect(JSON.stringify(copros)).not.toContain("@");
+  });
+});
+
+describe("la recherche par l'adresse d'un client (03/11/2026)", () => {
+  const avecAdresses = (d: DepsRangement) =>
+    ({
+      ...d,
+      referentiel: {
+        charger: async () => ({
+          copros: [],
+          expediteurs: {
+            "jean.dupont@exemple.fr": [{ reference: "S0109", qualite: "copropriétaire" as const }],
+            "jean.durand@plomberie.fr": [{ reference: "S0178", qualite: "fournisseur" as const }],
+          },
+        }),
+      },
+    }) as DepsRangement;
+
+  it("trouve la copro d'un client de la boîte, jamais par un fournisseur", async () => {
+    const { d } = deps([]);
+    expect(await coprosParEmailDeLaBoite(null, "jean.d", avecAdresses(d))).toEqual([
+      { reference: "S0109", email: "jean.dupont@exemple.fr", qualite: "copropriétaire" },
+    ]);
+  });
+
+  it("sans boîte triée : rien", async () => {
+    const { d } = deps([]);
+    expect(await coprosParEmailDeLaBoite(null, "jean.d", { ...avecAdresses(d), boite: null })).toEqual([]);
   });
 });
