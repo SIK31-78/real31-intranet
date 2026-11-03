@@ -168,6 +168,9 @@ export const MODELES_ETAPES: Record<TypeDossier, EtapeModele[]> = {
     { label: "Devis demandés", assigneA: "assistant" },
     { label: "Devis validés en AG", assigneA: "gestionnaire" },
     { label: "Entreprise retenue", assigneA: "gestionnaire" },
+    // Avant l'ordre de service, jamais apres (REA-279, remontee de Remi) : une entreprise
+    // non assuree sur le chantier engage le syndic.
+    { label: "Attestation d'assurance de l'entreprise reçue et vérifiée", assigneA: "assistant" },
     { label: "Ordre de service", assigneA: "gestionnaire" },
     { label: "Réception des travaux", assigneA: "gestionnaire" },
     { label: "Clôture (DGD / garanties)", assigneA: "assistant" },
