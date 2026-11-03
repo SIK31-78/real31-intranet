@@ -1593,6 +1593,20 @@ export type RefusAutomatique =
   /** Le PDF designe une copro que le mail ne propose pas. */
   | "pj-conflit";
 
+// Objets qui relevent de la comptabilite, quelle que soit la copro (etude du tri v2, 03/11/2026 :
+// 9 justes sur 9 sur les 930 lignes du 26/10 au 02/11, dont 7 rangements automatiques defaits
+// puis reclasses a la main en Comptabilite). Volontairement etroit : « appels de fonds »,
+// « répartition disponible en ligne » ou « RIB » vont aussi chez le gestionnaire (mesure : 13
+// faux sur 26 avec eux), ils restent hors de la regle.
+// « Relevé DU compteur électrique du parking » (S062) est une question technique pour le
+// gestionnaire : seul « relevé (de/des) compteur(s) » compte.
+const OBJET_COMPTABILITE = /\brelev(?:e|es) (?:de |des )?compteurs?\b|\bvirement a votre credit\b|\breglement (?:des |de )?charges\b/;
+
+/** Ce mail est-il pour la Comptabilité, d'apres son objet (relevé de compteur, virement reçu, règlement de charges) ? */
+export function objetPourLaComptabilite(objet: string): boolean {
+  return OBJET_COMPTABILITE.test(normaliser(objet));
+}
+
 /**
  * La piste du mail suffit-elle a ranger sans clic ? Une piste « sure » (hors historique de la
  * conversation), ou, depuis le 26/10/2026 (mesure : 15 faibles mono-candidat sur 15 justes),
@@ -1630,7 +1644,7 @@ export function pisteRangeable(s: Suggestion): boolean {
  * Pure : le service fournit le referentiel et le journal.
  */
 export function rangeableAutomatiquement(
-  mail: Pick<MailATrier, "corbeille" | "interne"> & { suggestion: Suggestion },
+  mail: Pick<MailATrier, "corbeille" | "interne"> & Partial<Pick<MailATrier, "objet" | "nonRemis">> & { suggestion: Suggestion },
   ctx: {
     /** L'automatique est ouvert pour la boite du mail (config de la boite ET MAIL_TRI_AUTO). */
     automatique: boolean;
@@ -1645,6 +1659,14 @@ export function rangeableAutomatiquement(
   if (mail.corbeille) return { ok: false, motif: "corbeille" };
   if (mail.interne) return { ok: false, motif: "interne" };
   const s = mail.suggestion;
+  // Relevé de compteur, virement reçu, règlement de charges (03/11/2026) : en Comptabilité,
+  // étiqueté de sa copro quand la piste en désigne une seule et rangeable. Pas un avis de
+  // non-remise : il part au binôme, qui rappelle le copropriétaire.
+  if (mail.objet && !mail.nonRemis && objetPourLaComptabilite(mail.objet)) {
+    if (ctx.dejaPasse) return { ok: false, motif: "deja-passe" };
+    const copro = s.candidats.length === 1 && (pisteRangeable(s) || s.identifiant) ? s.candidats : [];
+    return { ok: true, comptabilite: { copros: copro } };
+  }
   if (s.nature === "faible" && s.identifiant && s.candidats.length === 1) {
     if (ctx.dejaPasse) return { ok: false, motif: "deja-passe" };
     return coproRangeable(s.candidats[0]!, ctx, { inactiveAdmise: true });
@@ -1668,6 +1690,8 @@ type ContexteAutomatique = Parameters<typeof rangeableAutomatiquement>[1];
 export type DecisionAutomatique =
   | { ok: true; reference: string }
   | { ok: true; dossier: { cle: string; copros: string[] } }
+  /** Le dossier Comptabilité, avec l'étiquette de la copro quand elle est connue (objetPourLaComptabilite). */
+  | { ok: true; comptabilite: { copros: string[] } }
   | { ok: false; motif: RefusAutomatique };
 
 /**

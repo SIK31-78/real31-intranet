@@ -114,7 +114,14 @@ function avecDelai<T>(p: Promise<T>, ms: number): Promise<T> {
 function cibleDe(decision: DecisionAutomatique): CibleTri | null {
   if (!decision.ok) return null;
   if ("dossier" in decision) return { type: "dossier", cle: decision.dossier.cle, copros: decision.dossier.copros };
+  if ("comptabilite" in decision) return { type: "comptabilite" };
   return { type: "copro", reference: decision.reference };
+}
+
+/** La copro gardée en étiquette d'un mail rangé en Comptabilité (03/11/2026). */
+function coproConnueDe(decision: DecisionAutomatique): { reference: string | null; copros: string[] } | undefined {
+  if (!decision.ok || !("comptabilite" in decision)) return undefined;
+  return { reference: decision.comptabilite.copros[0] ?? null, copros: decision.comptabilite.copros };
 }
 
 export interface OptionsAutomatique {
@@ -218,7 +225,7 @@ export async function rangerAutomatiquement(
   };
 
   // Les plus anciens d'abord : un report ne retarde que les derniers arrives.
-  const aRanger: { m: RawMail; cible: CibleTri; signal: { nature: SignalTri; candidats: string[] } }[] = [];
+  const aRanger: { m: RawMail; cible: CibleTri; signal: { nature: SignalTri; candidats: string[] }; coproConnue?: { reference: string | null; copros: string[] } }[] = [];
   const aLirePj: { m: RawMail; mail: MailDeLaFile }[] = [];
   // On est passe au-dela du coupe-circuit : l'automatique est ouvert pour cette boite.
   const ctx = { automatique: true, dejaPasse: false, copros: ref.copros, initialesParEmail, binomes };
@@ -229,14 +236,19 @@ export async function rangerAutomatiquement(
     const decision = rangeableAutomatiquement(mail, { ...ctx, dejaPasse });
     // Le journal garde le signal reel (« sure » ou « faible ») : c'est lui que la revue mesure.
     const cible = cibleDe(decision);
-    if (cible) aRanger.push({ m, cible, signal: signalDuRangement(mail.suggestion, null) });
+    if (cible) aRanger.push({ m, cible, signal: signalDuRangement(mail.suggestion, null), coproConnue: coproConnueDe(decision) });
     else if (!decision.ok) bilan.refus[decision.motif] = (bilan.refus[decision.motif] ?? 0) + 1;
     if (aLirePiecesJointes(mail, decision, dejaPasse)) aLirePj.push({ m, mail });
   }
 
   const max = opts.max ?? MAX_RANGES;
   const budget = opts.budgetMs ?? BUDGET_MS;
-  const ranger = async (m: RawMail, cible: CibleTri, signal: { nature: SignalTri; candidats: string[] }): Promise<boolean> => {
+  const ranger = async (
+    m: RawMail,
+    cible: CibleTri,
+    signal: { nature: SignalTri; candidats: string[] },
+    coproConnue?: { reference: string | null; copros: string[] },
+  ): Promise<boolean> => {
     try {
       await rangerMail(
         {
@@ -246,6 +258,7 @@ export async function rangerAutomatiquement(
           objet: m.subject || "(sans objet)",
           cible,
           suggestion: signal,
+          ...(coproConnue ? { coproConnue } : {}),
         },
         PAR_AUTOMATIQUE,
         depsPassage,
@@ -262,12 +275,12 @@ export async function rangerAutomatiquement(
   };
 
   // Un par un : deux mails vers un dossier pas encore cree le creeraient deux fois.
-  for (const { m, cible, signal } of aRanger) {
+  for (const { m, cible, signal, coproConnue } of aRanger) {
     if (bilan.ranges + bilan.echecs >= max || maintenant() - debut > budget) {
       bilan.reportes++;
       continue;
     }
-    await ranger(m, cible, signal);
+    await ranger(m, cible, signal, coproConnue);
   }
 
   // Les PDF ensuite : un telechargement par piece, les pistes du mail passent d'abord. Une

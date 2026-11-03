@@ -552,3 +552,14 @@ describe("rangerAutomatiquement : copro inactive citée par son code (28/10/2026
     expect(e).toMatchObject({ coproReference: "S0410", dossierNom: "GG", signal: "faible", par: "automatique" });
   });
 });
+
+describe("rangerAutomatiquement : Comptabilité par l'objet (03/11/2026)", () => {
+  it("un relevé de compteur part en Comptabilité, étiqueté de sa copro", async () => {
+    const m = brut({ from: "proprio@exemple.fr", subject: "Re: RELANCE demande relevé compteurs" });
+    const { passer, repo, rangement } = monter([m]);
+    expect(await passer()).toMatchObject({ ranges: 1 });
+    const [e] = await repo.journalDepuis(SYNDIC4);
+    expect(e).toMatchObject({ dossierNom: "Comptabilité", dossierCle: "comptabilite", coproReference: "S0297", copros: ["S0297"], par: "automatique" });
+    expect(rangement.etiqueter).toHaveBeenCalledWith(SYNDIC4, expect.any(String), { ajouter: ["S0297"] });
+  });
+});
