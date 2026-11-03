@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CoproTri, ReferentielTri } from "@/lib/domain/tri-emails";
 import { ReferentielTriBoite } from "./referentiel-tri-boite";
+import { codeAgenceDepuisEtablissement } from "./estale/estale-copro-provider";
 
 // Périmètre d'une boîte triée (V2 du 27/10/2026) : l'union des copros Crypto de ses agences et
 // des copros ESTALE dont l'établissement y correspond. Données inventées.
@@ -36,5 +37,11 @@ describe("ReferentielTriBoite", () => {
     const r = await new ReferentielTriBoite(e, source(CRYPTO), []).charger();
     expect(r.copros).toEqual([]);
     expect(e.charger).not.toHaveBeenCalled();
+  });
+
+  it("cas réel du 03/11/2026 : S0313, établissement « REAL 31 - ASNIERES », absente de Crypto, entre dans syndic2 (LGC + ASN)", async () => {
+    const s0313 = copro("S0313", { agence: codeAgenceDepuisEtablissement("REAL 31 - ASNIERES") });
+    expect(await refs(new ReferentielTriBoite(source([s0313]), source(CRYPTO), ["LGC", "ASN"]))).toEqual(["S0302", "S0313", "S247"]);
+    expect(await refs(new ReferentielTriBoite(source([s0313]), source([]), ["HLS"]))).toEqual([]);
   });
 });

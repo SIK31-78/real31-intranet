@@ -75,11 +75,31 @@ export function _resetCacheCoprosEstale(): void {
   enVol = null;
 }
 
-/** "REAL 31 - HLS" -> "HLS" : le code d'agence est le suffixe apres "REAL 31 - ". */
+// Libelles d'etablissement ESTALE -> code d'agence de l'intranet (table Agency). Releve du
+// 03/11/2026 sur les 14 copros ESTALE : « REAL 31 - HOUILLES », « REAL 31 - LA GARENNE
+// COLOMBES », « REAL 31 - ASNIERES », « REAL 31 - Maisons-Laffitte » ; jamais le code. Sans
+// cette table, le tri ne voyait aucune copro ESTALE absente de Crypto (S0313, Asnieres).
+const AGENCE_PAR_LIBELLE: Readonly<Record<string, string>> = {
+  hls: "HLS", houilles: "HLS",
+  lgc: "LGC", "la garenne colombes": "LGC", "garenne colombes": "LGC",
+  asn: "ASN", asnieres: "ASN", "asnieres sur seine": "ASN",
+  ml: "ML", "maisons laffitte": "ML",
+};
+
+/**
+ * Code d'agence d'un etablissement ESTALE : le libelle apres « REAL 31 - » (« REAL 31 -
+ * HOUILLES » -> HLS, « REAL 31 - LA GARENNE COLOMBES » -> LGC, « REAL 31 - HLS » -> HLS),
+ * sans accent, casse ni tiret. Libelle inconnu : undefined (la copro n'entre que par Crypto).
+ */
 export function codeAgenceDepuisEtablissement(nom: string | null | undefined): string | undefined {
   if (!nom) return undefined;
-  const m = nom.trim().match(/-\s*([A-Za-z]+)\s*$/);
-  return m ? m[1].toUpperCase() : undefined;
+  const libelle = (nom.split(/\s+-\s+/).slice(1).join(" ") || nom)
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z]+/g, " ")
+    .trim();
+  return AGENCE_PAR_LIBELLE[libelle];
 }
 
 /** public."User".role brut -> role d'equipe intranet ; null si hors des 3 roles metier. */

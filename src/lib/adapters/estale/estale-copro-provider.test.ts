@@ -4,7 +4,7 @@
 // injectes sont des fakes : zero reseau, zero DB.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { EstaleCoproProvider, _resetCacheCoprosEstale } from "./estale-copro-provider";
+import { EstaleCoproProvider, _resetCacheCoprosEstale, codeAgenceDepuisEtablissement } from "./estale-copro-provider";
 import { estaleGql } from "./client";
 import type { GestionnaireRepository } from "@/lib/ports/gestionnaire-repository";
 import type { AgenceRepository } from "@/lib/ports/agence-repository";
@@ -152,5 +152,25 @@ describe("EstaleCoproProvider.listerCoprosEstale", () => {
     expect((await p.getCoproEstale("S0300"))?.code).toBe("S300");
     expect((await p.getCoproEstale("S300"))?.code).toBe("S300");
     expect(await p.getCoproEstale("S999")).toBeNull();
+  });
+});
+
+// Libellés réels des établissements ESTALE (relevé du 03/11/2026) : jamais le code d'agence.
+describe("codeAgenceDepuisEtablissement", () => {
+  it("libellés de ville -> code de la table Agency", () => {
+    expect(codeAgenceDepuisEtablissement("REAL 31 - HOUILLES")).toBe("HLS");
+    expect(codeAgenceDepuisEtablissement("REAL 31 - LA GARENNE COLOMBES")).toBe("LGC");
+    expect(codeAgenceDepuisEtablissement("REAL 31 - ASNIERES")).toBe("ASN");
+    expect(codeAgenceDepuisEtablissement("REAL 31 - Asnières-sur-Seine")).toBe("ASN");
+    expect(codeAgenceDepuisEtablissement("REAL 31 - Maisons-Laffitte")).toBe("ML");
+  });
+  it("le code lui-même reste accepté", () => {
+    expect(codeAgenceDepuisEtablissement("REAL 31 - HLS")).toBe("HLS");
+    expect(codeAgenceDepuisEtablissement("REAL 31 - lgc")).toBe("LGC");
+  });
+  it("libellé inconnu ou absent : pas d'agence", () => {
+    expect(codeAgenceDepuisEtablissement("REAL 31 - PARIS")).toBeUndefined();
+    expect(codeAgenceDepuisEtablissement("REAL 31")).toBeUndefined();
+    expect(codeAgenceDepuisEtablissement(null)).toBeUndefined();
   });
 });
