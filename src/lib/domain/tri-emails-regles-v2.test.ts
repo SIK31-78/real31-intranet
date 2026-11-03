@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { objetPourLaComptabilite, rangeableAutomatiquement, type CoproTri, type Suggestion } from "./tri-emails";
+import { objetPourLaComptabilite, pisteRangeable, rangeableAutomatiquement, suggererCopro, type CoproTri, type Suggestion } from "./tri-emails";
 
 // Règles de l'étude du tri v2 (03/11/2026), mesurées sur les 930 lignes du 26/10 au 02/11.
 // Données inventées ; objets inspirés des cas réels, anonymisés.
@@ -16,7 +16,7 @@ const ctx = (o: Partial<Parameters<typeof rangeableAutomatiquement>[1]> = {}) =>
   automatique: true,
   dejaPasse: false,
   copros: [copro("S0297"), copro("S0305", { inactive: true })],
-  initialesParEmail: { "g@real31.fr": "GG" },
+  initialesParEmail: { "g@real31.fr": "GG", "h@real31.fr": "HH" },
   ...o,
 });
 const sure = (reference = "S0297"): Suggestion => ({ nature: "sure", candidats: [reference], raison: `Code ${reference} cité dans l'objet.` });
@@ -64,5 +64,37 @@ describe("rangeableAutomatiquement : Comptabilité par l'objet (R2b)", () => {
   });
   it("un objet ordinaire suit les règles d'avant", () => {
     expect(rangeableAutomatiquement({ objet: "Fuite au 3e", suggestion: sure() }, ctx())).toEqual({ ok: true, reference: "S0297" });
+  });
+});
+
+describe("pisteRangeable : indice faible rangé seul (R4)", () => {
+  const ref = {
+    copros: [
+      copro("S0247", { adresse: "12 rue des Lilas 78400 Chatou" }),
+      copro("S0305", { adresse: "4 rue du Lavoir 78400 Chatou", inactive: true }),
+      copro("S0310", { adresse: "8 rue du Puits 92250 La Garenne-Colombes", gestionnaire: { nomComplet: "Hugo", email: "h@real31.fr" } }),
+    ],
+    expediteurs: { "ascenseurs@exemple.fr": [{ reference: "S0247", qualite: "fournisseur" as const }] },
+  };
+  const ctxRef = ctx({ copros: ref.copros });
+  const decider = (m: { objet: string; apercu?: string; deAdresse?: string }) =>
+    rangeableAutomatiquement({ suggestion: suggererCopro({ deAdresse: m.deAdresse ?? "inconnu@exemple.fr", objet: m.objet, apercu: m.apercu ?? "" }, ref) }, ctxRef);
+
+  it("code dans le corps, sur une seule copro : rangé (7 justes sur 7)", () => {
+    const s = suggererCopro({ deAdresse: "x@exemple.fr", objet: "Bonjour", apercu: "Voir le dossier S0247." }, ref);
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S0247"], origine: "code-corps" });
+    expect(pisteRangeable(s)).toBe(true);
+    expect(decider({ objet: "Bonjour", apercu: "Voir le dossier S0247." })).toEqual({ ok: true, reference: "S0247" });
+  });
+  it("adresse sans ville sur une rue d'une seule ville : rangé (22 justes sur 22)", () => {
+    expect(decider({ objet: "Devis 12 rue des Lilas" })).toEqual({ ok: true, reference: "S0247" });
+  });
+  it("jamais une copro inactive (copros perdues, S182, S113)", () => {
+    expect(decider({ objet: "Bonjour", apercu: "Voir le dossier S0305." })).toEqual({ ok: false, motif: "copro-inactive" });
+    expect(decider({ objet: "Devis 4 rue du Lavoir" })).toEqual({ ok: false, motif: "copro-inactive" });
+  });
+  it("jamais le fournisseur seul, ni deux codes dans le corps", () => {
+    expect(decider({ deAdresse: "ascenseurs@exemple.fr", objet: "Visite d'entretien" })).toEqual({ ok: false, motif: "pas-sure" });
+    expect(decider({ objet: "Bonjour", apercu: "Voir S0247 et S0310." })).toEqual({ ok: false, motif: "pas-sure" });
   });
 });

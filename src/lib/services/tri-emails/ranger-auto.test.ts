@@ -32,7 +32,7 @@ const REF: ReferentielTri = {
     copro("S0520", { nom: "LE BELVEDERE", adresse: "4 allée des Tilleuls 78800 Houilles", gestionnaire: HUGO }),
     copro("S0298"),
   ],
-  expediteurs: { "proprio@exemple.fr": [{ reference: "S0297", qualite: "copropriétaire" }] },
+  expediteurs: { "proprio@exemple.fr": [{ reference: "S0297", qualite: "copropriétaire" }], "ascenseurs@exemple.fr": [{ reference: "S0297", qualite: "fournisseur" }] },
 };
 
 let n = 0;
@@ -226,7 +226,7 @@ describe("rangerAutomatiquement (cron, piste sûre)", () => {
     const mails = [
       sure,
       brut({ subject: "S0297 et S0305 : deux immeubles" }), // plusieurs
-      brut({ subject: "Bonjour", bodyText: "Voir S0305." }), // faible
+      brut({ subject: "Bonjour", bodyText: "Voir S0305 et S0298." }), // plusieurs codes dans le corps
       brut({ subject: "Ancien immeuble", bodyText: "Voir S0410." }), // inactive, code dans le corps : faible
       brut({ subject: "Réponse automatique : S0297" }), // corbeille
       brut({ from: "collegue@real31.fr", subject: "RE: S0297 - fuite" }), // interne
@@ -235,7 +235,8 @@ describe("rangerAutomatiquement (cron, piste sûre)", () => {
     const bilan = await passer();
 
     expect(bilan).toMatchObject({ actif: true, examines: 6, ranges: 1, echecs: 0, reportes: 0 });
-    expect(bilan.refus).toEqual({ "pas-sure": 3, corbeille: 1, interne: 1 });
+    // « Voir S0410. » : code dans le corps rangeable depuis le 03/11/2026, mais copro inactive.
+    expect(bilan.refus).toEqual({ "pas-sure": 2, "copro-inactive": 1, corbeille: 1, interne: 1 });
     expect(rangement.deplacer).toHaveBeenCalledTimes(1);
     const journal = await repo.journalDepuis(SYNDIC4);
     expect(journal).toHaveLength(1);
@@ -455,8 +456,8 @@ describe("rangerAutomatiquement : lecture des PDF (26/10/2026)", () => {
   });
 
   it("refuse une copro du PDF que le mail ne propose pas, ou inactive", async () => {
-    // Le mail propose S0297 (code dans le corps) ; le PDF dit S0305.
-    const conflit = avecPj({ bodyText: "Voir S0297." });
+    // Le mail propose S0297 (fournisseur connu d'elle seule) ; le PDF dit S0305.
+    const conflit = avecPj({ from: "ascenseurs@exemple.fr" });
     const { passer } = monter([conflit, avecPj({ subject: "Ancien immeuble" })]);
     const lirePdf = vi.fn(async (id: string) => (id === conflit.internetMessageId ? ["S0305"] : ["S0410"]));
     const bilan = await passer({ lirePdf, memoirePj: new Map() });

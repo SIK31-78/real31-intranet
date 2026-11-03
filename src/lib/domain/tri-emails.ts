@@ -223,7 +223,12 @@ export interface Suggestion {
    *   - « nom-adresse » : piste faible sur UNE copro, trouvee par le nom de l'immeuble, son
    *     adresse, ou un nom d'usage / une adresse du registre national, sans aucun code de
    *     copro cite (decision Sekou du 26/10/2026 : rangeable sans clic, cf. pisteRangeable).
-   *     Jamais pour un fournisseur seul, un code dans le corps, l'historique de la conversation.
+   *     Jamais pour un fournisseur seul, un code dans le corps, l'historique de la conversation ;
+   *   - « code-corps » : piste faible sur UNE copro, par son code cite dans le corps du mail
+   *     (etude du tri v2, 03/11/2026 : 7 justes sur 7, rangeable sans clic) ;
+   *   - « adresse-sans-lieu » : piste faible sur UNE copro, par son adresse citee sans ville
+   *     ni code postal, sur une rue qu'une seule ville du referentiel connait (meme etude :
+   *     22 justes sur 22, rangeable sans clic).
    */
   origine?: OrigineSuggestion;
   /**
@@ -234,7 +239,7 @@ export interface Suggestion {
   identifiant?: true;
 }
 
-export type OrigineSuggestion = "conversation" | "nom-adresse";
+export type OrigineSuggestion = "conversation" | "nom-adresse" | "code-corps" | "adresse-sans-lieu";
 
 // "S0297", "S297", "SE999" -> cle de comparaison "S297" / "SE999". ESTALE ecrit S0297 ;
 // les mails et d'autres outils ecrivent parfois S297 : la cle ignore les zeros de tete.
@@ -574,8 +579,9 @@ export interface OptionsNomAdresse {
   /**
    * Adresse citee sans code postal ni ville (28/10/2026) : acceptee quand le numero est colle a
    * la rue complete et que cette rue n'existe que dans une seule ville du referentiel. Non par
-   * defaut : seulement le texte du mail, en suggestion a confirmer (jamais rangee seule, jamais
-   * dans un PDF ni « Immeuble concerné »). Elle ne compte que si rien d'autre n'est trouve.
+   * defaut : seulement le texte du mail (jamais dans un PDF ni « Immeuble concerné ») ; rangee
+   * seule depuis le 03/11/2026 (origine « adresse-sans-lieu »). Elle ne compte que si rien
+   * d'autre n'est trouve.
    */
   sansLieu?: boolean;
 }
@@ -1084,6 +1090,7 @@ function suggestionBrute(
       nature: refs.length === 1 ? "faible" : "plusieurs",
       candidats: refs,
       raison: refs.length === 1 ? `Code ${refs[0]} cité dans le message.` : "Plusieurs codes cités dans le message.",
+      ...(refs.length === 1 ? { origine: "code-corps" as const } : {}),
     };
   }
 
@@ -1099,12 +1106,14 @@ function suggestionBrute(
     const codeHorsPerimetre = new RegExp(MOTIF_REFERENCE.source, "i").test(`${mail.objet}\n${corps}`);
     // Une adresse a une lettre pres reste aussi a confirmer (decision Sekou du 27/10/2026) :
     // elle n'etait pas dans la mesure des 15 faibles justes, on l'observe d'abord. Une adresse
-    // sans ville ni code postal aussi (28/10/2026, suggestion seulement).
+    // sans ville ni code postal etait une suggestion seulement (28/10/2026), rangeable depuis le 03/11.
     return {
       nature: "faible",
       candidats: [indices[0]!.reference],
       raison: indices[0]!.raison,
-      ...(codeHorsPerimetre || indices[0]!.approchee || indices[0]!.sansLieu ? {} : { origine: "nom-adresse" as const }),
+      // Sans ville ni code postal (03/11/2026) : rangeable aussi, mais sous son origine propre
+      // (« adresse-sans-lieu ») pour la mesurer a part.
+      ...(codeHorsPerimetre || indices[0]!.approchee ? {} : { origine: indices[0]!.sansLieu ? ("adresse-sans-lieu" as const) : ("nom-adresse" as const) }),
     };
   }
   if (indices.length > 1) {
@@ -1611,12 +1620,15 @@ export function objetPourLaComptabilite(objet: string): boolean {
  * La piste du mail suffit-elle a ranger sans clic ? Une piste « sure » (hors historique de la
  * conversation), ou, depuis le 26/10/2026 (mesure : 15 faibles mono-candidat sur 15 justes),
  * une piste « faible » trouvee par le nom de l'immeuble ou son adresse (origine
- * « nom-adresse »). Toujours sur UNE seule copro.
+ * « nom-adresse »). Depuis le 03/11/2026 (etude du tri v2), aussi un code cite dans le corps
+ * (« code-corps ») et une adresse sans ville sur une rue d'une seule ville (« adresse-sans-lieu ») ;
+ * jamais un fournisseur seul, une adresse a une lettre pres, ni une copro inactive
+ * (coproRangeable). Toujours sur UNE seule copro.
  */
 export function pisteRangeable(s: Suggestion): boolean {
   if (s.candidats.length !== 1) return false;
   if (s.nature === "sure") return s.origine !== "conversation";
-  return s.nature === "faible" && s.origine === "nom-adresse";
+  return s.nature === "faible" && (s.origine === "nom-adresse" || s.origine === "code-corps" || s.origine === "adresse-sans-lieu");
 }
 
 /**

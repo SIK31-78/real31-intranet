@@ -426,10 +426,11 @@ describe("suggererCopro", () => {
         candidats: ["S0906"],
       });
       expect(suggererCopro(mail({ objet: "Sinistre au 85 boulevard Imaginaire, Rueil-Malmaison" }), ref).nature).toBe("aucune");
-      // Sans le lieu : seulement une suggestion à confirmer (rue d'une seule ville, 28/10/2026).
+      // Sans le lieu (rue d'une seule ville, 28/10/2026) : rangeable sous son origine propre
+      // depuis le 03/11/2026.
       const sansLieu = suggererCopro(mail({ objet: "Sinistre au 81 boulevard Imaginaire" }), ref);
       expect(sansLieu).toMatchObject({ nature: "faible", candidats: ["S0906"] });
-      expect(sansLieu.origine).toBeUndefined();
+      expect(sansLieu.origine).toBe("adresse-sans-lieu");
     });
 
     it("la ville d'une adresse secondaire n'est distinctive pour aucun nom", () => {
@@ -1074,9 +1075,9 @@ describe("piste faible par le nom ou l'adresse : rangeable sans clic (26/10/2026
     expect(decider({ objet: "Résidence les Glycines : badge" })).toEqual({ ok: true, reference: "S0305" });
   });
 
-  it("refuse le fournisseur seul, le code dans le corps, l'historique de la conversation", () => {
+  it("refuse le fournisseur seul et l'historique de la conversation ; le code dans le corps est rangé depuis le 03/11/2026", () => {
     expect(decider({ deAdresse: "ascenseurs@exemple.fr", objet: "Visite d'entretien" })).toEqual({ ok: false, motif: "pas-sure" });
-    expect(decider({ objet: "Bonjour", apercu: "Voir le dossier S0247." })).toEqual({ ok: false, motif: "pas-sure" });
+    expect(decider({ objet: "Bonjour", apercu: "Voir le dossier S0247." })).toEqual({ ok: true, reference: "S0247" });
     const fil = avecMemeConversation(suggererCopro(mail({ objet: "Bonjour" }), ref), "S0247", ref);
     expect(rangeableAutomatiquement({ suggestion: fil }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
   });
@@ -1471,12 +1472,12 @@ describe("adresse sans ville ni code postal : suggestion à confirmer (28/10/202
   };
   const trouve = (objet: string) => suggererCopro(mail({ objet }), ref);
 
-  it("numéro collé à une rue qu'une seule ville connaît : proposée, jamais rangée seule", () => {
+  it("numéro collé à une rue qu'une seule ville connaît : rangeable depuis le 03/11/2026 (22 justes sur 22)", () => {
     const s = trouve("DEVIS DEV-2026-10-2721 - 19 RUE SARTINE");
     expect(s).toMatchObject({ nature: "faible", candidats: ["S0082"] });
     expect(s.raison).toContain("sans ville");
-    expect(s.origine).toBeUndefined();
-    expect(pisteRangeable(s)).toBe(false);
+    expect(s.origine).toBe("adresse-sans-lieu");
+    expect(pisteRangeable(s)).toBe(true);
   });
 
   it("une rue présente dans deux villes, un autre numéro, un numéro loin de la rue : rien", () => {
