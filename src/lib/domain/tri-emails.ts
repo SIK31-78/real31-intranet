@@ -238,11 +238,12 @@ export interface Suggestion {
    */
   identifiant?: true;
   /**
-   * Proposition seulement (03/11/2026) : le mail ne designe aucune copro de la boite, mais UNE
-   * copro d'une autre agence (proposerAutreAgence). L'ecran propose de le basculer ; jamais
-   * fait sans clic (la nature reste « aucune »).
+   * Le mail ne designe aucune copro de la boite, mais UNE copro d'une autre agence
+   * (proposerAutreAgence, 03/11/2026). La nature reste « aucune ». Piste vraiment sure
+   * (`sure`, pisteAutreAgenceStricte) : la tache planifiee le bascule seule vers l'agence de
+   * la copro (basculeAutomatique) ; sinon l'ecran propose de le basculer.
    */
-  autreAgence?: { reference: string; agence: string | null };
+  autreAgence?: { reference: string; agence: string | null; sure?: true };
 }
 
 export type OrigineSuggestion = "conversation" | "nom-adresse" | "code-corps" | "adresse-sans-lieu";
@@ -1995,14 +1996,53 @@ export function proposerAutreAgence(
   mail: Pick<MailATrier, "deAdresse" | "objet" | "apercu"> & { corps?: string; corbeille?: MotifCorbeille; interne?: boolean },
   autres: ReferentielTri,
 ): Suggestion {
-  if (s.nature !== "aucune" || s.candidats.length > 0 || mail.corbeille || mail.interne || autres.copros.length === 0) return s;
+  // « hors-estale » : un code cité qui n'est pas de la boîte, le cas le plus net d'une autre agence.
+  if ((s.nature !== "aucune" && s.nature !== "hors-estale") || s.candidats.length > 0 || mail.corbeille || mail.interne || autres.copros.length === 0) return s;
   const ailleurs = suggererCopro(mail, autres);
   if (ailleurs.candidats.length !== 1 || !(ailleurs.nature === "sure" || pisteRangeable(ailleurs))) return s;
   const reference = ailleurs.candidats[0]!;
-  const agence = autres.copros.find((c) => c.reference === reference)?.agence ?? null;
+  const copro = autres.copros.find((c) => c.reference === reference);
+  const agence = copro?.agence ?? null;
+  const sure = copro ? pisteAutreAgenceStricte(ailleurs, mail, copro) : false;
   return {
     ...s,
-    raison: `${ailleurs.raison.replace(/,? à confirmer\.?$/, ".")} Cette copropriété (${reference}) est d'une autre agence${agence ? ` (${agence})` : ""} : à basculer ?`,
-    autreAgence: { reference, agence },
+    raison: `${ailleurs.raison.replace(/,? à confirmer\.?$/, ".")} Cette copropriété (${reference}) est d'une autre agence${agence ? ` (${agence})` : ""} : ${sure ? "piste sûre, basculé seul vers son agence par la tâche planifiée quand la bascule est ouverte." : "à basculer ?"}`,
+    autreAgence: { reference, agence, ...(sure ? { sure: true as const } : {}) },
   };
+}
+
+/**
+ * La piste vers une copro d'une autre agence est-elle assez sure pour basculer seul (decision
+ * Sekou du 03/11/2026 : « si on est sur, elle doit etre transferee a l'autre agence ») ?
+ * Seulement : son code exact dans l'objet ou son immatriculation, ou son
+ * nom ET son adresse complete (numero, rue, lieu) cites ensemble. Jamais l'expediteur seul,
+ * une adresse sans lieu ou a une lettre pres, un nom seul, l'historique de la conversation.
+ */
+export function pisteAutreAgenceStricte(ailleurs: Suggestion, mail: Pick<MailATrier, "objet" | "apercu">, copro: CoproTri): boolean {
+  if (ailleurs.candidats.length !== 1 || ailleurs.candidats[0] !== copro.reference) return false;
+  // Le code dans le CORPS reste une proposition : rejeu du 03/11/2026, « V.REF : S261/… » d'un
+  // avocat (recouvrement) etait range en Comptabilite par l'humain, pas bascule (seul faux).
+  if (ailleurs.identifiant) return true;
+  if (ailleurs.origine !== "nom-adresse") return false;
+  const texte = `${mail.objet}\n${retirerEnteteCabinet(nettoyerCorps(mail.apercu)).slice(0, TETE_CORPS)}`;
+  const parNom = indicesNomAdresse(texte, [{ ...copro, adresse: "", adressesSecondaires: [] }]);
+  const parAdresse = indicesNomAdresse(texte, [{ ...copro, nom: "", nomsUsage: [] }], { approche: false });
+  return parNom.length === 1 && parAdresse.length === 1;
+}
+
+/**
+ * Bascule automatique (03/11/2026) : la copro d'une autre agence et son agence, quand la piste
+ * est vraiment sure (autreAgence.sure) et que rien ne s'y oppose : automatique ouvert, ni
+ * corbeille, ni collegue, ni avis de non-remise, jamais un mail deja passe par le journal.
+ * Le service verifie ensuite la garde de la bascule (refusBascule : ecriture ouverte sur les
+ * deux boites) ; refusee, le mail reste en proposition.
+ */
+export function basculeAutomatique(
+  mail: Pick<MailATrier, "corbeille" | "interne" | "nonRemis"> & { suggestion: Suggestion },
+  ctx: { automatique: boolean; dejaPasse: boolean },
+): { reference: string; agence: string } | null {
+  const a = mail.suggestion.autreAgence;
+  if (!ctx.automatique || ctx.dejaPasse || mail.corbeille || mail.interne || mail.nonRemis) return null;
+  if (!a?.sure || !a.agence || mail.suggestion.candidats.length > 0) return null;
+  return { reference: a.reference, agence: a.agence };
 }

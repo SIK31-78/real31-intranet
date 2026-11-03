@@ -574,3 +574,26 @@ describe("rangerAutomatiquement : mail d'un collègue avec le code de la copro (
     expect(e).toMatchObject({ coproReference: "S0297", dossierNom: "GG", signal: "sure", par: "automatique" });
   });
 });
+
+describe("rangerAutomatiquement : bascule vers l'autre agence, piste vraiment sûre (03/11/2026)", () => {
+  const AUTRES: ReferentielTri = {
+    copros: [copro("S0178", { nom: "LES ROSIERS", adresse: "125 rue Louise Michel 78500 SARTROUVILLE", agence: "LGC" })],
+    expediteurs: {},
+  };
+  it("code exact d'une copro d'une autre agence : basculé ; nom seul : laissé en proposition", async () => {
+    const sur = brut({ subject: "S0178 - facture d'entretien" });
+    const nomSeul = brut({ subject: "SDC LES ROSIERS FACTURE CONTRAT" });
+    const basculer = vi.fn(async () => {});
+    const { passer } = monter([sur, nomSeul]);
+    const bilan = await passer({ autres: async () => AUTRES, basculer });
+    expect(bilan.bascules).toEqual({ faites: 1, refusees: 0, echecs: 0, reportees: 0 });
+    expect(basculer).toHaveBeenCalledTimes(1);
+    expect(basculer).toHaveBeenCalledWith(sur.internetMessageId, "S0178", "LGC");
+  });
+  it("garde de la bascule fermée : refusée, rien d'autre ne casse", async () => {
+    const { BasculeRefusee } = await import("./ranger-auto");
+    const { passer } = monter([brut({ subject: "S0178 - facture d'entretien" })]);
+    const bilan = await passer({ autres: async () => AUTRES, basculer: async () => { throw new BasculeRefusee("écriture coupée"); } });
+    expect(bilan.bascules).toEqual({ faites: 0, refusees: 1, echecs: 0, reportees: 0 });
+  });
+});

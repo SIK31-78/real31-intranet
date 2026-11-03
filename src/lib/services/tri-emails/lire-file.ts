@@ -195,7 +195,7 @@ export function avecPropositionAutreAgence(mail: MailDeLaFile, m: RawMail, autre
 }
 
 /** Le referentiel des agences des AUTRES boites (triees ou destination de bascule) ; null si aucune ou en panne. */
-async function referentielDesAutresAgences(config: BoiteTriConfig): Promise<ReferentielTri | null> {
+export async function referentielDesAutresAgences(config: BoiteTriConfig): Promise<ReferentielTri | null> {
   const autres = [...new Set(boitesDestinationBascule().flatMap((b) => b.agences))].filter((a) => !config.agences.includes(a));
   if (autres.length === 0) return null;
   try {

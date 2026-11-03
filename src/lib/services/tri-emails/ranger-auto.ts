@@ -27,6 +27,7 @@
 import {
   PAR_AUTOMATIQUE,
   aLirePiecesJointes,
+  basculeAutomatique,
   rangeableAutomatiquement,
   rangeableParPiecesJointes,
   signalDuRangement,
@@ -34,15 +35,18 @@ import {
   type CibleTri,
   type CoproTri,
   type DecisionAutomatique,
+  type ReferentielTri,
   type RefusAutomatique,
   type SignalTri,
 } from "@/lib/domain/tri-emails";
-import { boiteTri, triAutomatiquePour } from "@/lib/domain/mail-gate";
+import { refusBascule } from "@/lib/domain/bascule-boites";
+import { boiteTri, boitesDestinationBascule, triAutomatiquePour } from "@/lib/domain/mail-gate";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import type { TriRepository } from "@/lib/ports/tri-repository";
 import { signalerException } from "@/lib/observabilite";
 import { coprosDeTousLesPdf } from "./copro-pieces-jointes";
-import { mailDeLaFile, publicitesDeLaFile, type MailDeLaFile } from "./lire-file";
+import { avecPropositionAutreAgence, mailDeLaFile, publicitesDeLaFile, referentielDesAutresAgences, type MailDeLaFile } from "./lire-file";
+import { basculerMail, depsBascule } from "./basculer";
 import { rangerMail, type DepsRangement } from "./ranger";
 import { lireReception } from "./synchroniser-reception";
 
@@ -139,6 +143,26 @@ export interface OptionsAutomatique {
   delaiPjMs?: number;
   /** Defaut : la memoire de l'instance (PJ_SANS_SUITE). */
   memoirePj?: Map<string, number>;
+  /** Defaut : le referentiel des agences des autres boites (referentielDesAutresAgences). */
+  autres?: () => Promise<ReferentielTri | null>;
+  /**
+   * Defaut : basculerMail vers la boite de l'agence, par « automatique », apres la garde de la
+   * bascule (refusBascule : ecriture ouverte sur les deux boites). Leve BasculeRefusee sinon.
+   */
+  basculer?: (internetMessageId: string, reference: string, agence: string) => Promise<void>;
+}
+
+/** La garde de la bascule refuse (ecriture coupee, boite cible absente de la config…) : le mail reste en proposition. */
+export class BasculeRefusee extends Error {}
+
+/** La bascule automatique par defaut : la boite triee (ou destination) de l'agence de la copro. */
+async function basculerParDefaut(boite: string, internetMessageId: string, reference: string, agence: string): Promise<void> {
+  const cible = boitesDestinationBascule().find((b) => b.agences.includes(agence));
+  if (!cible) throw new BasculeRefusee(`Aucune boîte de l'intranet pour l'agence ${agence}.`);
+  const d = depsBascule(boiteTri(boite), cible.boite);
+  const refus = refusBascule(d.etat);
+  if (refus) throw new BasculeRefusee(refus);
+  await basculerMail({ internetMessageId, copro: reference }, PAR_AUTOMATIQUE, d);
 }
 
 export interface BilanAutomatique {
@@ -165,6 +189,15 @@ export interface BilanAutomatique {
     erreurs: number;
     refus: Partial<Record<RefusAutomatique, number>>;
   };
+  /** Bascules automatiques vers l'agence d'une copro (piste vraiment sure, 03/11/2026). */
+  bascules: {
+    faites: number;
+    /** Garde de la bascule fermee (ecriture coupee…) : restees en proposition. */
+    refusees: number;
+    echecs: number;
+    /** Laissees pour le passage suivant (plafond ou budget de temps). */
+    reportees: number;
+  };
 }
 
 // Sans relire Graph : la tache planifiee vient de mettre l'index a jour.
@@ -182,6 +215,7 @@ export async function rangerAutomatiquement(
     reportes: 0,
     refus: {},
     pj: { lus: 0, ranges: 0, dejaLus: 0, reportes: 0, erreurs: 0, refus: {} },
+    bascules: { faites: 0, refusees: 0, echecs: 0, reportees: 0 },
   };
   const boite = deps.boite;
   // Automatique coupe pour la boite : rangeableAutomatiquement le refuserait mail par mail,
@@ -206,7 +240,13 @@ export async function rangerAutomatiquement(
       signalerException(e, { source: "cron-tri-emails", detail: { etape: "conversations" } });
       return new Map<string, string>();
     });
-  const [ref, initialesParEmail, binomes, dejaPasses, coprosConversations] = await Promise.all([
+  const lireAutres =
+    opts.autres ??
+    (async () => {
+      const config = boiteTri(boite);
+      return config ? referentielDesAutresAgences(config) : null;
+    });
+  const [ref, initialesParEmail, binomes, dejaPasses, coprosConversations, autres] = await Promise.all([
     referentiel,
     initiales,
     deps.repo.binomes(),
@@ -214,6 +254,10 @@ export async function rangerAutomatiquement(
     // tri : le mail n'a jamais bouge, l'automatique le range (27/10/2026).
     deps.repo.dejaJournalises(boite, lus.map((m) => m.internetMessageId), { reellesSeulement: !deps.simulation }),
     conversations,
+    lireAutres().catch((e: unknown) => {
+      console.error("[tri-emails:auto] referentiel des autres agences :", e instanceof Error ? e.message : e);
+      return null;
+    }),
   ]);
   // Les publicites apprises du journal : corbeille proposee, donc jamais rangees seules.
   const publicites = await publicitesDeLaFile(deps.repo, boite, lus, ref);
@@ -227,18 +271,27 @@ export async function rangerAutomatiquement(
   // Les plus anciens d'abord : un report ne retarde que les derniers arrives.
   const aRanger: { m: RawMail; cible: CibleTri; signal: { nature: SignalTri; candidats: string[] }; coproConnue?: { reference: string | null; copros: string[] } }[] = [];
   const aLirePj: { m: RawMail; mail: MailDeLaFile }[] = [];
+  const aBasculer: { m: RawMail; reference: string; agence: string }[] = [];
   // On est passe au-dela du coupe-circuit : l'automatique est ouvert pour cette boite.
   const ctx = { automatique: true, dejaPasse: false, copros: ref.copros, initialesParEmail, binomes };
   for (const m of [...lus].sort((a, b) => a.receivedAt.localeCompare(b.receivedAt))) {
     bilan.examines++;
-    const mail = mailDeLaFile(m, boite, ref, m.conversationId ? coprosConversations.get(m.conversationId) : null, publicites, initialesParEmail);
+    const mail = avecPropositionAutreAgence(
+      mailDeLaFile(m, boite, ref, m.conversationId ? coprosConversations.get(m.conversationId) : null, publicites, initialesParEmail),
+      m,
+      autres,
+    );
     const dejaPasse = dejaPasses.has(m.internetMessageId);
     const decision = rangeableAutomatiquement(mail, { ...ctx, dejaPasse });
+    // Une copro d'une autre agence, piste vraiment sure : basculee vers son agence (03/11/2026).
+    const bascule = decision.ok ? null : basculeAutomatique(mail, { automatique: true, dejaPasse });
+    if (bascule) aBasculer.push({ m, ...bascule });
     // Le journal garde le signal reel (« sure » ou « faible ») : c'est lui que la revue mesure.
     const cible = cibleDe(decision);
     if (cible) aRanger.push({ m, cible, signal: signalDuRangement(mail.suggestion, null), coproConnue: coproConnueDe(decision) });
     else if (!decision.ok) bilan.refus[decision.motif] = (bilan.refus[decision.motif] ?? 0) + 1;
-    if (aLirePiecesJointes(mail, decision, dejaPasse)) aLirePj.push({ m, mail });
+    // Basculé, il quitte la boîte : ses PDF ne sont pas lus ici.
+    if (!bascule && aLirePiecesJointes(mail, decision, dejaPasse)) aLirePj.push({ m, mail });
   }
 
   const max = opts.max ?? MAX_RANGES;
@@ -281,6 +334,27 @@ export async function rangerAutomatiquement(
       continue;
     }
     await ranger(m, cible, signal, coproConnue);
+  }
+
+  // Les bascules vers une autre agence : une copie dans l'autre boite, comme un clic (basculerMail).
+  const basculer = opts.basculer ?? ((id: string, reference: string, agence: string) => basculerParDefaut(boite, id, reference, agence));
+  for (const { m, reference, agence } of aBasculer) {
+    if (bilan.ranges + bilan.echecs + bilan.bascules.faites + bilan.bascules.echecs >= max || maintenant() - debut > budget) {
+      bilan.bascules.reportees++;
+      continue;
+    }
+    try {
+      await basculer(m.internetMessageId, reference, agence);
+      bilan.bascules.faites++;
+    } catch (e) {
+      if (e instanceof BasculeRefusee) {
+        bilan.bascules.refusees++;
+        continue;
+      }
+      bilan.bascules.echecs++;
+      console.error(`[tri-emails:auto] bascule de ${m.internetMessageId} : ${e instanceof Error ? e.message : String(e)}`);
+      signalerException(e, { source: "cron-tri-emails", detail: { etape: "bascule", agence } });
+    }
   }
 
   // Les PDF ensuite : un telechargement par piece, les pistes du mail passent d'abord. Une

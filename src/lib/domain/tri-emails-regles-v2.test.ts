@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  basculeAutomatique,
   coprosDansPdf,
   objetPourLaComptabilite,
   pisteRangeable,
@@ -253,5 +254,50 @@ describe("publiciteProbable (R1c, proposition seulement)", () => {
   it("proposée à la corbeille, jamais rangée seule", () => {
     expect(suggestionCorbeille("publicite-probable").raison).toContain("publicité probable");
     expect(rangeableAutomatiquement({ corbeille: "publicite-probable", suggestion: suggestionCorbeille("publicite-probable") }, ctx())).toEqual({ ok: false, motif: "corbeille" });
+  });
+});
+
+describe("bascule automatique vers l'autre agence, piste vraiment sûre (03/11/2026)", () => {
+  const ici = { copros: [copro("S0297", { adresse: "3 rue des Lilas 92250 La Garenne-Colombes" })], expediteurs: {} };
+  const ailleurs = {
+    copros: [
+      copro("S0178", { nom: "LES ROSIERS", adresse: "125 rue Louise Michel 78500 SARTROUVILLE", agence: "HLS" }),
+      copro("S0261", { nom: "CLOS MARTIN", adresse: "25 rue des Trembleaux 78500 Sartrouville", agence: "HLS" }),
+    ],
+    expediteurs: { "proprio@exemple.fr": [{ reference: "S0261", qualite: "copropriétaire" as const }] },
+  };
+  const proposer = (objet: string, apercu = "", deAdresse = "x@exemple.fr") => {
+    const m = { deAdresse, objet, apercu };
+    return proposerAutreAgence(suggererCopro(m, ici), m, ailleurs);
+  };
+  const auto = (s: Suggestion, o: Partial<{ dejaPasse: boolean; corbeille: "reponse-auto"; interne: boolean; nonRemis: true }> = {}) =>
+    basculeAutomatique({ suggestion: s, ...o }, { automatique: true, dejaPasse: o.dejaPasse ?? false });
+
+  it("code exact dans l'objet (hors périmètre de la boîte) : basculée seule ; dans le corps : proposition", () => {
+    const s = proposer("S0178 - facture d'entretien");
+    expect(s.autreAgence).toEqual({ reference: "S0178", agence: "HLS", sure: true });
+    expect(auto(s)).toEqual({ reference: "S0178", agence: "HLS" });
+    // Rejeu du 03/11/2026 : « V.REF : S261/… » d'un avocat allait en Comptabilité, pas en bascule.
+    const corps = proposer("Facture", "Voir le dossier S0261.");
+    expect(corps.autreAgence).toEqual({ reference: "S0261", agence: "HLS" });
+    expect(auto(corps)).toBeNull();
+  });
+  it("nom ET adresse complète : basculée seule ; le nom seul ou l'expéditeur seul : proposition", () => {
+    expect(auto(proposer("SDC LES ROSIERS - 125 rue Louise Michel 78500 Sartrouville : contrat"))).toEqual({ reference: "S0178", agence: "HLS" });
+    const nomSeul = proposer("SDC LES ROSIERS FACTURE CONTRAT");
+    expect(nomSeul.autreAgence).toEqual({ reference: "S0178", agence: "HLS" });
+    expect(auto(nomSeul)).toBeNull();
+    expect(auto(proposer("Infiltration", "", "proprio@exemple.fr"))).toBeNull();
+  });
+  it("jamais un mail déjà passé, une corbeille, un collègue, un avis de non-remise, ni sans automatique", () => {
+    const s = proposer("S0178 - facture d'entretien");
+    expect(auto(s, { dejaPasse: true })).toBeNull();
+    expect(auto(s, { corbeille: "reponse-auto" })).toBeNull();
+    expect(auto(s, { interne: true })).toBeNull();
+    expect(auto(s, { nonRemis: true })).toBeNull();
+    expect(basculeAutomatique({ suggestion: s }, { automatique: false, dejaPasse: false })).toBeNull();
+  });
+  it("une piste dans la boîte elle-même : ni proposition ni bascule", () => {
+    expect(proposer("S0178 et 3 rue des Lilas La Garenne-Colombes").autreAgence).toBeUndefined();
   });
 });
