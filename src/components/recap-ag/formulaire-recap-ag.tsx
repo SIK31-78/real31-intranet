@@ -11,7 +11,7 @@
 // facturation : depuis que le fond de page est du papier chaud, un formulaire pose a
 // meme le papier detonne (retour Sekou 2026-09-10, "herite du fond ocre").
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,13 @@ import type { CleRepartition } from "@/lib/domain/assemblee";
 import { POURCENTAGE_FONDS_TRAVAUX_MINIMUM } from "@/lib/domain/recap-ag/fonds-travaux";
 import { contratEnSaisie, debutContratRequis, erreurContratVote } from "@/lib/domain/recap-ag/contrat-vote";
 import { heureDebutSuggeree, heureFinSuggeree } from "@/lib/domain/recap-ag/creneau-suggere";
+import {
+  cleBrouillon,
+  lireBrouillon,
+  saisieModifiee,
+  serialiserBrouillon,
+  type SaisieRecapAg,
+} from "@/lib/domain/recap-ag/brouillon";
 import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import type { ContratGenere } from "@/lib/services/contrat/contrats-generes";
 import { formatJour } from "@/lib/services/facturation/format";
@@ -52,6 +59,27 @@ interface TravauxSaisis {
   budget: string;
   cleRepartition: string;
   modalitesAppelFonds: string;
+}
+
+// Le brouillon vit dans localStorage, qui peut etre absent ou refuse (navigation privee,
+// stockage plein) : on ne bloque jamais la saisie pour autant.
+function lireStockage(cle: string): string | null {
+  try {
+    return window.localStorage.getItem(cle);
+  } catch {
+    return null;
+  }
+}
+function ecrireStockage(cle: string, valeur: string | null) {
+  try {
+    if (valeur === null) window.localStorage.removeItem(cle);
+    else window.localStorage.setItem(cle, valeur);
+  } catch {
+    // stockage indisponible : le brouillon est un filet, pas une obligation
+  }
+}
+function heureBrouillon(iso: string): string {
+  return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 /** Une section du formulaire : titre a la hairline, aide d'une ligne, grille de champs. */
@@ -200,15 +228,6 @@ export function FormulaireRecapAg({
   }
   const debutRequis = debutContratRequis(saisieContrat());
 
-  function proposerContrat(code: string) {
-    const g = copros.find((c) => c.code === code)?.contratGenere;
-    setDebutContrat(g?.debutISO ?? "");
-    setFinContrat(g?.finISO ?? "");
-    setHonoraires(texteMontant(g?.honorairesTtc));
-    setForfaitPostaux(texteMontant(g?.forfaitPostauxTtc));
-    setFraisPostauxReels(g?.fraisPostauxReels ?? false);
-  }
-
   // « 12 500 », « 12 500,50 € » se lisent (REA-99) : les champs montants sont en texte,
   // un <input type="number"> refuse les espaces entre les milliers.
   // Repartir d'un formulaire vierge (REA-111) : au changement de copro, rien de la
@@ -217,25 +236,111 @@ export function FormulaireRecapAg({
   // l'ouverture. `sansDate` : la date suggeree de la copro vient d'etre couverte par le
   // recap enregistre, on ne la repropose pas.
   function remettreAZero(code: string, { sansDate = false }: { sansDate?: boolean } = {}) {
-    const choisie = copros.find((c) => c.code === code);
-    setJour(sansDate ? "" : (choisie?.agDateSuggeree ?? ""));
-    const d = heureDebutSuggeree(choisie?.agHeureSuggeree);
-    setDebut(d);
-    setFin(heureFinSuggeree(d));
-    setComptesApprouves(true);
-    setReserves("");
-    setBudgetModifie(false);
-    setMontantBudget("");
-    setPourcentageBudget(String(POURCENTAGE_FONDS_TRAVAUX_MINIMUM));
-    setPptVote(false);
-    setPourcentagePpt("");
-    setMontantPpt("");
-    setFondsTravaux(true);
-    setInfoComptable("");
-    setTravaux([]);
+    const ouverture = saisieOuverture(code, { sansDate });
+    ouvertureRef.current = ouverture;
+    appliquerSaisie(ouverture);
     setApercu(null);
     setDateConfirmee(null);
-    proposerContrat(code);
+    setBrouillonRepris(null);
+  }
+
+  /** Le formulaire tel qu'il s'ouvre pour une copro : les defauts poses sur les cas courants. */
+  function saisieOuverture(code: string, { sansDate = false }: { sansDate?: boolean } = {}): SaisieRecapAg {
+    const choisie = copros.find((c) => c.code === code);
+    const g = choisie?.contratGenere;
+    const d = heureDebutSuggeree(choisie?.agHeureSuggeree);
+    return {
+      jour: sansDate ? "" : (choisie?.agDateSuggeree ?? ""),
+      debut: d,
+      fin: heureFinSuggeree(d),
+      comptesApprouves: true,
+      reserves: "",
+      budgetModifie: false,
+      montantBudget: "",
+      pourcentageBudget: String(POURCENTAGE_FONDS_TRAVAUX_MINIMUM),
+      pptVote: false,
+      pourcentagePpt: "",
+      montantPpt: "",
+      fondsTravaux: true,
+      infoComptable: "",
+      travaux: [],
+      debutContrat: g?.debutISO ?? "",
+      finContrat: g?.finISO ?? "",
+      honoraires: texteMontant(g?.honorairesTtc),
+      forfaitPostaux: texteMontant(g?.forfaitPostauxTtc),
+      fraisPostauxReels: g?.fraisPostauxReels ?? false,
+    };
+  }
+
+  function appliquerSaisie(s: SaisieRecapAg) {
+    setJour(s.jour);
+    setDebut(s.debut);
+    setFin(s.fin);
+    setComptesApprouves(s.comptesApprouves);
+    setReserves(s.reserves);
+    setBudgetModifie(s.budgetModifie);
+    setMontantBudget(s.montantBudget);
+    setPourcentageBudget(s.pourcentageBudget);
+    setPptVote(s.pptVote);
+    setPourcentagePpt(s.pourcentagePpt);
+    setMontantPpt(s.montantPpt);
+    setFondsTravaux(s.fondsTravaux);
+    setInfoComptable(s.infoComptable);
+    setTravaux(s.travaux);
+    setDebutContrat(s.debutContrat);
+    setFinContrat(s.finContrat);
+    setHonoraires(s.honoraires);
+    setForfaitPostaux(s.forfaitPostaux);
+    setFraisPostauxReels(s.fraisPostauxReels);
+  }
+
+  const saisieCourante: SaisieRecapAg = {
+    jour, debut, fin, comptesApprouves, reserves, budgetModifie, montantBudget, pourcentageBudget,
+    pptVote, pourcentagePpt, montantPpt, fondsTravaux, infoComptable, travaux,
+    debutContrat, finContrat, honoraires, forfaitPostaux, fraisPostauxReels,
+  };
+
+  // Brouillon (REA-98) : a l'ouverture et a chaque changement de copro, on reprend la
+  // saisie laissee en plan ; ensuite chaque modification est gardee dans le navigateur,
+  // jusqu'a l'enregistrement du recap qui l'efface.
+  const ouvertureRef = useRef<SaisieRecapAg | null>(null);
+  const [brouillonRepris, setBrouillonRepris] = useState<string | null>(null);
+  const [brouillonPret, setBrouillonPret] = useState(false);
+
+  function reprendreBrouillon(code: string) {
+    const b = lireBrouillon(lireStockage(cleBrouillon(code)), code, new Date());
+    if (!b) return;
+    appliquerSaisie(b.saisie);
+    setBrouillonRepris(b.enregistreLe);
+  }
+
+  useEffect(() => {
+    if (coproCode) {
+      ouvertureRef.current = saisieOuverture(coproCode);
+      reprendreBrouillon(coproCode);
+    }
+    // set-state-in-effect assume : localStorage n'existe que cote client, la reprise ne
+    // peut se faire qu'au montage (meme pattern que la date du jour de la facturation).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setBrouillonPret(true);
+    // Une seule fois, a l'ouverture : les changements de copro passent par le Select.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const texteSaisie = JSON.stringify(saisieCourante);
+  useEffect(() => {
+    // Pas avant la reprise : on effacerait le brouillon avant de l'avoir relu.
+    if (!brouillonPret || !coproCode || !ouvertureRef.current) return;
+    const s = JSON.parse(texteSaisie) as SaisieRecapAg;
+    ecrireStockage(
+      cleBrouillon(coproCode),
+      saisieModifiee(s, ouvertureRef.current) ? serialiserBrouillon(coproCode, s, new Date()) : null,
+    );
+  }, [brouillonPret, coproCode, texteSaisie]);
+
+  function abandonnerBrouillon() {
+    ecrireStockage(cleBrouillon(coproCode), null);
+    remettreAZero(coproCode);
   }
 
   function nombreOuUndefined(v: string): number | undefined {
@@ -353,6 +458,7 @@ export function FormulaireRecapAg({
             ? `Récap enregistré, dépassement de ${d.depassementHeures} h NON facturé (choix).`
             : "Récap enregistré (aucun dépassement à facturer).") + mail,
       );
+      ecrireStockage(cleBrouillon(coproCode), null);
       remettreAZero(coproCode, { sansDate: true });
       router.refresh();
       onSucces?.();
@@ -366,6 +472,16 @@ export function FormulaireRecapAg({
     <div className="flex flex-col gap-4">
     <Card>
       <CardBody className="flex flex-col gap-6">
+      {brouillonRepris && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-surface-2 px-3 py-2">
+          <p className="text-meta text-ink-2">
+            Saisie non enregistrée du {heureBrouillon(brouillonRepris)} reprise.
+          </p>
+          <Button variant="ghost" size="sm" onClick={abandonnerBrouillon}>
+            Repartir de zéro
+          </Button>
+        </div>
+      )}
       <SectionForm
         titre="Assemblée"
         hint="Le dépassement est calculé depuis la durée incluse au contrat, lue sur la fiche : il n'est pas saisi."
@@ -379,6 +495,7 @@ export function FormulaireRecapAg({
                 const v = e.target.value;
                 setCoproCode(v);
                 remettreAZero(v);
+                reprendreBrouillon(v);
               }}
             >
               {copros.map((c) => (
