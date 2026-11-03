@@ -173,6 +173,9 @@ import { MockAssembleeEstaleProvider } from "@/lib/adapters/mock/mock-assemblee-
 import type { MailingEstaleProvider } from "@/lib/ports/mailing-estale-provider";
 import { EstaleMailingProvider } from "@/lib/adapters/estale/estale-mailing-provider";
 import { MockMailingEstaleProvider } from "@/lib/adapters/mock/mock-mailing-estale-provider";
+import type { ConsommationEstaleProvider } from "@/lib/ports/consommation-estale-provider";
+import { EstaleConsommationProvider } from "@/lib/adapters/estale/estale-consommation-provider";
+import { MockConsommationEstaleProvider } from "@/lib/adapters/mock/mock-consommation-estale-provider";
 import type { CoproprietairesEstaleProvider } from "@/lib/ports/coproprietaires-estale-provider";
 import { EstaleCoproprietairesProvider } from "@/lib/adapters/estale/estale-coproprietaires-provider";
 import { MockCoproprietairesEstaleProvider } from "@/lib/adapters/mock/mock-coproprietaires-estale-provider";
@@ -680,6 +683,13 @@ export function getAssembleeEstaleProvider(): AssembleeEstaleProvider {
 export function getMailingEstaleProvider(): MailingEstaleProvider {
   if (coproSourceEstSupabase() && estaleConfigure()) return new EstaleMailingProvider();
   return new MockMailingEstaleProvider();
+}
+
+// Factures ESTALE de l'agence et leur detail (REA-490) : source des frais postaux au reel.
+// Lecture seule. Même bascule que les autres lectures ESTALE.
+export function getConsommationEstaleProvider(): ConsommationEstaleProvider {
+  if (coproSourceEstSupabase() && estaleConfigure()) return new EstaleConsommationProvider();
+  return new MockConsommationEstaleProvider();
 }
 
 // Copropriétaires ESTALE joignables par e-mail (REA-356) : pour une copro ESTALE, la liste

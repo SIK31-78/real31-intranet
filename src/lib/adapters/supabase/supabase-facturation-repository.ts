@@ -29,6 +29,7 @@ type ContratRow = {
   forfait_postaux_ttc: number | null;
   fin_contrat?: string | null;
   tarifs?: Record<string, number> | null;
+  frais_postaux_reels?: boolean | null;
   created_at?: string;
 };
 
@@ -37,7 +38,7 @@ type ContratRow = {
 // plutot que de casser toutes les pages qui lisent un contrat.
 const COLS_CONTRAT_BASE =
   "id, copropriete_id, debut_contrat, honoraires_gestion_ttc, forfait_postaux_ttc, created_at";
-const COLS_CONTRAT = `${COLS_CONTRAT_BASE}, fin_contrat, tarifs`;
+const COLS_CONTRAT = `${COLS_CONTRAT_BASE}, fin_contrat, tarifs, frais_postaux_reels`;
 const COLS_EDITION_BASE =
   "copropriete_id, titre, date_ag, honoraires_gestion_ttc, forfait_postaux_ttc, statut, message_erreur, cree_le, cree_par";
 const COLS_EDITION = `${COLS_EDITION_BASE}, debut_contrat, fin_contrat, frais_postaux_reels`;
@@ -59,6 +60,7 @@ function contratDepuisLigne(r: ContratRow): ContratCopro {
     ...(r.forfait_postaux_ttc !== null ? { forfaitPostauxTtc: Number(r.forfait_postaux_ttc) } : {}),
     ...(r.fin_contrat ? { finContrat: r.fin_contrat.slice(0, 10) } : {}),
     ...(r.tarifs && typeof r.tarifs === "object" ? { tarifs: r.tarifs } : {}),
+    ...(r.frais_postaux_reels === true ? { fraisPostauxReels: true } : {}),
     ...(r.created_at ? { enregistreLeISO: r.created_at.slice(0, 10) } : {}),
   };
 }

@@ -19,6 +19,7 @@ import {
 } from "@/lib/services/facturation/gestion-courante";
 
 import { periodeValide } from "@/lib/domain/facturation/filet-gestion-courante";
+import { apercuFraisPostaux, type ApercuFraisPostaux } from "@/lib/services/facturation/frais-postaux-reels";
 
 import { type Res, echecDepuis } from "@/lib/actions/resultat";
 const zPeriode = z.string().trim().refine(periodeValide, "Periode attendue au format AAAA-Tn");
@@ -72,6 +73,24 @@ export async function lancerGestionCouranteAction(
     return { ok: true, donnees };
   } catch (e) {
     return echecDepuis(e, "gestion-courante");
+  }
+}
+
+/**
+ * Frais postaux au reel d'une facture ESTALE (REA-490), sans aucune ecriture. Sans
+ * reference : la facture ESTALE la plus recente.
+ */
+export async function apercuFraisPostauxAction(reference?: string): Promise<Res<ApercuFraisPostaux>> {
+  if (reference !== undefined && !/^[A-Z0-9-]{1,40}$/.test(reference))
+    return { ok: false, erreur: "Facture ESTALE invalide." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée." };
+  if (!peutVoirGestionCourante(g.email))
+    return { ok: false, erreur: "Réservé à la comptabilité du cabinet." };
+  try {
+    return { ok: true, donnees: await apercuFraisPostaux(reference) };
+  } catch (e) {
+    return echecDepuis(e, "frais-postaux");
   }
 }
 

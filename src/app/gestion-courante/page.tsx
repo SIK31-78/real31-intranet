@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { PanneauGestionCourante } from "@/components/gestion-courante/panneau-gestion-courante";
 import { PerdreCopro } from "@/components/gestion-courante/perdre-copro";
 import { AlerteHorsReferentiel } from "@/components/gestion-courante/alerte-hors-referentiel";
+import { OngletsGestionCourante } from "@/components/gestion-courante/onglets-gestion-courante";
 import { listerCoprosHorsReferentiel } from "@/lib/services/facturation/copros-hors-referentiel";
 import { Section } from "@/components/ui/section";
 import { CardBody } from "@/components/ui/card";
@@ -20,7 +21,12 @@ import { jourParis } from "@/lib/services/date-du-jour";
 export const metadata: Metadata = { title: "Gestion courante - REAL31 Intranet" };
 export const dynamic = "force-dynamic";
 
-export default async function GestionCourantePage() {
+export default async function GestionCourantePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ onglet?: string }>;
+}) {
+  const { onglet } = await searchParams;
   const g = await getGestionnaireCourant();
   if (!g) redirect("/dev-login");
 
@@ -61,19 +67,37 @@ export default async function GestionCourantePage() {
           }
         />
 
-        {/* Copros ESTALE sans ligne au referentiel (REA-407) : AVANT le panneau, parce
-            qu'elles n'y figurent pas et qu'on ne le verrait nulle part ailleurs. */}
-        {habilite && <AlerteHorsReferentiel etat={horsReferentiel} contexte="fournee" />}
-
         {habilite ? (
-          <PanneauGestionCourante
-            trimestreParDefaut={trimestreCourant(aujourdhuiISO)}
-            // L'ecran doit DIRE la verite avant d'engager : brouillon ou facture
-            // deja validee chez Pennylane (donc irreversible).
-            pennylaneMode={modeEmissionFacture(
-              process.env.PENNYLANE_API_KEY,
-              process.env.PENNYLANE_FACTURE_VALIDEE,
-            )}
+          <OngletsGestionCourante
+            initial={onglet === "frais-postaux" ? "frais-postaux" : "facturation"}
+            facturation={
+              <>
+                {/* Copros ESTALE sans ligne au referentiel (REA-407) : AVANT le panneau, parce
+                    qu'elles n'y figurent pas et qu'on ne le verrait nulle part ailleurs. */}
+                <AlerteHorsReferentiel etat={horsReferentiel} contexte="fournee" />
+                <PanneauGestionCourante
+                  trimestreParDefaut={trimestreCourant(aujourdhuiISO)}
+                  // L'ecran doit DIRE la verite avant d'engager : brouillon ou facture
+                  // deja validee chez Pennylane (donc irreversible).
+                  pennylaneMode={modeEmissionFacture(
+                    process.env.PENNYLANE_API_KEY,
+                    process.env.PENNYLANE_FACTURE_VALIDEE,
+                  )}
+                />
+                {/* Perdre une copropriete (Sekou, 15/09/2026) : ici, parce que c'est la
+                    facturation que ca protege - LAPROMENAD, plus geree depuis juin, etait
+                    toujours ACTIVE et serait partie dans la prochaine fournee. */}
+                {estDirectionQuelquePart(profilDe(g)) && (
+                  <Section id="perdre-copro" titre="Perdre une copropriété">
+                    <Card>
+                      <CardBody>
+                        <PerdreCopro copros={actives} perdues={perdues} aujourdhuiISO={aujourdhuiISO} />
+                      </CardBody>
+                    </Card>
+                  </Section>
+                )}
+              </>
+            }
           />
         ) : (
           <Card>
@@ -81,19 +105,6 @@ export default async function GestionCourantePage() {
               Cette page est réservée à la comptabilité du cabinet.
             </p>
           </Card>
-        )}
-
-        {/* Perdre une copropriete (Sekou, 15/09/2026) : ici, parce que c'est la
-            facturation que ca protege - LAPROMENAD, plus geree depuis juin, etait
-            toujours ACTIVE et serait partie dans la prochaine fournee. */}
-        {habilite && estDirectionQuelquePart(profilDe(g)) && (
-          <Section id="perdre-copro" titre="Perdre une copropriété">
-            <Card>
-              <CardBody>
-                <PerdreCopro copros={actives} perdues={perdues} aujourdhuiISO={aujourdhuiISO} />
-              </CardBody>
-            </Card>
-          </Section>
         )}
       </Page>
     </AppShell>

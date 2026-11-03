@@ -40,6 +40,8 @@ export interface ContratCopro {
    * de prestation. Absent = les cycles d'avant, tarifes par l'annee du bareme.
    */
   tarifs?: Record<string, number>;
+  /** Vrai = frais postaux refactures au reel (pas de forfait). Absent = forfait ou non renseigne. */
+  fraisPostauxReels?: boolean;
   /**
    * Jour ou ce cycle a ete ENREGISTRE (created_at), ISO "YYYY-MM-DD". C'est le recap AG
    * qui l'ecrit : un cycle enregistre apres une AG dit que son recap a ete fait - alors
