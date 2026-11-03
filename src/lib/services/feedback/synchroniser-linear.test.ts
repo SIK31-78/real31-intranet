@@ -4,13 +4,14 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Feedback } from "@/lib/domain/feedback";
-import type { EtatTicket, TicketCree, TicketTracker } from "@/lib/ports/ticket-tracker";
+import type { EtatTicket, ImageJointe, TicketCree, TicketTracker } from "@/lib/ports/ticket-tracker";
 import { etatLinearPourStatut } from "@/lib/domain/feedback-linear";
 
 /** Faux tracker : enregistre ce qu'on lui demande, rend ce qu'on lui a prepare. */
 class TrackerFactice implements TicketTracker {
   actif = true;
   creees: Feedback[] = [];
+  images: ImageJointe[][] = [];
   etats: EtatTicket[] = [];
   renommes: { issueId: string; titre: string }[] = [];
   /** Titre dont la creation doit echouer (pour tester l'isolation des erreurs). */
@@ -21,7 +22,8 @@ class TrackerFactice implements TicketTracker {
     return this.actif;
   }
 
-  async creerTicket(remontee: Feedback): Promise<TicketCree> {
+  async creerTicket(remontee: Feedback, images: readonly ImageJointe[] = []): Promise<TicketCree> {
+    this.images.push([...images]);
     if (this.echoueSur && remontee.titre === this.echoueSur) {
       throw new Error("Linear : création du ticket refusée.");
     }
@@ -60,9 +62,11 @@ const { getFeedbackRepository } = await import("@/lib/adapters/router");
 const { creerFeedback } = await import("./creer-feedback");
 const { creerEntreeAdmin } = await import("./creer-entree-admin");
 const { changerStatutFeedback } = await import("./changer-statut");
+const { joindreCaptures } = await import("./joindre-captures");
 
 beforeEach(() => {
   tracker.creees = [];
+  tracker.images = [];
   tracker.etats = [];
   tracker.renommes = [];
   tracker.echoueSur = undefined;
@@ -331,5 +335,16 @@ describe("synchroniserLinear - le retour", () => {
 
     expect(bilan.orphelins).toContain(f.linearIdentifiant);
     expect((await getFeedbackRepository().get(f.id))?.linearIssueId).toBe(f.linearIssueId);
+  });
+});
+
+describe("synchroniserLinear - captures d'ecran (REA-255)", () => {
+  it("recopie les captures de la remontee dans le ticket", async () => {
+    const f = await remonteeTriee("le bouton disparait, capture jointe");
+    const png = new Uint8Array([137, 80, 78, 71]);
+    expect(await joindreCaptures(f.id, [{ contentType: "image/png", contenu: png }])).toBe(1);
+    await synchroniserLinear();
+    const i = tracker.creees.findIndex((x) => x.id === f.id);
+    expect(tracker.images[i]).toEqual([{ nom: "capture-1.png", contentType: "image/png", contenu: png }]);
   });
 });

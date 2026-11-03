@@ -16,7 +16,7 @@ import {
   labelsLinear,
   prioriteLinear,
 } from "@/lib/domain/feedback-linear";
-import type { EtatTicket, TicketCree, TicketTracker } from "@/lib/ports/ticket-tracker";
+import type { EtatTicket, ImageJointe, TicketCree, TicketTracker } from "@/lib/ports/ticket-tracker";
 
 const API = "https://api.linear.app/graphql";
 
@@ -58,8 +58,54 @@ export class LinearTicketTracker implements TicketTracker {
     return j.data;
   }
 
-  async creerTicket(remontee: Feedback): Promise<TicketCree> {
+  /**
+   * Depose une image dans le stockage de Linear (fileUpload puis PUT signe) et rend son
+   * URL d'asset, ou null si Linear la refuse : une capture perdue ne bloque pas le ticket.
+   */
+  private async deposerImage(image: ImageJointe): Promise<string | null> {
+    try {
+      const d = await this.appeler<{
+        fileUpload: {
+          success: boolean;
+          uploadFile: { uploadUrl: string; assetUrl: string; headers: { key: string; value: string }[] } | null;
+        };
+      }>(
+        `mutation Deposer($contentType: String!, $filename: String!, $size: Int!) {
+          fileUpload(contentType: $contentType, filename: $filename, size: $size) {
+            success
+            uploadFile { uploadUrl assetUrl headers { key value } }
+          }
+        }`,
+        { contentType: image.contentType, filename: image.nom, size: image.contenu.byteLength },
+      );
+      const u = d.fileUpload.uploadFile;
+      if (!d.fileUpload.success || !u) return null;
+      const entetes: Record<string, string> = { "Content-Type": image.contentType, "Cache-Control": "public, max-age=31536000" };
+      for (const h of u.headers) entetes[h.key] = h.value;
+      const r = await fetch(u.uploadUrl, {
+        method: "PUT",
+        headers: entetes,
+        body: new Blob([image.contenu as BlobPart], { type: image.contentType }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (!r.ok) throw new Error(`PUT ${r.status}`);
+      return u.assetUrl;
+    } catch (e) {
+      console.warn(`[linear] capture ${image.nom} non deposee : ${(e as Error).message}`);
+      return null;
+    }
+  }
+
+  async creerTicket(remontee: Feedback, images: readonly ImageJointe[] = []): Promise<TicketCree> {
     if (!this.estActif()) throw new Error("Linear non configuré (LINEAR_API_KEY / LINEAR_TEAM_ID).");
+    const urls: string[] = [];
+    for (const image of images) {
+      const url = await this.deposerImage(image);
+      if (url) urls.push(url);
+    }
+    const blocCaptures = urls.length
+      ? `\n\n**Captures d'écran**\n\n${urls.map((u, i) => `![Capture ${i + 1}](${u})`).join("\n\n")}`
+      : "";
     const query = `
       mutation CreerTicket($input: IssueCreateInput!) {
         issueCreate(input: $input) {
@@ -73,7 +119,7 @@ export class LinearTicketTracker implements TicketTracker {
       input: {
         teamId: this.equipe,
         title: remontee.titre,
-        description: descriptionLinear(remontee, process.env.NEXT_PUBLIC_BASE_URL).slice(0, DESCRIPTION_MAX),
+        description: (descriptionLinear(remontee, process.env.NEXT_PUBLIC_BASE_URL) + blocCaptures).slice(0, DESCRIPTION_MAX),
         priority: prioriteLinear(remontee.severite),
         labelIds: await this.resoudreLabels(labelsLinear(remontee.type)),
         // Etat de naissance DEDUIT DU STATUT ACTUEL : une remontee deja triee

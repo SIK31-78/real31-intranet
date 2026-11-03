@@ -5,11 +5,12 @@
 // modale : type (bug / idée), description (requis), sévérité, + capture AUTOMATIQUE du
 // pathname courant. L'auteur vient de la session serveur (pas de champ ici). Envoi via
 // server action, bouton verrouille pendant l'envoi (pas de double envoi), confirmation
-// "Merci, c'est remonté".
+// "Merci, c'est remonté". Captures d'ecran (REA-255) : collees (Ctrl+V) ou choisies,
+// 3 au maximum, envoyees avec la remontee et recopiees dans le ticket Linear.
 
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
-import { Bug, Lightbulb, MessageSquarePlus, Check } from "lucide-react";
+import { Bug, Lightbulb, MessageSquarePlus, Check, ImagePlus, X } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -24,6 +25,7 @@ import {
   type TypeFeedback,
 } from "@/lib/domain/feedback";
 import { Input, Textarea } from "@/components/ui/field";
+import { erreurCaptures, NB_MAX_CAPTURES, TYPES_CAPTURE } from "@/lib/domain/feedback-captures";
 
 const SEVERITES: { valeur: SeveriteFeedback; label: string; aide: string }[] = [
   { valeur: "bloquant", label: "Bloquant", aide: "M'empêche de travailler." },
@@ -41,6 +43,26 @@ export function FeedbackTrigger() {
   const [severite, setSeverite] = useState<SeveriteFeedback>("genant");
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoye, setEnvoye] = useState(false);
+  const [avertissement, setAvertissement] = useState<string | null>(null);
+  const [captures, setCaptures] = useState<{ fichier: File; url: string }[]>([]);
+
+  function ajouterCaptures(fichiers: File[]) {
+    const images = fichiers.filter((f) => TYPES_CAPTURE[f.type]);
+    if (images.length === 0) return;
+    const suivantes = [...captures.map((c) => c.fichier), ...images];
+    const refus = erreurCaptures(suivantes.map((f) => ({ contentType: f.type, taille: f.size })));
+    if (refus) {
+      setErreur(refus);
+      return;
+    }
+    setErreur(null);
+    setCaptures([...captures, ...images.map((fichier) => ({ fichier, url: URL.createObjectURL(fichier) }))]);
+  }
+
+  function retirerCapture(i: number) {
+    URL.revokeObjectURL(captures[i]!.url);
+    setCaptures(captures.filter((_, j) => j !== i));
+  }
   const [enCours, startTransition] = useTransition();
 
   function reset() {
@@ -51,6 +73,9 @@ export function FeedbackTrigger() {
     setSeverite("genant");
     setErreur(null);
     setEnvoye(false);
+    setAvertissement(null);
+    captures.forEach((c) => URL.revokeObjectURL(c.url));
+    setCaptures([]);
   }
 
   function fermer() {
@@ -65,6 +90,8 @@ export function FeedbackTrigger() {
       // real31 : le pathname est capture automatiquement ; autre application : le lien
       // colle par le collaborateur (facultatif).
       let r: Awaited<ReturnType<typeof envoyerFeedback>>;
+      const fd = new FormData();
+      captures.forEach((c) => fd.append("capture", c.fichier));
       try {
         r = await envoyerFeedback({
           type,
@@ -72,7 +99,7 @@ export function FeedbackTrigger() {
           severite,
           application,
           page: application === "real31" ? pathname : lien.trim() || undefined,
-        });
+        }, captures.length > 0 ? fd : undefined);
       } catch (e) {
         // Onglet ouvert avant une mise en ligne (REA-312) : le texte reste dans le champ.
         if (estErreurVersionPerimee(e)) {
@@ -87,6 +114,7 @@ export function FeedbackTrigger() {
         setErreur(r.message ?? "Envoi impossible.");
         return;
       }
+      setAvertissement(r.message ?? null);
       setEnvoye(true);
     });
   }
@@ -119,6 +147,7 @@ export function FeedbackTrigger() {
               <p className="text-body text-ink-3 max-w-[320px]">
                 On l&apos;a bien reçu. Tu suivras ce qui est prévu et livré dans « Nouveautés ».
               </p>
+              {avertissement && <p className="text-meta text-warn-700 max-w-[320px]">{avertissement}</p>}
               <div className="mt-2">
                 <Button variant="secondary" onClick={fermer}>
                   Fermer
@@ -195,6 +224,13 @@ export function FeedbackTrigger() {
                 <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
+                  onPaste={(e) => {
+                    const images = [...e.clipboardData.files].filter((f) => TYPES_CAPTURE[f.type]);
+                    if (images.length > 0) {
+                      e.preventDefault();
+                      ajouterCaptures(images);
+                    }
+                  }}
                   rows={4}
                   maxLength={2000}
                   placeholder={
@@ -205,6 +241,43 @@ export function FeedbackTrigger() {
                  
                 />
               </label>
+
+              {/* Captures d'ecran (REA-255) : collees dans la description ou choisies. */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  {captures.map((c, i) => (
+                    <div key={c.url} className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- apercu local (blob:), next/image n'a rien a optimiser */}
+                      <img src={c.url} alt={`Capture ${i + 1}`} className="h-16 w-24 rounded-md border border-line object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => retirerCapture(i)}
+                        aria-label={`Retirer la capture ${i + 1}`}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-line bg-surface text-ink-2 hover:text-ink"
+                      >
+                        <X strokeWidth={1.75} className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {captures.length < NB_MAX_CAPTURES && (
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-dashed border-line px-3 py-1.5 text-body text-ink-2 hover:bg-surface-2">
+                      <ImagePlus strokeWidth={1.5} className="h-3.5 w-3.5" />
+                      Joindre une capture
+                      <input
+                        type="file"
+                        accept={Object.keys(TYPES_CAPTURE).join(",")}
+                        multiple
+                        className="sr-only"
+                        onChange={(e) => {
+                          ajouterCaptures([...(e.target.files ?? [])]);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+                <p className="text-meta text-ink-3">Astuce : colle une capture (Ctrl+V) directement dans la description.</p>
+              </div>
 
               {/* Sévérité */}
               <fieldset className="flex flex-col gap-1.5">

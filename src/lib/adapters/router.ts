@@ -191,6 +191,9 @@ import { LinearTicketTracker } from "@/lib/adapters/linear/linear-ticket-tracker
 import { NoopTicketTracker } from "@/lib/adapters/linear/noop-ticket-tracker";
 import { SupabaseFeedbackRepository } from "@/lib/adapters/supabase/supabase-feedback-repository";
 import { MockFeedbackRepository } from "@/lib/adapters/mock/mock-feedback-repository";
+import type { FeedbackCaptureStore } from "@/lib/ports/feedback-capture-store";
+import { SupabaseFeedbackCaptureStore } from "@/lib/adapters/supabase/supabase-feedback-capture-store";
+import { MockFeedbackCaptureStore } from "@/lib/adapters/mock/mock-feedback-capture-store";
 import type { AnnonceRepository } from "@/lib/ports/annonce-repository";
 import { SupabaseAnnonceRepository } from "@/lib/adapters/supabase/supabase-annonce-repository";
 import { MockAnnonceRepository } from "@/lib/adapters/mock/mock-annonce-repository";
@@ -725,6 +728,12 @@ export function getClesApiRepository(): ClesApiRepository {
 export function getFeedbackRepository(): FeedbackRepository {
   if (coproSourceEstSupabase()) return new SupabaseFeedbackRepository();
   return new MockFeedbackRepository();
+}
+
+// Captures d'ecran jointes aux remontees (REA-255) : bucket prive « feedback ».
+export function getFeedbackCaptureStore(): FeedbackCaptureStore {
+  if (coproSourceEstSupabase()) return new SupabaseFeedbackCaptureStore();
+  return new MockFeedbackCaptureStore();
 }
 
 // Suivi de tickets externe (pont remontees <-> Linear, cf. /api/cron/linear).

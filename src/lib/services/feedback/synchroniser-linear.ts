@@ -15,7 +15,7 @@
 // IDEMPOTENT : l'aller ne regarde que les remontees sans ticket, le retour ne fait
 // qu'ecrire l'etat courant. Rejouer le cron deux fois de suite ne change rien.
 
-import { getFeedbackRepository, getTicketTracker } from "@/lib/adapters/router";
+import { getFeedbackCaptureStore, getFeedbackRepository, getTicketTracker } from "@/lib/adapters/router";
 import type { Feedback } from "@/lib/domain/feedback";
 import { estArchivee } from "@/lib/domain/feedback";
 import {
@@ -74,7 +74,15 @@ export async function synchroniserLinear(): Promise<BilanSynchro> {
       continue;
     }
     try {
-      const ticket = await tracker.creerTicket(f);
+      // Captures d'ecran de la remontee (REA-255), recopiees dans le ticket. Un stockage
+      // injoignable rend [] : le ticket part quand meme, sans images.
+      const captures = await getFeedbackCaptureStore()
+        .lirePourRemontee(f.id)
+        .catch(() => []);
+      const ticket = await tracker.creerTicket(
+        f,
+        captures.map((c, i) => ({ nom: `capture-${i + 1}.${c.chemin.split(".").pop()}`, contentType: c.contentType, contenu: c.contenu })),
+      );
       // ECRITURE EN BASE JUSTE APRES la creation : si ca casse ici, le ticket existe
       // dans Linear sans etre rattache, et le passage suivant en creerait un second.
       // C'est le seul doublon possible du pont ; l'index unique sur linear_issue_id

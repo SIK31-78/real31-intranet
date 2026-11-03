@@ -7,6 +7,8 @@
 import { z } from "zod";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { creerFeedback } from "@/lib/services/feedback/creer-feedback";
+import { joindreCaptures, type CaptureRecue } from "@/lib/services/feedback/joindre-captures";
+import { erreurCaptures } from "@/lib/domain/feedback-captures";
 import {
   APPLICATIONS_FEEDBACK,
   FeedbackNonConfigureError,
@@ -33,7 +35,11 @@ const zSaisie = z.object({
   page: z.string().trim().max(280).optional(),
 });
 
-export async function envoyerFeedback(input: unknown): Promise<{ ok: boolean; message?: string }> {
+/**
+ * `captures` (REA-255) : FormData facultatif, champ « capture » repete (images collees ou
+ * choisies dans la modale). Controle cote serveur, jamais seulement cote client.
+ */
+export async function envoyerFeedback(input: unknown, captures?: FormData): Promise<{ ok: boolean; message?: string }> {
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, message: "Session expirée : reconnecte-toi et réessaie." };
 
@@ -43,11 +49,24 @@ export async function envoyerFeedback(input: unknown): Promise<{ ok: boolean; me
   // L'application voyage DANS le champ page ("app:lien"), retro-compatible (cf. domaine).
   const pageEncodee = encoderPageFeedback(application, page);
 
+  const fichiers = (captures?.getAll("capture") ?? []).filter((f): f is File => f instanceof File);
+  const refus = erreurCaptures(fichiers.map((f) => ({ contentType: f.type, taille: f.size })));
+  if (refus) return { ok: false, message: refus };
+
   try {
-    await creerFeedback(
+    const f = await creerFeedback(
       { type, description, severite, ...(pageEncodee ? { page: pageEncodee } : {}) },
       { ...(g.email ? { email: g.email } : {}), initiales: g.initiales },
     );
+    if (fichiers.length > 0) {
+      const recues: CaptureRecue[] = await Promise.all(
+        fichiers.map(async (x) => ({ contentType: x.type, contenu: new Uint8Array(await x.arrayBuffer()) })),
+      );
+      const deposees = await joindreCaptures(f.id, recues).catch(() => 0);
+      if (deposees < fichiers.length) {
+        return { ok: true, message: "Remontée envoyée, mais une capture n'a pas pu être jointe." };
+      }
+    }
     return { ok: true };
   } catch (e) {
     if (e instanceof FeedbackNonConfigureError) {

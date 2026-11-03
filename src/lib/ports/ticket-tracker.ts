@@ -17,6 +17,13 @@ export interface TicketCree {
   url: string;
 }
 
+/** Image jointe au ticket a sa creation (captures d'ecran de la remontee, REA-255). */
+export interface ImageJointe {
+  nom: string;
+  contentType: string;
+  contenu: Uint8Array;
+}
+
 /** Etat courant d'un ticket, tel que le retour du cron le consomme. */
 export interface EtatTicket {
   issueId: string;
@@ -35,8 +42,11 @@ export interface EtatTicket {
 export interface TicketTracker {
   /** Le suivi est-il reellement branche ? false = adapter no-op (pas de cle). */
   estActif(): boolean;
-  /** Cree le ticket correspondant a la remontee. Leve si l'appel echoue. */
-  creerTicket(remontee: Feedback): Promise<TicketCree>;
+  /**
+   * Cree le ticket correspondant a la remontee. Leve si l'appel echoue. Les `images`
+   * sont recopiees dans la description ; une image refusee ne bloque pas le ticket.
+   */
+  creerTicket(remontee: Feedback, images?: readonly ImageJointe[]): Promise<TicketCree>;
   /**
    * Renomme le ticket. Le TITRE est porte par la base (c'est lui qui s'affiche sur
    * /nouveautes, reformule au triage en langage non technique) : le cron le pousse
