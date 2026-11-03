@@ -132,7 +132,10 @@ export class EstaleConsommationProvider implements ConsommationEstaleProvider {
 
   async coprosDesMailings(): Promise<Map<string, string[]>> {
     const parMailing = new Map<string, Set<string>>();
-    for (const condo of await chargerCondosAccessibles()) {
+    // Une copro apres l'autre, c'etait 15 a 20 s pour 15 copros (mesure du 03/11/2026) :
+    // en parallele, une quinzaine de requetes, loin de la limite de 50/s d'ESTALE.
+    const condos = await chargerCondosAccessibles();
+    await Promise.all(condos.map(async (condo) => {
       for (let page = 0; ; page++) {
         const data = await estaleGql<{
           condo: { mailing: { items: { nodes: { id: string; condos: { reference: string }[] }[] } } };
@@ -150,7 +153,7 @@ export class EstaleConsommationProvider implements ConsommationEstaleProvider {
         }
         if (nodes.length < TAILLE_PAGE) break;
       }
-    }
+    }));
     return new Map([...parMailing.entries()].map(([id, codes]) => [id, [...codes]]));
   }
 }
