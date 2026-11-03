@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  COPROS_JUMELLES,
   basculeAutomatique,
+  choixJumelle,
   coprosDansPdf,
   objetPourLaComptabilite,
   pisteRangeable,
@@ -299,5 +301,48 @@ describe("bascule automatique vers l'autre agence, piste vraiment sûre (03/11/2
   });
   it("une piste dans la boîte elle-même : ni proposition ni bascule", () => {
     expect(proposer("S0178 et 3 rue des Lilas La Garenne-Colombes").autreAgence).toBeUndefined();
+  });
+});
+
+describe("copros jumelles : la fiche principale, sauf si le mail désigne l'autre (03/11/2026)", () => {
+  const ref = {
+    copros: [
+      copro("S123", { nom: "SARTO34 A", adresse: "34/36 rue Sartoris 92250 LA GARENNE-COLOMBES" }),
+      copro("S124", { nom: "SARTO34 B", adresse: "34 rue Sartoris 92250 LA GARENNE-COLOMBES", adressesSecondaires: ["36 r sartoris 92250 LA GARENNE COLOMBES"] }),
+      copro("S198", { nom: "LEPLAZZA", adresse: "152 avenue Gabriel Péri 95870 BEZONS" }),
+      copro("S204", { nom: "ASLPLAZZA", adresse: "152-154 Avenue Gabriel Péri 95870 BEZONS" }),
+      copro("S143", { nom: "ELEGANCE-H", adresse: "20 avenue de Verdun - 6 rue de Sotteville 92250 LA GARENNE-COLOMBES" }),
+      copro("S142", { nom: "ELEGANCE-P", adresse: "20 avenue de Verdun - Parkings 92250 LA GARENNE-COLOMBES" }),
+      copro("S297", { adresse: "3 rue des Lilas 92250 La Garenne-Colombes" }),
+    ],
+    expediteurs: {},
+  };
+  const piste = (objet: string, apercu = "") => suggererCopro({ deAdresse: "x@exemple.fr", objet, apercu }, ref);
+
+  it("hésitation entre les deux fiches : la principale, rangeable", () => {
+    const s = piste("Recherche de fuite – 34/36 rue Sartoris 92250 La Garenne-Colombes");
+    expect(s).toMatchObject({ nature: "faible", candidats: ["S123"], origine: "jumelle" });
+    expect(pisteRangeable(s)).toBe(true);
+    expect(piste("Sinistre 152 avenue Gabriel Péri 95870 Bezons").candidats).toEqual(["S198"]);
+  });
+  it("le mail désigne la secondaire : bâtiment B, ASL, parking, son code", () => {
+    expect(piste("Fuite bâtiment B - 34/36 rue Sartoris 92250 La Garenne-Colombes").candidats).toEqual(["S124"]);
+    expect(piste("ASL - 152 avenue Gabriel Péri 95870 Bezons : appel de cotisation").candidats).toEqual(["S204"]);
+    expect(choixJumelle(["S143", "S142"], "Porte du parking bloquée au 20 avenue de Verdun")?.reference).toBe("S142");
+    expect(choixJumelle(["S143", "S142"], "Box n° 12, 20 avenue de Verdun")?.reference).toBe("S142");
+    expect(choixJumelle(["S123", "S124"], "Re: S124 · SARTO34 B - devis")?.reference).toBe("S124");
+    expect(choixJumelle(["S143", "S142"], "Ascenseur en panne, 20 avenue de Verdun")?.reference).toBe("S143");
+  });
+  it("jamais hors d'une paire, ni avec une troisième copro", () => {
+    expect(choixJumelle(["S123", "S297"], "x")).toBeNull();
+    expect(choixJumelle(["S123", "S124", "S297"], "x")).toBeNull();
+    expect(choixJumelle(["S123"], "x")).toBeNull();
+  });
+  it("dans un PDF aussi", () => {
+    expect(coprosDansPdf("Lieu d'intervention : 34/36 rue Sartoris 92250 LA GARENNE COLOMBES", ref.copros)).toEqual(["S123"]);
+    expect(coprosDansPdf("Bât. B, 34/36 rue Sartoris 92250 LA GARENNE COLOMBES", ref.copros)).toEqual(["S124"]);
+  });
+  it("les paires se règlent à un seul endroit", () => {
+    expect(COPROS_JUMELLES.map((j) => `${j.principale}/${j.secondaire}`)).toEqual(["S123/S124", "S198/S204", "S143/S142"]);
   });
 });

@@ -246,7 +246,25 @@ export interface Suggestion {
   autreAgence?: { reference: string; agence: string | null; sure?: true };
 }
 
-export type OrigineSuggestion = "conversation" | "nom-adresse" | "code-corps" | "adresse-sans-lieu";
+export type OrigineSuggestion = "conversation" | "nom-adresse" | "code-corps" | "adresse-sans-lieu" | "jumelle";
+
+/**
+ * Copros JUMELLES (decision Sekou du 03/11/2026) : deux fiches distinctes voulues, a ne pas
+ * fusionner, que les mails designent souvent ensemble (meme adresse). Quand un mail hesite
+ * entre les deux fiches d'une paire, il est range sur la fiche PRINCIPALE (son binome
+ * redistribue), sauf si le texte designe clairement la secondaire : son code ou son nom exact,
+ * ou l'un de ses marqueurs (sur le texte sans accents, en minuscules).
+ * Laquelle est principale : propose par la coordination, a confirmer par Sekou ; il suffit
+ * d'echanger `principale` et `secondaire` ici (et d'adapter les marqueurs).
+ */
+export const COPROS_JUMELLES: readonly { principale: string; secondaire: string; marqueursSecondaire: RegExp; libelle: string }[] = [
+  // 34/36 rue Sartoris : SARTO34 A et SARTO34 B (« Les Lofts Sartoris B & C »).
+  { principale: "S123", secondaire: "S124", marqueursSecondaire: /\bbat(?:iment)?\.?\s*b\b|\bsarto\s?34\s*b\b|\blofts sartoris b\b/, libelle: "SARTO34 A / B" },
+  // 152 avenue Gabriel Peri a Bezons : le SDC Le Plazza et l'ASL.
+  { principale: "S198", secondaire: "S204", marqueursSecondaire: /\basl\b|\baslplazza\b/, libelle: "SDC Le Plazza / ASL" },
+  // 20 avenue de Verdun : l'habitation et les parkings.
+  { principale: "S143", secondaire: "S142", marqueursSecondaire: /\bparkings?\b|\bbox\b|\belegance p\b/, libelle: "Élégance habitation / parkings" },
+];
 
 // "S0297", "S297", "SE999" -> cle de comparaison "S297" / "SE999". ESTALE ecrit S0297 ;
 // les mails et d'autres outils ecrivent parfois S297 : la cle ignore les zeros de tete.
@@ -816,7 +834,9 @@ export function coprosDansPdf(texte: string, copros: CoproTri[]): string[] {
     if (c && !refs.includes(c.reference)) refs.push(c.reference);
   }
   for (const i of indicesNomAdresse(utile, copros, { approche: "avec-code-postal" })) if (!refs.includes(i.reference)) refs.push(i.reference);
-  return refs;
+  // Les deux fiches d'une paire de copros jumelles : la principale, sauf si le PDF dit l'autre.
+  const jumelle = choixJumelle(refs, utile);
+  return jumelle ? [jumelle.reference] : refs;
 }
 
 // L'extraction pdfjs separe parfois une majuscule du reste du mot (« 51 A venue F och »,
@@ -1031,7 +1051,7 @@ export function suggererCopro(
   },
   ref: ReferentielTri,
 ): Suggestion {
-  const brute = suggestionBrute(mail, ref);
+  const brute = departagerJumelles(suggestionBrute(mail, ref), `${mail.objet}\n${mail.corps ?? mail.apercu}`);
   // Les variantes d'ecriture ne servent qu'a un mail sans aucune piste : depliees partout, elles
   // cassaient une piste juste (« SDC 21 REPUBLIQUE », nom Crypto REPUBLIQ21, lu « 21 boulevard
   // REPUBLIQUE », rejeu du 03/11/2026).
@@ -1747,7 +1767,7 @@ export function objetPourLaComptabilite(objet: string): boolean {
 export function pisteRangeable(s: Suggestion): boolean {
   if (s.candidats.length !== 1) return false;
   if (s.nature === "sure") return s.origine !== "conversation";
-  return s.nature === "faible" && (s.origine === "nom-adresse" || s.origine === "code-corps" || s.origine === "adresse-sans-lieu");
+  return s.nature === "faible" && (s.origine === "nom-adresse" || s.origine === "code-corps" || s.origine === "adresse-sans-lieu" || s.origine === "jumelle");
 }
 
 /**
@@ -2045,4 +2065,33 @@ export function basculeAutomatique(
   if (!ctx.automatique || ctx.dejaPasse || mail.corbeille || mail.interne || mail.nonRemis) return null;
   if (!a?.sure || !a.agence || mail.suggestion.candidats.length > 0) return null;
   return { reference: a.reference, agence: a.agence };
+}
+
+/**
+ * Les references hesitent-elles exactement entre les deux fiches d'une paire de jumelles
+ * (COPROS_JUMELLES) ? Alors la fiche a retenir : la secondaire si le texte la designe (son
+ * code, son nom exact, un marqueur), sinon la principale. null sinon (une seule fiche, une
+ * troisieme copro, aucune paire).
+ */
+export function choixJumelle(references: string[], texte: string): { reference: string; pourquoi: string } | null {
+  const cles = [...new Set(references.map((r) => cleDeReference(r) ?? r))];
+  if (cles.length !== 2) return null;
+  const paire = COPROS_JUMELLES.find((j) => cles.includes(cleDeReference(j.principale)!) && cles.includes(cleDeReference(j.secondaire)!));
+  if (!paire) return null;
+  const vraie = (cle: string) => references.find((r) => (cleDeReference(r) ?? r) === cle)!;
+  const plat = ` ${normaliser(texte).replace(/[^a-z0-9]+/g, " ").trim()} `;
+  const codeSecondaire = referencesCitees(texte).includes(cleDeReference(paire.secondaire)!);
+  const codePrincipale = referencesCitees(texte).includes(cleDeReference(paire.principale)!);
+  if ((codeSecondaire && !codePrincipale) || paire.marqueursSecondaire.test(plat)) {
+    return { reference: vraie(cleDeReference(paire.secondaire)!), pourquoi: `le mail désigne ${paire.secondaire}` };
+  }
+  return { reference: vraie(cleDeReference(paire.principale)!), pourquoi: `fiche principale de la paire ${paire.libelle}, son binôme redistribue` };
+}
+
+/** Une piste « plusieurs » entre deux jumelles devient une piste rangeable sur la fiche retenue (choixJumelle). */
+function departagerJumelles(s: Suggestion, texte: string): Suggestion {
+  if (s.nature !== "plusieurs") return s;
+  const choix = choixJumelle(s.candidats, texte);
+  if (!choix) return s;
+  return { nature: "faible", candidats: [choix.reference], raison: `${s.raison} Copros jumelles : ${choix.reference} (${choix.pourquoi}).`, origine: "jumelle" };
 }
