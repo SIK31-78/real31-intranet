@@ -19,7 +19,12 @@ import {
 } from "@/lib/services/facturation/gestion-courante";
 
 import { periodeValide } from "@/lib/domain/facturation/filet-gestion-courante";
-import { apercuFraisPostaux, type ApercuFraisPostaux } from "@/lib/services/facturation/frais-postaux-reels";
+import {
+  apercuFraisPostaux,
+  facturerFraisPostaux,
+  type ApercuFraisPostaux,
+  type ResultatFraisPostaux,
+} from "@/lib/services/facturation/frais-postaux-reels";
 
 import { type Res, echecDepuis } from "@/lib/actions/resultat";
 const zPeriode = z.string().trim().refine(periodeValide, "Periode attendue au format AAAA-Tn");
@@ -81,7 +86,7 @@ export async function lancerGestionCouranteAction(
  * reference : la facture ESTALE la plus recente.
  */
 export async function apercuFraisPostauxAction(reference?: string): Promise<Res<ApercuFraisPostaux>> {
-  if (reference !== undefined && !/^[A-Z0-9-]{1,40}$/.test(reference))
+  if (reference !== undefined && !zReferenceEstale.safeParse(reference).success)
     return { ok: false, erreur: "Facture ESTALE invalide." };
   const g = await getGestionnaireCourant();
   if (!g) return { ok: false, erreur: "Session expirée." };
@@ -89,6 +94,39 @@ export async function apercuFraisPostauxAction(reference?: string): Promise<Res<
     return { ok: false, erreur: "Réservé à la comptabilité du cabinet." };
   try {
     return { ok: true, donnees: await apercuFraisPostaux(reference) };
+  } catch (e) {
+    return echecDepuis(e, "frais-postaux");
+  }
+}
+
+const zReferenceEstale = z.string().regex(/^[A-Z0-9-]{1,40}$/);
+const zSelectionFraisPostaux = z
+  .array(z.object({ coproCode: zCode, sourceIds: z.array(z.string().trim().min(1).max(64)).max(500) }))
+  .min(1)
+  .max(100);
+
+/**
+ * Facture les frais postaux au reel des copros choisies pour une facture ESTALE (REA-490) :
+ * creation, emission Pennylane, depot ESTALE en bon a payer. L'ecran n'envoie que des
+ * choix ; les montants sont recalcules par le service.
+ */
+export async function facturerFraisPostauxAction(
+  reference: string,
+  selections: Array<{ coproCode: string; sourceIds: string[] }>,
+  avecService: boolean,
+): Promise<Res<ResultatFraisPostaux>> {
+  if (!zReferenceEstale.safeParse(reference).success) return { ok: false, erreur: "Facture ESTALE invalide." };
+  const sel = zSelectionFraisPostaux.safeParse(selections);
+  if (!sel.success) return { ok: false, erreur: "Sélection invalide." };
+  const g = await getGestionnaireCourant();
+  if (!g) return { ok: false, erreur: "Session expirée." };
+  if (!peutVoirGestionCourante(g.email))
+    return { ok: false, erreur: "Réservé à la comptabilité du cabinet." };
+  try {
+    const donnees = await facturerFraisPostaux(reference, sel.data, avecService === true, g.initiales);
+    revalidatePath("/gestion-courante", "layout");
+    revalidatePath("/facturation", "layout");
+    return { ok: true, donnees };
   } catch (e) {
     return echecDepuis(e, "frais-postaux");
   }

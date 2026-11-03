@@ -61,6 +61,13 @@ export function libelleEnvoi(detail: string): string {
   return detail.replace(/\s*~.*$/, "").trim();
 }
 
+export interface Affranchissement {
+  /** Categorie ESTALE : « Timbre LRAR », « Timbre Ecopli », « Envoi Recommandé Electronique ». */
+  categorie: string;
+  plis: number;
+  htCentimes: number;
+}
+
 /** Un envoi (appel de fonds, mailing, convocation) d'une copro, tous destinataires cumules. */
 export interface EnvoiFraisPostaux {
   sourceId: string;
@@ -68,8 +75,8 @@ export interface EnvoiFraisPostaux {
   scope: string;
   /** Premier jour d'envoi vu, ISO. */
   dateISO: string;
-  /** Categories d'affranchissement rencontrees, ex ["Timbre LRAR"]. */
-  categories: string[];
+  /** Affranchissement par categorie ESTALE, ex Timbre LRAR : 44 plis, 350,24 EUR. */
+  affranchissements: Affranchissement[];
   /** Plis affranchis (timbres + LRE) : un par destinataire. */
   plis: number;
   timbresHtCentimes: number;
@@ -152,7 +159,7 @@ export function regrouperFraisPostaux(
       libelle: libelleEnvoi(l.detail),
       scope: l.scope,
       dateISO: l.dateISO,
-      categories: [],
+      affranchissements: [],
       plis: 0,
       timbresHtCentimes: 0,
       lreHtCentimes: 0,
@@ -167,7 +174,11 @@ export function regrouperFraisPostaux(
       e.plis += l.quantite;
       if (nature === "timbre") e.timbresHtCentimes += ht;
       else e.lreHtCentimes += ht;
-      if (!e.categories.includes(l.categorie)) e.categories.push(l.categorie);
+      const a = e.affranchissements.find((x) => x.categorie === l.categorie);
+      if (a) {
+        a.plis += l.quantite;
+        a.htCentimes += ht;
+      } else e.affranchissements.push({ categorie: l.categorie, plis: l.quantite, htCentimes: ht });
     }
     envois.set(l.sourceId, e);
     parCopro.set(code, envois);
@@ -190,4 +201,73 @@ export function regrouperFraisPostaux(
     .sort((a, b) => a.coproCode.localeCompare(b.coproCode, "fr", { numeric: true }));
 
   return { parCopro: resultat, nonRattaches: [...nonRattaches.values()] };
+}
+
+// ---------------------------------------------------------------------------
+// Facture a la copro (REA-490, etape 2)
+
+/** Libelle lisible d'une categorie ESTALE, au pluriel de la facture. */
+export function libelleAffranchissement(categorie: string): string {
+  const c = sansAccents(categorie);
+  if (c.includes("lrar")) return "LRAR";
+  if (c.includes("ecopli")) return "Lettres simples";
+  if (c.includes("recommande electronique")) return "Recommandés électroniques";
+  return categorie.replace(/^Timbre\s+/i, "");
+}
+
+/** Une ligne de la facture, au format de l'intranet (montant HT, TVA en taux). */
+export interface LigneFraisPostaux {
+  description: string;
+  prixUnitaireHtCentimes: number;
+  /** 0 = exonere (debours : timbres et LRE) ; 0,20 pour le service ESTALE. */
+  tauxTva: number;
+}
+
+function euros(centimes: number): string {
+  return `${(centimes / 100).toFixed(2).replace(".", ",")} €`;
+}
+
+/**
+ * Lignes de la facture d'une copro pour les envois retenus. Une ligne d'affranchissement
+ * (timbres et LRE, exoneree), detaillee par categorie comme les factures saisies a la main
+ * le 23/10/2026 ; une ligne de service ESTALE (TVA 20 %) seulement si `avecService`.
+ * Vide si rien n'est a facturer.
+ */
+export function lignesFactureFraisPostaux(
+  copro: FraisPostauxCopro,
+  sourceIds: ReadonlySet<string>,
+  avecService: boolean,
+  periodeLibelle: string,
+): LigneFraisPostaux[] {
+  const envois = copro.envois.filter((e) => sourceIds.has(e.sourceId));
+  const parCategorie = new Map<string, { plis: number; htCentimes: number }>();
+  for (const e of envois) {
+    for (const a of e.affranchissements) {
+      const cumul = parCategorie.get(a.categorie) ?? { plis: 0, htCentimes: 0 };
+      cumul.plis += a.plis;
+      cumul.htCentimes += a.htCentimes;
+      parCategorie.set(a.categorie, cumul);
+    }
+  }
+  const lignes: LigneFraisPostaux[] = [];
+  const affranchissement = [...parCategorie.values()].reduce((s, c) => s + c.htCentimes, 0);
+  if (affranchissement > 0) {
+    const detail = [...parCategorie.entries()].map(
+      ([categorie, c]) => `${c.plis} ${libelleAffranchissement(categorie)} : ${euros(c.htCentimes)}`,
+    );
+    lignes.push({
+      description: [`Frais postaux ${periodeLibelle}`, ...detail].join("\n"),
+      prixUnitaireHtCentimes: affranchissement,
+      tauxTva: 0,
+    });
+  }
+  const service = envois.reduce((s, e) => s + e.serviceHtCentimes, 0);
+  if (avecService && service > 0) {
+    lignes.push({
+      description: `Service d'envoi ${periodeLibelle} (impression, mise sous pli, dépôt)`,
+      prixUnitaireHtCentimes: service,
+      tauxTva: 0.2,
+    });
+  }
+  return lignes;
 }

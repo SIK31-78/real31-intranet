@@ -6,6 +6,7 @@
 
 import { useState, type ReactNode } from "react";
 import { Tab, TabList, TabPanel } from "@/components/ui/tabs";
+import type { ModeEmissionFacture } from "@/lib/domain/facturation/mode-emission";
 import { PanneauFraisPostaux } from "./panneau-frais-postaux";
 
 export type OngletGestionCourante = "facturation" | "frais-postaux";
@@ -13,9 +14,11 @@ export type OngletGestionCourante = "facturation" | "frais-postaux";
 export function OngletsGestionCourante({
   initial,
   facturation,
+  pennylaneMode,
 }: {
   initial: OngletGestionCourante;
   facturation: ReactNode;
+  pennylaneMode: ModeEmissionFacture;
 }) {
   const [onglet, setOnglet] = useState<OngletGestionCourante>(initial);
   return (
@@ -34,7 +37,7 @@ export function OngletsGestionCourante({
         </TabPanel>
       ) : (
         <TabPanel id="gc-p-postaux" tabId="gc-t-postaux">
-          <PanneauFraisPostaux />
+          <PanneauFraisPostaux pennylaneMode={pennylaneMode} />
         </TabPanel>
       )}
     </div>

@@ -60,6 +60,7 @@ const LIBELLE_TYPE: Record<string, string> = {
   etat_date: "État daté",
   gestion_courante: "Gestion courante",
   prestation_contrat: "Prestation du contrat",
+  frais_postaux: "Frais postaux",
 };
 
 const euros = formatEuros;

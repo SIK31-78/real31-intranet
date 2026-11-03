@@ -70,6 +70,7 @@ export default async function GestionCourantePage({
         {habilite ? (
           <OngletsGestionCourante
             initial={onglet === "frais-postaux" ? "frais-postaux" : "facturation"}
+            pennylaneMode={modeEmissionFacture(process.env.PENNYLANE_API_KEY, process.env.PENNYLANE_FACTURE_VALIDEE)}
             facturation={
               <>
                 {/* Copros ESTALE sans ligne au referentiel (REA-407) : AVANT le panneau, parce

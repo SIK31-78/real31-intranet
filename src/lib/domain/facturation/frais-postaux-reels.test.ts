@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   codeCoproDuDetail,
   libelleEnvoi,
+  lignesFactureFraisPostaux,
   natureFrais,
   regrouperFraisPostaux,
   type LigneConsommationEstale,
@@ -64,7 +65,10 @@ describe("regrouperFraisPostaux", () => {
         libelle: "S305 - Diffusion PV AG",
         scope: "Mailing",
         dateISO: "2026-07-21",
-        categories: ["Timbre LRAR", "Envoi Recommandé Electronique"],
+        affranchissements: [
+          { categorie: "Timbre LRAR", plis: 21, htCentimes: 16716 },
+          { categorie: "Envoi Recommandé Electronique", plis: 7, htCentimes: 2093 },
+        ],
         plis: 28,
         timbresHtCentimes: 16716,
         lreHtCentimes: 2093,
@@ -115,5 +119,40 @@ describe("regrouperFraisPostaux", () => {
     const lignes = [ligne({ categorie: "Timbre Ecopli", detail: "Fiche ~ X", sourceId: "m2" })];
     const r = regrouperFraisPostaux(lignes, new Set(["S305"]), new Map([["m2", ["S303", "S304"]]]));
     expect(r).toEqual({ parCopro: [], nonRattaches: [] });
+  });
+});
+
+describe("lignesFactureFraisPostaux", () => {
+  const copro = regrouperFraisPostaux(
+    [
+      ligne({ categorie: "Timbre LRAR", prixUnitaireHtCentimes: 796, prixUnitaireTtcCentimes: 796, quantite: 21 }),
+      ligne({ categorie: "Service LRAR", prixUnitaireHtCentimes: 713, prixUnitaireTtcCentimes: 856, quantite: 21 }),
+      ligne({ categorie: "Envoi Recommandé Electronique", prixUnitaireHtCentimes: 299, prixUnitaireTtcCentimes: 359, quantite: 7 }),
+      ligne({ categorie: "Timbre LRAR", sourceId: "med", detail: "mise en demeure 3F ~ X", prixUnitaireHtCentimes: 612 }),
+    ],
+    new Set(["S305"]),
+    new Map([["med", ["S305"]]]),
+  ).parCopro[0]!;
+
+  it("reprend la facture de Clémentine : affranchissement exonéré, détaillé par catégorie", () => {
+    expect(lignesFactureFraisPostaux(copro, new Set(["pv"]), false, "juillet 2026")).toEqual([
+      {
+        description: "Frais postaux juillet 2026\n21 LRAR : 167,16 €\n7 Recommandés électroniques : 20,93 €",
+        prixUnitaireHtCentimes: 18809,
+        tauxTva: 0,
+      },
+    ]);
+  });
+
+  it("ajoute le service ESTALE à 20 % seulement sur demande", () => {
+    const lignes = lignesFactureFraisPostaux(copro, new Set(["pv"]), true, "juillet 2026");
+    expect(lignes).toHaveLength(2);
+    expect(lignes[1]).toMatchObject({ prixUnitaireHtCentimes: 14973, tauxTva: 0.2 });
+  });
+
+  it("cumule les envois retenus et ignore les autres", () => {
+    const lignes = lignesFactureFraisPostaux(copro, new Set(["pv", "med"]), false, "juillet 2026");
+    expect(lignes[0]!.description).toContain("22 LRAR : 173,28 €");
+    expect(lignesFactureFraisPostaux(copro, new Set(), true, "juillet 2026")).toEqual([]);
   });
 });

@@ -29,6 +29,7 @@ const LIBELLE_PRESTATION: Record<TypePrestation, string> = {
   gestion_courante: "Honoraires de gestion courante",
   // Le libelle exact du contrat est deja sur la ligne ; ceci n'est que le titre.
   prestation_contrat: "Honoraires - prestation particuliere du contrat",
+  frais_postaux: "Frais postaux",
 };
 
 /** Objet de la facture (titre de section sur le PDF), par prestation. Repris des
@@ -42,6 +43,8 @@ const SUJET_PRESTATION: Record<TypePrestation, string> = {
   etat_date: "Honoraires état daté",
   gestion_courante: "Honoraires du trimestre en cours",
   prestation_contrat: "Honoraires complémentaires",
+  // Objet des factures saisies a la main le 23/10/2026.
+  frais_postaux: "Frais postaux",
 };
 
 /**

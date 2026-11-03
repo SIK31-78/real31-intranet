@@ -18,7 +18,9 @@ export type TypePrestation =
   | "depassement_ag"
   | "gestion_courante"
   /** Les 16 prestations particulieres du contrat (domain/facturation/prestations-contrat). */
-  | "prestation_contrat";
+  | "prestation_contrat"
+  /** Frais postaux au reel, refactures d'apres une facture ESTALE (REA-490). */
+  | "frais_postaux";
 
 export type StatutFacture = "a_facturer" | "facturee" | "erreur";
 
@@ -392,6 +394,11 @@ export interface FacturationRepository {
    *  BORNE aux factures de ces copros (le filtre est applique dans la requete, AVANT la
    *  limite : cloisonnement portefeuille = "nos facturations"). Omis = toutes. */
   listerFacturesRecentes(limite?: number, coproCodes?: string[]): Promise<FactureHistorique[]>;
+  /** Factures d'un type sur une periode (ex frais postaux d'une facture ESTALE), tous statuts. */
+  listerFacturesDePeriode(
+    typePrestation: TypePrestation,
+    periode: string,
+  ): Promise<Array<{ id: string; coproCode: string; statut: StatutFacture; dateFacture: string }>>;
   /** Le code de la copropriete d'une facture, quel que soit son statut ; null si inconnue. */
   coproDeFacture(factureId: string): Promise<string | null>;
   /** Repasse une facture en erreur au statut 'a_facturer' pour la rejouer. */

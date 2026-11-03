@@ -14,6 +14,7 @@ import type {
   NouvelleFacture,
   ParametresCopro,
   Produit,
+  TypePrestation,
 } from "@/lib/ports/facturation-repository";
 
 /** Bareme d'exemple (montants TTC), suffisant pour faire tourner les ecrans. */
@@ -292,6 +293,12 @@ export class MockFacturationRepository implements FacturationRepository {
       ...(f.par ? { par: f.par } : {}),
       creeLe: new Date().toISOString(),
     }));
+  }
+
+  async listerFacturesDePeriode(typePrestation: TypePrestation, periode: string) {
+    return this.factures
+      .filter((f) => f.typePrestation === typePrestation && f.periode === periode)
+      .map((f) => ({ id: f.id, coproCode: f.coproCode, statut: f.statut, dateFacture: f.dateFacture }));
   }
 
   async coproDeFacture(factureId: string): Promise<string | null> {

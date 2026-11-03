@@ -6,7 +6,8 @@
 // joint. Personne n'a rien a saisir.
 //
 // Deux voies, selon la prestation (decision Sekou du 08/10/2026) :
-//   - gestion courante : ecriture fournisseur deja imputee, « bon a payer » ;
+//   - gestion courante et frais postaux au reel (03/11/2026) : ecriture fournisseur deja
+//     imputee, « bon a payer » ;
 //   - toute autre prestation : PDF depose « a codifier » (facture a valider), c'est le
 //     gestionnaire qui choisit l'imputation dans ESTALE.
 // Seules les copros tenues dans ESTALE sont concernees ; les autres ont leur propre
@@ -60,7 +61,9 @@ export async function saisirFacturesDansEstale(ids: string[]): Promise<ResultatS
         continue;
       }
 
-      if (f.typePrestation !== "gestion_courante") {
+      // Bon a payer, deja impute : la gestion courante, et les frais postaux au reel dont
+      // le compte est connu (6213, decision Sekou du 03/11/2026, REA-490).
+      if (f.typePrestation !== "gestion_courante" && f.typePrestation !== "frais_postaux") {
         const pdf = await pennylane.telechargerPdf(f.factureExterneId);
         const { depotId } = await estale.deposerFactureACodifier({
           coproCode: f.coproCode,

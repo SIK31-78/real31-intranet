@@ -17,6 +17,8 @@ import type {
   NouvelleFacture,
   ParametresCopro,
   Produit,
+  StatutFacture,
+  TypePrestation,
 } from "@/lib/ports/facturation-repository";
 import { createSupabasePublicClient } from "./public-client";
 import { toutesLesLignes } from "./pages";
@@ -768,6 +770,26 @@ export class SupabaseFacturationRepository implements FacturationRepository {
       ...(f.estale_erreur ? { estaleErreur: f.estale_erreur } : {}),
       ...(f.cree_par ? { par: f.cree_par } : {}),
       creeLe: f.created_at,
+    }));
+  }
+
+  async listerFacturesDePeriode(
+    typePrestation: TypePrestation,
+    periode: string,
+  ): Promise<Array<{ id: string; coproCode: string; statut: StatutFacture; dateFacture: string }>> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("intranet_factures")
+      .select("id, copropriete_id, statut, date_facture")
+      .eq("type_prestation", typePrestation)
+      .eq("periode", periode);
+    if (error) throw new Error(`Lecture des factures ${typePrestation} ${periode} : ${error.message}`);
+    type Row = { id: string; copropriete_id: string; statut: StatutFacture; date_facture: string };
+    return ((data ?? []) as Row[]).map((r) => ({
+      id: r.id,
+      coproCode: r.copropriete_id,
+      statut: r.statut,
+      dateFacture: r.date_facture,
     }));
   }
 
