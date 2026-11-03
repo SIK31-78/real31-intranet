@@ -545,6 +545,24 @@ function nomCompacteCite(nom: string, jetons: string[]): boolean {
 const ARTICLES = new Set(["les", "des", "aux", "sur", "sous"]);
 const PREFIXES_GENERIQUES = new Set(["residence", "copropriete", "syndicat", "immeuble", "ensemble", "batiment", "batiments"]);
 
+// Termes d'un nom de residence qui ne sont pas un type de voie (« Villa Médéric », « Clos
+// Gallieni ») : avec eux, le mot de rue partage forme un nom a part entiere.
+const TERMES_RESIDENCE = new Set(["villa", "clos", "parc", "jardin", "jardins", "hameau", "domaine"]);
+
+/**
+ * Un nom d'usage fait d'un terme de residence et d'un mot de rue partage par deux copros
+ * (« VILLA MEDERIC », rue Médéric : S190 et S285 ; rejeu du 03/11/2026) : il compte quand il
+ * est cite tel quel, mots a la suite. Jamais avec un numero (« SDC 12 Nordmann » et « SDC 8
+ * NORDMANN » se confondraient) ni sans terme de residence.
+ */
+function nomUsageDeRueCite(nomUsage: string, noyauTexte: string): boolean {
+  if (/\d/.test(nomUsage)) return false;
+  const noyau = noyauDe(nomUsage);
+  while (noyau.length > 1 && PREFIXES_GENERIQUES.has(noyau[0]!)) noyau.shift();
+  if (noyau.length < 2 || !noyau.some((m) => TERMES_RESIDENCE.has(m))) return false;
+  return noyauTexte.includes(` ${noyau.join(" ")} `);
+}
+
 /** Les mots d'un libelle sans articles ni lettres isolees (« LE CLOS MARTIN B-C et D » -> clos, martin). */
 function noyauDe(s: string): string[] {
   return normaliser(s).split(/[^a-z0-9]+/).filter((t) => t.length >= 3 && !ARTICLES.has(t) && !/^\d+$/.test(t));
@@ -560,7 +578,7 @@ function noyauDe(s: string): string[] {
 function nomUsageCite(nomUsage: string, exclus: (m: string) => boolean, mots: Set<string>, noyauTexte: string): boolean {
   if (/\b\d{5}\b/.test(nomUsage) || nomEstAdresse(nomUsage)) return false;
   const distinctifs = motsSignificatifs(nomUsage).filter((m) => !exclus(m));
-  if (distinctifs.length === 0) return false;
+  if (distinctifs.length === 0) return nomUsageDeRueCite(nomUsage, noyauTexte);
   if (distinctifs.length >= 2) return distinctifs.every((m) => mots.has(m));
   const noyau = noyauDe(nomUsage);
   while (noyau.length > 1 && PREFIXES_GENERIQUES.has(noyau[0]!)) noyau.shift();
@@ -574,8 +592,11 @@ export interface OptionsNomAdresse {
    * Adresse a une lettre pres (faute de frappe dans un mot de rue). Oui par defaut ; jamais dans
    * une piece jointe (28/10/2026) : un PDF est long, un mot quelconque y trouve son voisin
    * (« fermer de 12h30 » lu « rue de la Ferme », mail de S220 range a tort en S277).
+   * « avec-code-postal » (03/11/2026, PDF) : toleree seulement quand le code postal de la copro
+   * est cite, en plus du numero devant la rue (« 6 RUE MARCEL SAMBAT 78800 », « 27 rue Jean
+   * Bonnal 92250 ») ; le cas « fermer » reste ecarte (numero devant la rue exige depuis le 28/10).
    */
-  approche?: boolean;
+  approche?: boolean | "avec-code-postal";
   /**
    * Adresse citee sans code postal ni ville (28/10/2026) : acceptee quand le numero est colle a
    * la rue complete et que cette rue n'existe que dans une seule ville du referentiel. Non par
@@ -685,8 +706,9 @@ export function indicesNomAdresse(
       }
       // Une lettre d'ecart dans le nom de rue : seulement si le numero est cite (pas d'adresse
       // sans numero en base), en plus du lieu.
+      const approcheIci = approche === true || (approche === "avec-code-postal" && cp !== "" && mots.has(cp));
       const approchee =
-        approche && numeroCite
+        approcheIci && numeroCite
           ? voiesDe(adresse).find((v) => mots.has(v.type) && v.mots.every((m) => motDeRueCite(m, mots, true)) && numeroDevantLaRue(jetonsVoie, numeros, v, true))
           : undefined;
       if (approchee && !approchees.some((a) => a.reference === c.reference)) {
@@ -755,6 +777,11 @@ const ENTETE_CABINET = [
   // « 3 PL MICHELET » : bon de commande d'un fournisseur (28/10/2026, PDF rattache a tort a S158).
   /(?:\d{1,3}\s*,?\s*)?(?<![a-z])(?:place|pl\.?)\s+michelet(?:\s*,?\s*78800)?(?:\s*houilles)?/gi,
   /(?<![a-z])(?:siren|rcs|naf|carte\s+professionnelle|garantie\s+financi[eè]re).*?(?= {2,}|\x09|$)/gim,
+  // La rue de l'agence de La Garenne-Colombes (03/11/2026) : « 13 rond point du souvenier
+  // Français ». Sa ville, elle, reste : une copro de La Garenne n'a souvent qu'elle pour lieu
+  // sur un PDF adresse « COPRO 9 A 11 RUE MEDERIC / REP PAR REAL 31 / 13 ROND POINT DU
+  // SOUVENIR / FRANCAIS / 92250 LA GARENNE COLOMBES » (rejeu : retirer la ville en perdait 2).
+  /(?:\d{1,3}\s*,?\s*)?(?<![a-z])rond[\s-]*point\s+du\s+souven\S*\s+fran\S*/gi,
 ];
 
 /** Le texte sans les morceaux du papier a en-tete / de la signature du cabinet. */
@@ -770,7 +797,7 @@ export function retirerEnteteCabinet(texte: string): string {
  * toujours a confirmer.
  */
 export function coprosDansPdf(texte: string, copros: CoproTri[]): string[] {
-  const utile = retirerEnteteCabinet(texte);
+  const utile = recollerLettres(retirerEnteteCabinet(texte));
   const parCle = new Map<string, CoproTri>();
   for (const c of copros) {
     const cle = cleDeReference(c.reference);
@@ -781,8 +808,17 @@ export function coprosDansPdf(texte: string, copros: CoproTri[]): string[] {
     const c = parCle.get(cle);
     if (c && !refs.includes(c.reference)) refs.push(c.reference);
   }
-  for (const i of indicesNomAdresse(utile, copros, { approche: false })) if (!refs.includes(i.reference)) refs.push(i.reference);
+  for (const i of indicesNomAdresse(utile, copros, { approche: "avec-code-postal" })) if (!refs.includes(i.reference)) refs.push(i.reference);
   return refs;
+}
+
+// L'extraction pdfjs separe parfois une majuscule du reste du mot (« 51 A venue F och »,
+// « l’ A igle », rejeu du 03/11/2026) : on la recolle quand au moins deux minuscules suivent.
+const LETTRE_DETACHEE = /(?<![A-Za-zÀ-ÿ])([A-Z]) (?=[a-zà-ÿ]{2,})/g;
+
+/** Le texte d'un PDF avec les majuscules detachees recollees a leur mot. */
+export function recollerLettres(texte: string): string {
+  return texte.replace(LETTRE_DETACHEE, "$1");
 }
 
 /**

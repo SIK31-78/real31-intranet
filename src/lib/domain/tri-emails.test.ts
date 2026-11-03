@@ -533,13 +533,15 @@ describe("coprosDansPdf", () => {
     expect(retirerEnteteCabinet("Au 3 Pl. Michelet, 78800 Houilles")).not.toMatch(/michelet/i);
   });
 
-  it("jamais d'adresse à une lettre près dans un PDF (cas réel du 28/10/2026, anonymisé : « fermer » lu « rue de la Ferme »)", () => {
+  it("PDF : « fermer » n'est jamais lu « rue de la Ferme » ; une lettre d'écart seulement avec le code postal (28/10 puis 03/11/2026)", () => {
     const ferme: CoproTri[] = [{ reference: "S0277", nom: "LES TILLEULS", adresse: "12 rue de la Ferme 78800 Houilles", gestionnaire: null, assistant: null }];
     const pdf = "Intervention au 12 rue Jean Jaurès 78800 Houilles.\nLe magasin va fermer de 12h30 à 14h.";
     expect(coprosDansPdf(pdf, ferme)).toEqual([]);
-    // Une vraie faute de frappe non plus : dans un PDF, l'adresse doit être exacte.
+    // Une vraie faute de frappe : depuis le 03/11/2026, admise dans un PDF quand le code postal
+    // de la copro est cité ; sans lui (la ville seule), non.
     const faute = "Intervention au 12 rue de la Farme 78800 Houilles.";
-    expect(coprosDansPdf(faute, ferme)).toEqual([]);
+    expect(coprosDansPdf(faute, ferme)).toEqual(["S0277"]);
+    expect(coprosDansPdf("Intervention au 12 rue de la Farme, Houilles.", ferme)).toEqual([]);
     // Dans le mail, la tolérance reste (à confirmer d'un clic).
     expect(suggererCopro(mail({ objet: "Intervention", apercu: faute }), { copros: ferme, expediteurs: {} }).candidats).toEqual(["S0277"]);
     // L'adresse exacte dans un PDF, elle, compte toujours.

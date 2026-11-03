@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { objetPourLaComptabilite, pisteRangeable, rangeableAutomatiquement, suggererCopro, variantesEcriture, type CoproTri, type Suggestion } from "./tri-emails";
+import {
+  coprosDansPdf,
+  objetPourLaComptabilite,
+  pisteRangeable,
+  rangeableAutomatiquement,
+  recollerLettres,
+  retirerEnteteCabinet,
+  suggererCopro,
+  variantesEcriture,
+  type CoproTri,
+  type Suggestion,
+} from "./tri-emails";
 
 // Règles de l'étude du tri v2 (03/11/2026), mesurées sur les 930 lignes du 26/10 au 02/11.
 // Données inventées ; objets inspirés des cas réels, anonymisés.
@@ -159,5 +170,37 @@ describe("rangeableAutomatiquement : mail d'un collègue (R5)", () => {
     const conv: Suggestion = { nature: "sure", candidats: ["S0297"], raison: "", origine: "conversation" };
     expect(rangeableAutomatiquement({ interne: true, suggestion: conv }, ctx())).toEqual({ ok: false, motif: "interne" });
     expect(rangeableAutomatiquement({ interne: true, suggestion: { nature: "plusieurs", candidats: ["S0297", "S0305"], raison: "" } }, ctx())).toEqual({ ok: false, motif: "interne" });
+  });
+});
+
+describe("coprosDansPdf : corrections de lecture (03/11/2026)", () => {
+  const copros: CoproTri[] = [
+    copro("S0210", { adresse: "6 rue Marcel Sembat 78800 HOUILLES" }),
+    copro("S0155", { adresse: "27 rue Jean Bonal 92250 LA GARENNE-COLOMBES" }),
+    copro("S0219", { adresse: "120 rue Armand Silvestre 92400 COURBEVOIE" }),
+    copro("S0190", { nom: "MEDERI9-11", adresse: "9-11 rue Méderic 92250 LA GARENNE-COLOMBES", nomsUsage: ["VILLA MEDERIC"] }),
+    copro("S0285", { nom: "MEDERIC57", adresse: "57 rue Médéric 92250 LA GARENNE-COLOMBES", nomsUsage: ["SDC 57 rue Méderic"] }),
+    copro("S0272", { adresse: "51 Avenue Foch 92250 LA GARENNE-COLOMBES" }),
+    copro("S0135", { adresse: "18 rue de l'Aigle 92250 LA GARENNE-COLOMBES" }),
+  ];
+  it("une lettre d'écart quand le code postal est cité", () => {
+    expect(coprosDansPdf("6 MARCEL SAMBAT 6 RUE MARCEL SAMBAT 78800 HOUILLES Lieu d'intervention", copros)).toEqual(["S0210"]);
+    expect(coprosDansPdf("1 27 rue Jean Bonnal 92250 La Garenne-Colombes", copros)).toEqual(["S0155"]);
+  });
+  it("la rue du cabinet de La Garenne-Colombes est ignorée, pas sa ville (lieu des copros de La Garenne)", () => {
+    expect(retirerEnteteCabinet("C/O REAL 31 13 rond point du souvenier Français 92250 La Garenne-Colombes")).not.toMatch(/souven|rond/i);
+    // Rejeu du 03/11/2026 : retirer aussi la ville perdait ce PDF (le lieu de la copro est celui du cabinet).
+    expect(coprosDansPdf("COPRO 9 A 11 RUE MEDERIC\nREP PAR REAL 31\n13 ROND POINT DU SOUVENIR\nFRANCAIS\n92250 LA GARENNE COLOMBES", copros)).toEqual(["S0190"]);
+    expect(coprosDansPdf("SDC 120 RUE ARMAND SILVESTRE 92400 COURBEVOIE C/O REAL 31 13 rond point du souvenir Français 92250 La Garenne-Colombes", copros)).toEqual(["S0219"]);
+  });
+  it("un nom d'usage fait d'un terme de résidence et d'une rue partagée, cité tel quel", () => {
+    expect(coprosDansPdf("SDC VILLA MEDERIC C/o REAL 31 13, Rond point du Souvenir Français 92250 LA GARENNE COLOMBES", copros)).toEqual(["S0190"]);
+    // « Médéric » seul n'en dit rien : deux copros sur cette rue.
+    expect(coprosDansPdf("Intervention rue Médéric", copros)).toEqual([]);
+  });
+  it("les majuscules détachées par l'extraction sont recollées", () => {
+    expect(recollerLettres("51 A venue F och 92250 La Ga renne - C olombes")).toBe("51 Avenue Foch 92250 La Ga renne - Colombes");
+    expect(coprosDansPdf("Adresse de livraison 51 A venue F och 92250 La Ga renne - C olombes", copros)).toEqual(["S0272"]);
+    expect(coprosDansPdf("Concerne 18 rue de l’ A igle 92250 LA GARENNE - COLOMBES", copros)).toEqual(["S0135"]);
   });
 });
