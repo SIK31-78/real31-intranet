@@ -3,6 +3,7 @@ import {
   coprosDansPdf,
   objetPourLaComptabilite,
   pisteRangeable,
+  proposerAutreAgence,
   rangeableAutomatiquement,
   recollerLettres,
   retirerEnteteCabinet,
@@ -202,5 +203,32 @@ describe("coprosDansPdf : corrections de lecture (03/11/2026)", () => {
     expect(recollerLettres("51 A venue F och 92250 La Ga renne - C olombes")).toBe("51 Avenue Foch 92250 La Ga renne - Colombes");
     expect(coprosDansPdf("Adresse de livraison 51 A venue F och 92250 La Ga renne - C olombes", copros)).toEqual(["S0272"]);
     expect(coprosDansPdf("Concerne 18 rue de l’ A igle 92250 LA GARENNE - COLOMBES", copros)).toEqual(["S0135"]);
+  });
+});
+
+describe("proposerAutreAgence (R3, proposition seulement)", () => {
+  const ici = { copros: [copro("S0297", { adresse: "3 rue des Lilas 92250 La Garenne-Colombes" })], expediteurs: {} };
+  const ailleurs = {
+    copros: [
+      copro("S0178", { nom: "LES ROSIERS", adresse: "125 rue Louise Michel 78500 SARTROUVILLE", agence: "HLS" }),
+      copro("S0261", { adresse: "25 rue des Trembleaux 78500 Sartrouville", agence: "HLS" }),
+    ],
+    expediteurs: { "proprio@exemple.fr": [{ reference: "S0261", qualite: "copropriétaire" as const }] },
+  };
+  const mail = (objet: string, o: { deAdresse?: string; corbeille?: "reponse-auto"; interne?: boolean } = {}) => ({ deAdresse: o.deAdresse ?? "x@exemple.fr", objet, apercu: "", ...o });
+  const proposer = (m: ReturnType<typeof mail>) => proposerAutreAgence(suggererCopro(m, ici), m, ailleurs);
+
+  it("une seule copro d'une autre agence : proposée, jamais rangeable", () => {
+    const s = proposer(mail("SDC LES ROSIERS FACTURE CONTRAT"));
+    expect(s).toMatchObject({ nature: "aucune", candidats: [], autreAgence: { reference: "S0178", agence: "HLS" } });
+    expect(s.raison).toContain("autre agence (HLS)");
+    expect(rangeableAutomatiquement({ suggestion: s }, ctx())).toEqual({ ok: false, motif: "pas-sure" });
+    expect(proposer(mail("Infiltration", { deAdresse: "proprio@exemple.fr" })).autreAgence).toEqual({ reference: "S0261", agence: "HLS" });
+  });
+  it("rien quand la boîte a déjà une piste, pour une corbeille, un collègue, ou rien d'ailleurs", () => {
+    expect(proposer(mail("Fuite 3 rue des Lilas La Garenne-Colombes")).autreAgence).toBeUndefined();
+    expect(proposer(mail("SDC LES ROSIERS", { corbeille: "reponse-auto" })).autreAgence).toBeUndefined();
+    expect(proposer(mail("SDC LES ROSIERS", { interne: true })).autreAgence).toBeUndefined();
+    expect(proposer(mail("Bonjour")).autreAgence).toBeUndefined();
   });
 });

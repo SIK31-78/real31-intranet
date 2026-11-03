@@ -27,6 +27,7 @@ import {
   type DossierChoisissable,
   suggererCopro,
   suggererCoproNonRemis,
+  proposerAutreAgence,
   suggestionCorbeille,
   type CoproTri,
   type Destination,
@@ -36,7 +37,7 @@ import {
   type ReferentielTri,
   type Suggestion,
 } from "@/lib/domain/tri-emails";
-import type { BoiteTriConfig } from "@/lib/domain/mail-gate";
+import { boitesDestinationBascule, type BoiteTriConfig } from "@/lib/domain/mail-gate";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import type { TriRepository } from "@/lib/ports/tri-repository";
 import { getReferentielTriProvider, getTriRepository } from "@/lib/adapters/router";
@@ -166,6 +167,29 @@ export function mailDeLaFile(
   return { ...base, suggestion: nonRemis ? avecMentionNonRemis(suggestion) : suggestion };
 }
 
+/**
+ * Proposition de bascule (03/11/2026) : un mail sans piste dans la boite qui designe UNE copro
+ * d'une autre agence (proposerAutreAgence). Rien n'est range ni bascule sans clic.
+ */
+export function avecPropositionAutreAgence(mail: MailDeLaFile, m: RawMail, autres: ReferentielTri | null): MailDeLaFile {
+  if (!autres) return mail;
+  const texte = m.bodyText.replace(/\r\n/g, "\n").trim();
+  const suggestion = proposerAutreAgence(mail.suggestion, { ...mail, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, autres);
+  return suggestion === mail.suggestion ? mail : { ...mail, suggestion };
+}
+
+/** Le referentiel des agences des AUTRES boites (triees ou destination de bascule) ; null si aucune ou en panne. */
+async function referentielDesAutresAgences(config: BoiteTriConfig): Promise<ReferentielTri | null> {
+  const autres = [...new Set(boitesDestinationBascule().flatMap((b) => b.agences))].filter((a) => !config.agences.includes(a));
+  if (autres.length === 0) return null;
+  try {
+    return await getReferentielTriProvider(autres).charger();
+  } catch (e) {
+    console.error("[tri-emails] referentiel des autres agences :", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 export async function lireFileATrier(config: BoiteTriConfig): Promise<FileATrier> {
   const boite = config.boite;
 
@@ -231,8 +255,9 @@ export async function lireFileATrier(config: BoiteTriConfig): Promise<FileATrier
   const totalReception = tronquee ? await compterMailsATrier(boite) : null;
 
   const publicites = await publicitesDeLaFile(repo, boite, bruts, ref);
+  const autres = bruts.length ? await referentielDesAutresAgences(config) : null;
   const mails: MailDeLaFile[] = bruts.map((m) =>
-    mailDeLaFile(m, boite, ref, m.conversationId ? conversations.get(m.conversationId) : null, publicites, initiales),
+    avecPropositionAutreAgence(mailDeLaFile(m, boite, ref, m.conversationId ? conversations.get(m.conversationId) : null, publicites, initiales), m, autres),
   );
 
   // L'onglet « Binômes » ne liste que les copros actives : une copro inactive reste

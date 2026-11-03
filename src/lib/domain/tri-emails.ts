@@ -237,6 +237,12 @@ export interface Suggestion {
    * piste qui la range sans clic (decision du 28/10/2026, rangeableAutomatiquement).
    */
   identifiant?: true;
+  /**
+   * Proposition seulement (03/11/2026) : le mail ne designe aucune copro de la boite, mais UNE
+   * copro d'une autre agence (proposerAutreAgence). L'ecran propose de le basculer ; jamais
+   * fait sans clic (la nature reste « aucune »).
+   */
+  autreAgence?: { reference: string; agence: string | null };
 }
 
 export type OrigineSuggestion = "conversation" | "nom-adresse" | "code-corps" | "adresse-sans-lieu";
@@ -1955,4 +1961,28 @@ export function dossiersChoisissables(lignes: LigneBinome[]): DossierChoisissabl
     }
   }
   return out;
+}
+
+/**
+ * Proposition de bascule (etude du tri v2, R3, 03/11/2026) : un mail sans aucune piste dans la
+ * boite, qui designe UNE copro d'une autre agence (son code, l'expediteur, son nom ou son
+ * adresse, rangeable si elle etait de la boite), est propose a la bascule vers l'agence de
+ * cette copro. Une PROPOSITION : la nature reste « aucune », rien n'est fait sans clic.
+ * `autres` : le referentiel des autres agences (l'agence vient de la fiche de la copro).
+ */
+export function proposerAutreAgence(
+  s: Suggestion,
+  mail: Pick<MailATrier, "deAdresse" | "objet" | "apercu"> & { corps?: string; corbeille?: MotifCorbeille; interne?: boolean },
+  autres: ReferentielTri,
+): Suggestion {
+  if (s.nature !== "aucune" || s.candidats.length > 0 || mail.corbeille || mail.interne || autres.copros.length === 0) return s;
+  const ailleurs = suggererCopro(mail, autres);
+  if (ailleurs.candidats.length !== 1 || !(ailleurs.nature === "sure" || pisteRangeable(ailleurs))) return s;
+  const reference = ailleurs.candidats[0]!;
+  const agence = autres.copros.find((c) => c.reference === reference)?.agence ?? null;
+  return {
+    ...s,
+    raison: `${ailleurs.raison.replace(/,? à confirmer\.?$/, ".")} Cette copropriété (${reference}) est d'une autre agence${agence ? ` (${agence})` : ""} : à basculer ?`,
+    autreAgence: { reference, agence },
+  };
 }
