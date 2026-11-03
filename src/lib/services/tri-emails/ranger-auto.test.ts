@@ -229,7 +229,7 @@ describe("rangerAutomatiquement (cron, piste sûre)", () => {
       brut({ subject: "Bonjour", bodyText: "Voir S0305 et S0298." }), // plusieurs codes dans le corps
       brut({ subject: "Ancien immeuble", bodyText: "Voir S0410." }), // inactive, code dans le corps : faible
       brut({ subject: "Réponse automatique : S0297" }), // corbeille
-      brut({ from: "collegue@real31.fr", subject: "RE: S0297 - fuite" }), // interne
+      brut({ from: "collegue@real31.fr", subject: "RE: fuite", bodyText: "Voir S0297." }), // interne sans piste sûre
     ];
     const { passer, repo, rangement } = monter(mails);
     const bilan = await passer();
@@ -562,5 +562,15 @@ describe("rangerAutomatiquement : Comptabilité par l'objet (03/11/2026)", () =>
     const [e] = await repo.journalDepuis(SYNDIC4);
     expect(e).toMatchObject({ dossierNom: "Comptabilité", dossierCle: "comptabilite", coproReference: "S0297", copros: ["S0297"], par: "automatique" });
     expect(rangement.etiqueter).toHaveBeenCalledWith(SYNDIC4, expect.any(String), { ajouter: ["S0297"] });
+  });
+});
+
+describe("rangerAutomatiquement : mail d'un collègue avec le code de la copro (03/11/2026)", () => {
+  it("code dans l'objet : rangé seul comme un autre mail", async () => {
+    const m = brut({ from: "collegue@real31.fr", subject: "RE: S0297 - fuite" });
+    const { passer, repo } = monter([m]);
+    expect(await passer()).toMatchObject({ ranges: 1 });
+    const [e] = await repo.journalDepuis(SYNDIC4);
+    expect(e).toMatchObject({ coproReference: "S0297", dossierNom: "GG", signal: "sure", par: "automatique" });
   });
 });

@@ -59,7 +59,9 @@ describe("rangeableAutomatiquement : Comptabilité par l'objet (R2b)", () => {
     const objet = "Re: RELANCE demande relevé compteurs";
     expect(rangeableAutomatiquement({ objet, suggestion: sure() }, ctx({ dejaPasse: true }))).toEqual({ ok: false, motif: "deja-passe" });
     expect(rangeableAutomatiquement({ objet, corbeille: "reponse-auto", suggestion: aucune }, ctx())).toEqual({ ok: false, motif: "corbeille" });
-    expect(rangeableAutomatiquement({ objet, interne: true, suggestion: sure() }, ctx())).toEqual({ ok: false, motif: "interne" });
+    // Un collègue n'est jamais envoyé en Comptabilité par l'objet (hors mesure) : avec un code, au binôme (R5).
+    expect(rangeableAutomatiquement({ objet, interne: true, suggestion: aucune }, ctx())).toEqual({ ok: false, motif: "interne" });
+    expect(rangeableAutomatiquement({ objet, interne: true, suggestion: sure() }, ctx())).toEqual({ ok: true, reference: "S0297" });
     expect(rangeableAutomatiquement({ objet: `Non remis : ${objet}`, nonRemis: true, suggestion: sure() }, ctx())).toEqual({ ok: true, reference: "S0297" });
   });
   it("un objet ordinaire suit les règles d'avant", () => {
@@ -146,5 +148,16 @@ describe("variantesEcriture : garde-fous (rejeu du 03/11/2026)", () => {
   });
   it("une piste déjà trouvée n'est pas réécrite", () => {
     expect(suggererCopro({ deAdresse: "x@exemple.fr", objet: "SDC 21 REPUBLIQUE FACTURE", apercu: "" }, ref).candidats).toEqual(["S0246"]);
+  });
+});
+
+describe("rangeableAutomatiquement : mail d'un collègue (R5)", () => {
+  it("piste sûre sur une copro : rangé ; sinon refusé « interne »", () => {
+    expect(rangeableAutomatiquement({ interne: true, suggestion: sure() }, ctx())).toEqual({ ok: true, reference: "S0297" });
+    const faible: Suggestion = { nature: "faible", candidats: ["S0297"], raison: "", origine: "code-corps" };
+    expect(rangeableAutomatiquement({ interne: true, suggestion: faible }, ctx())).toEqual({ ok: false, motif: "interne" });
+    const conv: Suggestion = { nature: "sure", candidats: ["S0297"], raison: "", origine: "conversation" };
+    expect(rangeableAutomatiquement({ interne: true, suggestion: conv }, ctx())).toEqual({ ok: false, motif: "interne" });
+    expect(rangeableAutomatiquement({ interne: true, suggestion: { nature: "plusieurs", candidats: ["S0297", "S0305"], raison: "" } }, ctx())).toEqual({ ok: false, motif: "interne" });
   });
 });

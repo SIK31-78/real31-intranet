@@ -1725,12 +1725,15 @@ export function rangeableAutomatiquement(
 ): DecisionAutomatique {
   if (!ctx.automatique) return { ok: false, motif: "automatique-coupe" };
   if (mail.corbeille) return { ok: false, motif: "corbeille" };
-  if (mail.interne) return { ok: false, motif: "interne" };
   const s = mail.suggestion;
+  // Mail d'un collègue (boîte en copie) : rangé seul seulement quand il désigne UNE copro de
+  // façon sûre, son code dans l'objet ou « Immeuble concerné » (étude du tri v2, 03/11/2026 :
+  // 5 justes sur 6, le dernier étant un doublon jeté). Sinon, à l'humain.
+  if (mail.interne && !(s.nature === "sure" && s.candidats.length === 1 && s.origine !== "conversation")) return { ok: false, motif: "interne" };
   // Relevé de compteur, virement reçu, règlement de charges (03/11/2026) : en Comptabilité,
   // étiqueté de sa copro quand la piste en désigne une seule et rangeable. Pas un avis de
   // non-remise : il part au binôme, qui rappelle le copropriétaire.
-  if (mail.objet && !mail.nonRemis && objetPourLaComptabilite(mail.objet)) {
+  if (mail.objet && !mail.nonRemis && !mail.interne && objetPourLaComptabilite(mail.objet)) {
     if (ctx.dejaPasse) return { ok: false, motif: "deja-passe" };
     const copro = s.candidats.length === 1 && (pisteRangeable(s) || s.identifiant) ? s.candidats : [];
     return { ok: true, comptabilite: { copros: copro } };

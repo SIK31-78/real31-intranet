@@ -990,7 +990,9 @@ describe("rangeableAutomatiquement (tri automatique, piste sûre)", () => {
     expect(rangeableAutomatiquement({ corbeille: "reponse-auto", suggestion: suggestionCorbeille("reponse-auto") }, ctx())).toEqual({ ok: false, motif: "corbeille" });
     // Même avec une piste sûre par ailleurs : la corbeille prime.
     expect(rangeableAutomatiquement({ corbeille: "reponse-auto", suggestion: sure() }, ctx())).toEqual({ ok: false, motif: "corbeille" });
-    expect(rangeableAutomatiquement({ interne: true, suggestion: sure() }, ctx())).toEqual({ ok: false, motif: "interne" });
+    // Un collègue : refusé sauf piste sûre sur une copro (03/11/2026, R5).
+    expect(rangeableAutomatiquement({ interne: true, suggestion: { nature: "faible", candidats: ["S0297"], raison: "" } }, ctx())).toEqual({ ok: false, motif: "interne" });
+    expect(rangeableAutomatiquement({ interne: true, suggestion: sure() }, ctx())).toEqual({ ok: true, reference: "S0297" });
   });
 
   it("refuse tout ce qui n'est pas une piste sûre sur une seule copro", () => {
