@@ -14,6 +14,7 @@
 
 import {
   AUCUN_BINOME,
+  adressesRecommandeAr24,
   avecMemeConversation,
   avecMentionNonRemis,
   departagerParGestionnaire,
@@ -21,12 +22,14 @@ import {
   dossiersChoisissables,
   estAvisNonRemis,
   estMailInterne,
+  estRecommandeAr24NonDelivre,
   expediteursPublicite,
   lignesBinomes,
   motifCorbeille,
   publiciteProbable,
   type DossierChoisissable,
   suggererCopro,
+  suggererCoproAr24,
   suggererCoproNonRemis,
   proposerAutreAgence,
   suggestionCorbeille,
@@ -154,6 +157,11 @@ export function mailDeLaFile(
   // Le corps entier sert a « Immeuble concerné », souvent loin dans l'historique cite.
   const analyse = { ...base, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte };
   if (corbeille) return { ...base, suggestion: suggestionCorbeille(corbeille) };
+  // Recommande AR24 non delivre (03/11/2026) : la copro du destinataire, par son adresse
+  // e-mail seule (corps et nom du PDF), au binome comme un avis de non-remise.
+  if (estRecommandeAr24NonDelivre({ deAdresse: m.from, objet: m.subject })) {
+    return { ...base, suggestion: suggererCoproAr24(adressesRecommandeAr24(texte, m.attachments.map((p) => p.name)), ref) };
+  }
   const suggestion = avecMemeConversation(
     // Plusieurs candidates : celles du gestionnaire que l'echange designe d'abord (28/10/2026).
     departagerParGestionnaire(
@@ -190,7 +198,12 @@ export function mailDeLaFile(
 export function avecPropositionAutreAgence(mail: MailDeLaFile, m: RawMail, autres: ReferentielTri | null): MailDeLaFile {
   if (!autres) return mail;
   const texte = m.bodyText.replace(/\r\n/g, "\n").trim();
-  const suggestion = proposerAutreAgence(mail.suggestion, { ...mail, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, autres);
+  // Recommande AR24 non delivre : l'adresse du destinataire, cherchee dans les autres agences
+  // (une proposition : un avis de non-remise n'est jamais bascule seul, basculeAutomatique).
+  const ar24 = estRecommandeAr24NonDelivre({ deAdresse: m.from, objet: m.subject })
+    ? (r: ReferentielTri) => suggererCoproAr24(adressesRecommandeAr24(texte, m.attachments.map((p) => p.name)), r)
+    : undefined;
+  const suggestion = proposerAutreAgence(mail.suggestion, { ...mail, apercu: texte.slice(0, TEXTE_ANALYSE), corps: texte }, autres, ar24);
   return suggestion === mail.suggestion ? mail : { ...mail, suggestion };
 }
 

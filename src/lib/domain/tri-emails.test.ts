@@ -7,6 +7,10 @@ import {
   suggererCoproNonRemis,
   avecMentionNonRemis,
   RAISON_NON_REMIS,
+  RAISON_AR24,
+  estRecommandeAr24NonDelivre,
+  adressesRecommandeAr24,
+  suggererCoproAr24,
   avecMemeConversation,
   rangeableAutomatiquement,
   rangeableParPiecesJointes,
@@ -991,6 +995,40 @@ describe("avis de non-remise : la copro du mail d'origine (décision du 03/11/20
     expect(s.raison.startsWith(RAISON_NON_REMIS)).toBe(true);
     const ctx = { automatique: true, dejaPasse: false, copros: [copro("S0297")], initialesParEmail: { "g@real31.fr": "GG" } };
     expect(rangeableAutomatiquement({ suggestion: s }, ctx)).toEqual({ ok: false, motif: "pas-sure" });
+  });
+
+  it("recommandé AR24 non délivré : reconnu par l'objet et le domaine, pas la facture ni l'alerte de connexion", () => {
+    const objet = "Votre courrier recommandé n'a pas été délivré";
+    expect(estRecommandeAr24NonDelivre({ deAdresse: "notification@ar24.fr", objet })).toBe(true);
+    expect(estAvisNonRemis({ deAdresse: "notification@ar24.fr", objet })).toBe(true);
+    expect(motifCorbeille({ deAdresse: "notification@ar24.fr", objet }, new Set(["notification@ar24.fr"]))).toBeNull();
+    expect(estRecommandeAr24NonDelivre({ deAdresse: "notification@ar24.fr", objet: "Votre facture AR24" })).toBe(false);
+    expect(estRecommandeAr24NonDelivre({ deAdresse: "notification@ar24.fr", objet: "Une tentative de connexion a été détectée sur votre compte AR24" })).toBe(false);
+    expect(estRecommandeAr24NonDelivre({ deAdresse: "quelquun@exemple.fr", objet })).toBe(false);
+  });
+
+  it("recommandé AR24 : l'adresse du destinataire, dans le corps et le nom du PDF, sans celles d'AR24 ni du cabinet", () => {
+    const corps = "Ceci est un e-mail automatique vous prévenant que l'adresse suivante a renvoyé une erreur à notre serveur :\n\nProprio@Exemple.fr\n\nContact<https://app.ar24.fr/contact> syndic2@real31.fr";
+    expect(adressesRecommandeAr24(corps, ["Preuve de non distribution proprio@exemple.fr 2026-10-29 17_55_04.pdf"])).toEqual(["proprio@exemple.fr"]);
+    expect(adressesRecommandeAr24("", ["Preuve de non distribution autre@exemple.fr 2026-01-20 14_29_05.pdf", "facture.pdf"])).toEqual(["autre@exemple.fr"]);
+    expect(adressesRecommandeAr24("Bonjour", [])).toEqual([]);
+  });
+
+  it("recommandé AR24 : la copro par l'adresse du destinataire, client seulement ; sinon aucune, toujours avec la mention", () => {
+    expect(suggererCoproAr24(["proprio@exemple.fr"], REF)).toMatchObject({ nature: "sure", candidats: ["S0297"] });
+    expect(suggererCoproAr24(["president@exemple.fr"], REF)).toMatchObject({ nature: "sure", candidats: ["S0305"] });
+    // Un fournisseur n'est pas le destinataire d'un recommandé ; une adresse inconnue non plus.
+    expect(suggererCoproAr24(["devis@plombier.fr"], REF)).toMatchObject({ nature: "aucune", candidats: [] });
+    expect(suggererCoproAr24(["personne@exemple.fr"], REF)).toMatchObject({ nature: "aucune", candidats: [] });
+    // Deux copros : à choisir.
+    expect(suggererCoproAr24(["proprio@exemple.fr", "president@exemple.fr"], REF)).toMatchObject({ nature: "plusieurs", candidats: ["S0297", "S0305"] });
+    for (const a of [["proprio@exemple.fr"], [], ["personne@exemple.fr"]]) expect(suggererCoproAr24(a, REF).raison.startsWith(RAISON_AR24)).toBe(true);
+    const ctx = { automatique: true, dejaPasse: false, copros: [copro("S0297")], initialesParEmail: { "g@real31.fr": "GG" } };
+    expect(rangeableAutomatiquement({ nonRemis: true, suggestion: suggererCoproAr24(["proprio@exemple.fr"], REF) }, ctx)).toEqual({ ok: true, reference: "S0297" });
+    // La preuve PDF d'AR24 n'est jamais lue pour trouver la copro.
+    const refus = { ok: false as const, motif: "pas-sure" as const };
+    const avis = { deAdresse: "notification@ar24.fr", objet: "Votre courrier recommandé n'a pas été délivré", aPiecesJointes: true, suggestion: suggererCoproAr24([], REF) };
+    expect(aLirePiecesJointes(avis, refus, false)).toBe(false);
   });
 
   it("l'adresse technique d'Exchange du cabinet n'est pas un mail interne", () => {

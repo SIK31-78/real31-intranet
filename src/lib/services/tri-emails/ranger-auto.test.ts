@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { AUCUN_BINOME, RAISON_NON_REMIS, type CoproTri, type EntreeJournalTri, type ReferentielTri } from "@/lib/domain/tri-emails";
+import { AUCUN_BINOME, RAISON_AR24, RAISON_NON_REMIS, type CoproTri, type EntreeJournalTri, type ReferentielTri } from "@/lib/domain/tri-emails";
 import type { RawMail } from "@/lib/domain/tri-mail/raw-mail";
 import type { PositionMail, RangementTriProvider } from "@/lib/ports/rangement-tri-provider";
 import type { NouvelleEntreeJournal, OptionsDejaRange, TriRepository } from "@/lib/ports/tri-repository";
 import { annulerRangement, type DepsRangement } from "./ranger";
 import { rangerAutomatiquement } from "./ranger-auto";
-import { mailDeLaFile } from "./lire-file";
+import { avecPropositionAutreAgence, mailDeLaFile } from "./lire-file";
 import type { ReceptionIndex } from "@/lib/ports/reception-index";
 
 // Donnees inventees.
@@ -595,5 +595,59 @@ describe("rangerAutomatiquement : bascule vers l'autre agence, piste vraiment s�
     const { passer } = monter([brut({ subject: "S0178 - facture d'entretien" })]);
     const bilan = await passer({ autres: async () => AUTRES, basculer: async () => { throw new BasculeRefusee("écriture coupée"); } });
     expect(bilan.bascules).toEqual({ faites: 0, refusees: 1, echecs: 0, reportees: 0 });
+  });
+});
+
+describe("rangerAutomatiquement : recommandé AR24 non délivré (03/11/2026)", () => {
+  const OBJET = "Votre courrier recommandé n'a pas été délivré";
+  const avis = (adresse: string, o: Partial<RawMail> = {}) =>
+    brut({
+      from: "notification@ar24.fr",
+      subject: OBJET,
+      bodyText: `Echec de la notification de courrier recommandé\n\nCeci est un e-mail automatique vous prévenant que l'adresse suivante a renvoyé une erreur à notre serveur :\n\n${adresse}\n\nLe serveur a retourné une erreur indiquant que cette adresse n'existe pas.`,
+      attachments: [{ name: `Preuve de non distribution ${adresse} 2026-10-29 17_55_04.pdf`, contentType: "application/pdf" }],
+      ...o,
+    });
+  const AUTRES: ReferentielTri = {
+    copros: [copro("S0178", { agence: "ML" })],
+    expediteurs: { "voisin@exemple.fr": [{ reference: "S0178", qualite: "copropriétaire" }] },
+  };
+
+  it("adresse du destinataire connue d'une copro : rangé au binôme, avec la mention ; ses PDF ne sont pas lus", async () => {
+    const connu = avis("proprio@exemple.fr");
+    const inconnu = avis("personne@exemple.fr");
+    const { passer, repo } = monter([connu, inconnu]);
+    const lirePdf = vi.fn(async () => ["S0305"]);
+    const bilan = await passer({ lirePdf, memoirePj: new Map() });
+    expect(bilan).toMatchObject({ ranges: 1, refus: { "pas-sure": 1 } });
+    expect(lirePdf).not.toHaveBeenCalled();
+    const [e] = await repo.journalDepuis(SYNDIC4);
+    expect(e).toMatchObject({ internetMessageId: connu.internetMessageId, coproReference: "S0297", signal: "sure", par: "automatique" });
+  });
+
+  it("mailDeLaFile : la mention AR24, jamais de corbeille, même expéditeur appris comme publicité", () => {
+    const m = mailDeLaFile(avis("proprio@exemple.fr"), SYNDIC4, REF, null, new Set(["notification@ar24.fr"]));
+    expect(m.corbeille).toBeUndefined();
+    expect(m.nonRemis).toBe(true);
+    expect(m.suggestion).toMatchObject({ nature: "sure", candidats: ["S0297"] });
+    expect(m.suggestion.raison.startsWith(RAISON_AR24)).toBe(true);
+    // Un fournisseur connu à cette adresse n'est pas le destinataire d'un recommandé.
+    const fournisseur = mailDeLaFile(avis("ascenseurs@exemple.fr"), SYNDIC4, REF, null);
+    expect(fournisseur.suggestion).toMatchObject({ nature: "aucune", candidats: [] });
+    expect(fournisseur.suggestion.raison.startsWith(RAISON_AR24)).toBe(true);
+    // La facture AR24 n'est pas concernée.
+    expect(mailDeLaFile(brut({ from: "notification@ar24.fr", subject: "Votre facture AR24" }), SYNDIC4, REF, null).nonRemis).toBeUndefined();
+  });
+
+  it("copro d'une autre agence : proposée à la bascule, jamais basculée seule", async () => {
+    const m = avis("voisin@exemple.fr");
+    const basculer = vi.fn(async () => {});
+    const { passer } = monter([m]);
+    const bilan = await passer({ autres: async () => AUTRES, basculer });
+    expect(bilan.ranges).toBe(0);
+    expect(basculer).not.toHaveBeenCalled();
+    const vu = avecPropositionAutreAgence(mailDeLaFile(m, SYNDIC4, REF, null), m, AUTRES);
+    expect(vu.suggestion.autreAgence).toEqual({ reference: "S0178", agence: "ML" });
+    expect(vu.suggestion.raison.startsWith(RAISON_AR24)).toBe(true);
   });
 });

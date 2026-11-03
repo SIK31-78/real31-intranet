@@ -937,7 +937,71 @@ export function estExpediteurNonRemis(deAdresse: string): boolean {
  * remis : … », « Undeliverable: … » ; pas « RE: Non remis… », une vraie reponse).
  */
 export function estAvisNonRemis(m: { deAdresse: string; objet: string }): boolean {
-  return estExpediteurNonRemis(m.deAdresse) || OBJET_NON_REMIS.test(normaliser(m.objet));
+  return estExpediteurNonRemis(m.deAdresse) || OBJET_NON_REMIS.test(normaliser(m.objet)) || estRecommandeAr24NonDelivre(m);
+}
+
+// Recommande electronique AR24 non delivre (decision Sekou du 03/11/2026) : « Votre courrier
+// recommandé n'a pas été délivré », de notification@ar24.fr. Pas la facture AR24, ni l'alerte
+// de connexion : seulement cet objet, de ce domaine.
+const OBJET_AR24_NON_DELIVRE = /\bcourrier recommande n.a pas ete delivre\b/;
+
+/** Avis AR24 d'un recommande electronique non delivre (objet et domaine ar24.fr). */
+export function estRecommandeAr24NonDelivre(m: { deAdresse: string; objet: string }): boolean {
+  return /@ar24\.fr$/i.test(m.deAdresse.trim()) && OBJET_AR24_NON_DELIVRE.test(normaliser(m.objet));
+}
+
+// L'adresse du destinataire d'un recommande AR24 non delivre : dans le corps (« l'adresse
+// suivante a renvoyé une erreur à notre serveur : <adresse> ») et dans le nom du PDF
+// (« Preuve de non distribution <adresse> 2026-01-20 14_29_05.pdf »).
+const ADRESSE_AR24_CORPS = /adresse suivante[^:\n]*:\s*<?([^\s<>"]+@[^\s<>"]+?)>?(?=\s|$)/gi;
+const ADRESSE_AR24_PDF = /^preuve de non[- ]distribution\s+([^\s]+@[^\s]+)\s/i;
+
+/**
+ * Les adresses e-mail des destinataires d'un recommande AR24 non delivre, en minuscules, sans
+ * doublon : celles du corps puis celles des noms de PDF. Jamais une adresse d'AR24 ni du cabinet.
+ */
+export function adressesRecommandeAr24(corps: string, nomsPiecesJointes: readonly string[]): string[] {
+  const vues: string[] = [];
+  const ajouter = (a: string | undefined) => {
+    const e = (a ?? "").trim().toLowerCase().replace(/[.,;]+$/, "");
+    if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(e) || /@(?:ar24\.fr|real31\.fr)$/.test(e) || vues.includes(e)) return;
+    vues.push(e);
+  };
+  for (const m of nettoyerCorps(corps).matchAll(ADRESSE_AR24_CORPS)) ajouter(m[1]);
+  for (const n of nomsPiecesJointes) ajouter(ADRESSE_AR24_PDF.exec(n.trim())?.[1]);
+  return vues;
+}
+
+/** Qualites d'un client du cabinet : celles qu'un recommande AR24 peut viser. */
+const QUALITES_CLIENT: ReadonlySet<QualiteExpediteur> = new Set(["copropriétaire", "conseil syndical", "locataire", "mandataire"]);
+
+/** Debut de la raison affichee pour un recommande AR24 non delivre (suggererCoproAr24). */
+export const RAISON_AR24 = "Recommandé AR24 non délivré : un copropriétaire a une adresse e-mail fausse, à rappeler.";
+
+/**
+ * La piste d'un recommande AR24 non delivre (decision Sekou du 03/11/2026) : l'adresse du
+ * destinataire (adressesRecommandeAr24) cherchee dans l'index des expediteurs, qualites de
+ * client seulement (coproprietaire, conseil syndical, locataire, mandataire ; jamais un
+ * fournisseur ni un notaire). Rien d'autre : le reste du corps est le gabarit d'AR24, et la
+ * partie locale d'une adresse (« prenom.nom@ ») designait a tort un nom d'immeuble (rejeu du
+ * 03/11/2026). Une copro : piste « sure », rangee au binome comme un autre mail ; plusieurs ou
+ * aucune : file manuelle. La raison commence toujours par RAISON_AR24.
+ */
+export function suggererCoproAr24(adresses: readonly string[], ref: ReferentielTri): Suggestion {
+  const liens = adresses.flatMap((a) => (ref.expediteurs[a] ?? []).filter((l) => QUALITES_CLIENT.has(l.qualite)));
+  const mention = (s: Suggestion): Suggestion => ({ ...s, raison: `${RAISON_AR24} ${s.raison}` });
+  if (liens.length === 0) {
+    return mention({
+      nature: "aucune",
+      candidats: [],
+      raison: adresses.length ? "Adresse du destinataire inconnue dans ESTALE et dans Crypto." : "Adresse du destinataire introuvable dans l'avis.",
+    });
+  }
+  // Le moteur ordinaire sur la seule adresse du destinataire : memes regles qu'un expediteur
+  // connu (copro inactive effacee devant une active, plafonnee a « faible », jumelles).
+  const cle = adresses[0]!;
+  const s = suggererCopro({ deAdresse: cle, objet: "", apercu: "" }, { ...ref, expediteurs: { [cle]: liens } });
+  return mention({ ...s, raison: s.raison.replace(/^Adresse connue/, "Adresse du destinataire connue") });
 }
 
 /**
@@ -1910,10 +1974,13 @@ function coproRangeable(reference: string, ctx: ContexteAutomatique, o: { inacti
  * pieces jointes, et qui ne cite pas un code hors perimetre (il parle d'une autre agence).
  */
 export function aLirePiecesJointes(
-  mail: Pick<MailATrier, "aPiecesJointes"> & { suggestion: Suggestion },
+  mail: Pick<MailATrier, "aPiecesJointes"> & Partial<Pick<MailATrier, "deAdresse" | "objet">> & { suggestion: Suggestion },
   decision: DecisionAutomatique,
   dejaPasse: boolean,
 ): boolean {
+  // Recommande AR24 non delivre (03/11/2026) : son PDF est la preuve d'AR24, qui porte l'en-tete
+  // du cabinet et le nom du destinataire, pas l'immeuble. Il n'est pas lu.
+  if (mail.deAdresse && mail.objet && estRecommandeAr24NonDelivre({ deAdresse: mail.deAdresse, objet: mail.objet })) return false;
   return !decision.ok && decision.motif === "pas-sure" && mail.aPiecesJointes && !dejaPasse && mail.suggestion.nature !== "hors-estale";
 }
 
@@ -2040,10 +2107,12 @@ export function proposerAutreAgence(
   s: Suggestion,
   mail: Pick<MailATrier, "deAdresse" | "objet" | "apercu"> & { corps?: string; corbeille?: MotifCorbeille; interne?: boolean },
   autres: ReferentielTri,
+  /** La piste cherchee dans les autres agences ; le moteur ordinaire par defaut (AR24 : suggererCoproAr24). */
+  piste: (r: ReferentielTri) => Suggestion = (r) => suggererCopro(mail, r),
 ): Suggestion {
   // « hors-estale » : un code cité qui n'est pas de la boîte, le cas le plus net d'une autre agence.
   if ((s.nature !== "aucune" && s.nature !== "hors-estale") || s.candidats.length > 0 || mail.corbeille || mail.interne || autres.copros.length === 0) return s;
-  const ailleurs = suggererCopro(mail, autres);
+  const ailleurs = piste(autres);
   if (ailleurs.candidats.length !== 1 || !(ailleurs.nature === "sure" || pisteRangeable(ailleurs))) return s;
   const reference = ailleurs.candidats[0]!;
   const copro = autres.copros.find((c) => c.reference === reference);
