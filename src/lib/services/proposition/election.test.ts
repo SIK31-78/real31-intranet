@@ -42,6 +42,9 @@ vi.mock("@/lib/adapters/router", () => ({
     async creerCopro(c: { code: string }) {
       etat.copros.push(c);
     },
+    async comptableHabituelleDeLAgence(agenceId: string) {
+      return agenceId === "ag-lgc" ? { id: "u-elsa", email: "elsa.peixoto@real31.fr" } : null;
+    },
   }),
   getFacturationRepository: (): Partiel<FacturationRepository> => ({
     async listerBareme() {
@@ -110,6 +113,12 @@ describe("elireProposition", () => {
     expect(finale.statut).toBe("elu");
     expect(finale.coproCode).toBe("S307");
     expect(finale.journal.map((j) => j.texte.split(" ")[0])).toEqual(["Copropriété", "Contrat", "Client", "Dossier"]);
+  });
+
+  it("agence connue : la comptable habituelle recoit les factures et figure sur la fiche", async () => {
+    await elireProposition("p1", { ...choix, agenceId: "ag-lgc" }, { nom: "Galiano", email: "g@real31.fr" });
+    expect(etat.clients[0]).toMatchObject({ emails: ["elsa.peixoto@real31.fr"] });
+    expect(etat.copros[1]).toMatchObject({ code: "S307", accountantId: "u-elsa" });
   });
 
   it("refuse un code deja pris, sans rien creer", async () => {

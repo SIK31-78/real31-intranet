@@ -21,6 +21,7 @@ import type {
   ResultatEmission,
 } from "@/lib/ports/invoicing-provider";
 import { factureValideeActive } from "@/lib/domain/facturation/mode-emission";
+import { identiteClientPennylane } from "@/lib/domain/facturation/client-pennylane";
 import { construirePayloadFacture } from "./payload";
 
 const BASE_URL = "https://app.pennylane.com/api/external/v2";
@@ -51,21 +52,27 @@ export class PennylaneInvoicingProvider implements InvoicingProvider {
    * `id` interne. Passer l'UUID directement en `customer_id` ne marche pas.
    */
   /**
-   * Cree le client (syndicat) : POST /customers, meme forme que les clients saisis a la
-   * main dans Pennylane (S302 sert de modele : company, 30 jours, fr_FR, l'e-mail du
-   * gestionnaire). La reference externe est l'UUID que la fiche App A garde.
+   * Cree le client (syndicat) a la forme des clients saisis a la main dans Pennylane (S300,
+   * S302 a S306, relus le 03/11/2026) : PARTICULIER, prenom « SDC », nom « 4 RUE GAULTIER -
+   * S305 », 30 jours, fr_FR, l'e-mail de la comptable de l'agence. La reference externe est
+   * l'UUID que la fiche App A garde.
+   *
+   * POST /individual_customers, et non /customers : la v2 n'expose la creation que par type
+   * (corps strict, `additionalProperties: false` : ni `customer_type` ni `name`). L'ancien
+   * appel POST /customers + customer_type company n'avait jamais servi et aurait echoue.
    */
   async creerClient(client: NouveauClient): Promise<{ clientExterneId: string }> {
+    const identite = identiteClientPennylane(client.nom);
     const corps = {
-      customer_type: "company",
-      name: client.nom,
+      first_name: identite.prenom,
+      last_name: identite.nom,
       external_reference: client.referenceExterne,
       payment_conditions: "30_days",
       billing_language: "fr_FR",
       emails: client.emails,
       billing_address: { address: client.adresse, postal_code: client.codePostal, city: client.ville, country_alpha2: "FR" },
     };
-    const reponse = await fetch(`${BASE_URL}/customers`, { method: "POST", headers: this.entetes(), body: JSON.stringify(corps) });
+    const reponse = await fetch(`${BASE_URL}/individual_customers`, { method: "POST", headers: this.entetes(), body: JSON.stringify(corps) });
     if (!reponse.ok) {
       const detail = await reponse.text().catch(() => "");
       throw new Error(`Création du client Pennylane : HTTP ${reponse.status}${detail ? ` - ${detail.slice(0, 300)}` : ""}`);

@@ -142,6 +142,10 @@ export class MockCoproRepository implements CoproRepository {
     }
   }
 
+  async comptableHabituelleDeLAgence(): Promise<{ id: string; email: string } | null> {
+    return null;
+  }
+
   async creerCopro(c: NouvelleCopro): Promise<void> {
     if (COPROS[c.code]) throw new Error(`Création de ${c.code} : ce code existe déjà.`);
     COPROS[c.code] = {

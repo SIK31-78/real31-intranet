@@ -73,6 +73,12 @@ export async function elireProposition(id: string, choix: ChoixElection, par: { 
 
   const copro = coproDepuisElection(p, choix, INCLUS_OFFRE);
   if (choix.creerClientPennylane) copro.pennylaneId = crypto.randomUUID();
+  // La comptable habituelle de l'agence : posee sur la fiche, et destinataire des factures
+  // Pennylane (forme des clients existants). Introuvable : on retombe sur qui clique.
+  const comptable = choix.agenceId
+    ? await getCoproRepository().comptableHabituelleDeLAgence(choix.agenceId).catch(() => null)
+    : null;
+  if (comptable) copro.accountantId = comptable.id;
   const etapes: string[] = [];
   const quand = () => new Date().toISOString();
   const journal = [...p.journal];
@@ -121,7 +127,7 @@ export async function elireProposition(id: string, choix: ChoixElection, par: { 
         codePostal: copro.codePostal,
         ville: copro.ville,
         referenceExterne: copro.pennylaneId,
-        emails: par.email ? [par.email] : [],
+        emails: comptable ? [comptable.email] : par.email ? [par.email] : [],
       });
       tracer(`Client Pennylane créé (« ${copro.nomSdc} », id ${r.clientExterneId}).`);
       await sauver(copro.code);

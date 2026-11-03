@@ -107,6 +107,6 @@ export interface NouveauClient {
   ville: string;
   /** UUID pose par l'intranet, retrouve ensuite par `external_reference`. */
   referenceExterne: string;
-  /** Adresse(s) qui recoivent les factures : le gestionnaire, comme sur les clients existants. */
+  /** Adresse(s) qui recoivent les factures : la comptable de l'agence, comme sur les clients existants. */
   emails: string[];
 }

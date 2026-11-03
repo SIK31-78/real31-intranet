@@ -343,6 +343,7 @@ export class SupabaseCoproRepository implements CoproRepository {
       status: "ACTIVE",
       agencyId: c.agenceId ?? null,
       managerId: c.managerId ?? null,
+      accountantId: c.accountantId ?? null,
       mainLotsCount: c.lotsPrincipaux,
       otherLotsCount: c.lotsAutres,
       syndicInitialDate: c.priseEnGestionISO,
@@ -366,6 +367,25 @@ export class SupabaseCoproRepository implements CoproRepository {
     // 23505 = unicite violee entre la verification et l'insertion (deux elections en meme temps).
     if (error?.code === "23505") throw new Error(`Création de ${c.code} : ce code vient d'être pris dans le référentiel.`);
     if (error) throw new Error(`Création de ${c.code} : ${error.message}`);
+  }
+
+  async comptableHabituelleDeLAgence(agenceId: string): Promise<{ id: string; email: string } | null> {
+    const supabase = createSupabasePublicClient();
+    const { data, error } = await supabase
+      .from("Copropriete")
+      .select("accountantId")
+      .eq("agencyId", agenceId)
+      .eq("status", "ACTIVE")
+      .not("accountantId", "is", null);
+    if (error) throw new Error(`Comptable de l'agence : ${error.message}`);
+    const compte = new Map<string, number>();
+    for (const r of (data as { accountantId: string }[] | null) ?? []) compte.set(r.accountantId, (compte.get(r.accountantId) ?? 0) + 1);
+    const id = [...compte.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (!id) return null;
+    const { data: u, error: e2 } = await supabase.from("User").select("id, email").eq("id", id).maybeSingle();
+    if (e2) throw new Error(`Comptable de l'agence : ${e2.message}`);
+    const email = (u as { email?: string | null } | null)?.email?.trim().toLowerCase();
+    return email ? { id, email } : null;
   }
 
   async perdreCopro(input: CoproPerdueInput): Promise<void> {

@@ -55,6 +55,9 @@ class FakeMiroir implements CoproRepository {
   async perdreCopro() {}
   async setFormeJuridique() {}
   async creerCopro() {}
+  async comptableHabituelleDeLAgence() {
+    return null;
+  }
 }
 
 class FakeEstale implements CoproEstaleProvider {

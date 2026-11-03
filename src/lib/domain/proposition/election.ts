@@ -68,6 +68,8 @@ export interface NouvelleCopro {
   lotsAutres: number;
   agenceId?: string;
   managerId?: string;
+  /** Comptable de la copro (public."User".id) : la comptable habituelle de l'agence. */
+  accountantId?: string;
   priseEnGestionISO: string;
   finMandatISO: string;
   /** Prochaine AG connue (celle qui a elu, si elle est a venir). */

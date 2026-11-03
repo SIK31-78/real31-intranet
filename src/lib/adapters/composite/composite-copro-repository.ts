@@ -142,6 +142,10 @@ export class CompositeCoproRepository implements CoproRepository {
     return this.miroir.creerCopro(input);
   }
 
+  comptableHabituelleDeLAgence(agenceId: string): Promise<{ id: string; email: string } | null> {
+    return this.miroir.comptableHabituelleDeLAgence(agenceId);
+  }
+
   // --- Interne -----------------------------------------------------------------
 
   /** Complete les copros eStale (sans date) : dates intranet PRIORITAIRES, repli miroir. */

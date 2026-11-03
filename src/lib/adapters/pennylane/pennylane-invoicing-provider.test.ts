@@ -99,3 +99,38 @@ describe("PennylaneInvoicingProvider.emettreFacture", () => {
     expect(appels).toHaveLength(1);
   });
 });
+
+describe("creerClient", () => {
+  it("cree un PARTICULIER par POST /individual_customers, a la forme des clients existants (S305)", async () => {
+    reponses = [{ ok: true, status: 201, json: { id: 1306659053568 } }];
+    const r = await new PennylaneInvoicingProvider("cle").creerClient({
+      nom: "SDC 18, rue de Sébastopol - S311",
+      adresse: "18 rue de Sébastopol",
+      codePostal: "92400",
+      ville: "Courbevoie",
+      referenceExterne: "uuid-s311",
+      emails: ["elsa.peixoto@real31.fr"],
+    });
+    expect(r).toEqual({ clientExterneId: "1306659053568" });
+    expect(appels).toHaveLength(1);
+    expect(appels[0]!.url).toBe("https://app.pennylane.com/api/external/v2/individual_customers");
+    expect(appels[0]!.method).toBe("POST");
+    // Corps strict cote Pennylane (additionalProperties: false) : ni customer_type ni name.
+    expect(appels[0]!.body).toEqual({
+      first_name: "SDC",
+      last_name: "18 RUE DE SEBASTOPOL - S311",
+      external_reference: "uuid-s311",
+      payment_conditions: "30_days",
+      billing_language: "fr_FR",
+      emails: ["elsa.peixoto@real31.fr"],
+      billing_address: { address: "18 rue de Sébastopol", postal_code: "92400", city: "Courbevoie", country_alpha2: "FR" },
+    });
+  });
+
+  it("un refus de Pennylane remonte avec son statut et son detail", async () => {
+    reponses = [{ ok: false, status: 422, text: "external_reference already taken" }];
+    await expect(
+      new PennylaneInvoicingProvider("cle").creerClient({ nom: "SDC X - S999", adresse: "a", codePostal: "1", ville: "v", referenceExterne: "u", emails: [] }),
+    ).rejects.toThrow(/HTTP 422 - external_reference already taken/);
+  });
+});

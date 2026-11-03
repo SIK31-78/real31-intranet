@@ -50,6 +50,9 @@ export interface CoproRepository {
    * entre en gestion (ADR-039, brique 3). Leve si le code existe deja.
    */
   creerCopro(input: NouvelleCopro): Promise<void>;
+  /** La comptable qui tient le plus de copros ACTIVES de l'agence (id public."User" et e-mail),
+   *  null si aucune : c'est elle qui recoit les factures Pennylane d'une copro nouvelle. */
+  comptableHabituelleDeLAgence(agenceId: string): Promise<{ id: string; email: string } | null>;
 }
 
 export interface CoproPerdueInput {
