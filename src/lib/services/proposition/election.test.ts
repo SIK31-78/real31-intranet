@@ -17,6 +17,8 @@ const etat = {
   proposition: null as Proposition | null,
   sauvegardes: [] as Proposition[],
   copros: [] as { code: string }[],
+  /** Copros vues dans ESTALE sans fiche App A (une reprise faite avant l'election). */
+  coprosEstaleSeules: [] as { code: string }[],
   contrats: [] as unknown[],
   clients: [] as unknown[],
   dossiers: [] as unknown[],
@@ -37,7 +39,11 @@ vi.mock("@/lib/adapters/router", () => ({
   getCoproRepository: (): Partiel<CoproRepository> => ({
     async listerToutes() {
       if (etat.panneReferentiel) throw new Error("PostgREST timeout");
-      return etat.copros;
+      return [...etat.copros, ...etat.coprosEstaleSeules];
+    },
+    async listerReferences() {
+      if (etat.panneReferentiel) throw new Error("PostgREST timeout");
+      return etat.copros.map((c) => c.code);
     },
     async creerCopro(c: { code: string }) {
       etat.copros.push(c);
@@ -93,6 +99,7 @@ beforeEach(() => {
   etat.proposition = { ...base, journal: [] };
   etat.sauvegardes = [];
   etat.copros = [{ code: "S302" }];
+  etat.coprosEstaleSeules = [];
   etat.contrats = [];
   etat.clients = [];
   etat.dossiers = [];
@@ -119,6 +126,13 @@ describe("elireProposition", () => {
     await elireProposition("p1", { ...choix, agenceId: "ag-lgc" }, { nom: "Galiano", email: "g@real31.fr" });
     expect(etat.clients[0]).toMatchObject({ emails: ["elsa.peixoto@real31.fr"] });
     expect(etat.copros[1]).toMatchObject({ code: "S307", accountantId: "u-elsa" });
+  });
+
+  it("copro reprise deja dans ESTALE mais sans fiche App A : l'election la cree (REA-491)", async () => {
+    etat.coprosEstaleSeules = [{ code: "S307" }];
+    const r = await elireProposition("p1", choix, { nom: "G" });
+    expect(r.coproCode).toBe("S307");
+    expect(etat.copros.map((c) => c.code)).toEqual(["S302", "S307"]);
   });
 
   it("refuse un code deja pris, sans rien creer", async () => {

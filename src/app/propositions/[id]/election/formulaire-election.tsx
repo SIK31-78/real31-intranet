@@ -120,7 +120,7 @@ export function FormulaireElection({
         </div>
 
         <div className="flex flex-col gap-2">
-          <Choix type="checkbox" label={pennylaneDisponible ? "Créer le client Pennylane (SDC … - code), factures adressées au gestionnaire" : "Créer le client Pennylane — clé API absente ici, rien ne partira"} checked={pennylane} onChange={(e) => setPennylane(e.target.checked)} disabled={!pennylaneDisponible} />
+          <Choix type="checkbox" label={pennylaneDisponible ? "Créer le client Pennylane (SDC … - code), factures adressées à la comptable de l'agence" : "Créer le client Pennylane — clé API absente ici, rien ne partira"} checked={pennylane} onChange={(e) => setPennylane(e.target.checked)} disabled={!pennylaneDisponible} />
           <Choix type="checkbox" label="Ouvrir le dossier de reprise (checklist d'équipe, datée de la prise en gestion)" checked={reprise} onChange={(e) => setReprise(e.target.checked)} />
         </div>
 

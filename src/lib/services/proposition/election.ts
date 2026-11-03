@@ -14,6 +14,20 @@ import type { Proposition } from "@/lib/domain/proposition/proposition";
  * Le referentiel sert a controler l'unicite du code : s'il est illisible, on refuse
  * plutot que de proposer S001 et de creer un doublon dans App A (audit 16/09/2026).
  */
+/**
+ * Les codes deja pris DANS LE REFERENTIEL App A (public."Copropriete", tous statuts) : la seule
+ * table ou l'election ecrit. Pas la liste fusionnee avec ESTALE : une copro reprise y existe
+ * toujours AVANT l'election (S0311 -> « S311 existe deja », REA-491), et c'est justement elle
+ * qu'on rattache. creerCopro revérifie l'unicite au moment d'ecrire.
+ */
+async function codesDuReferentielOuRefuser(): Promise<string[]> {
+  try {
+    return await getCoproRepository().listerReferences();
+  } catch (e) {
+    throw new Error(`Référentiel des copropriétés indisponible, élection impossible : ${(e as Error).message}`);
+  }
+}
+
 async function listerCoprosOuRefuser() {
   try {
     return await getCoproRepository().listerToutes();
@@ -67,8 +81,7 @@ export async function elireProposition(id: string, choix: ChoixElection, par: { 
   const p = await repoProp.get(id);
   if (!p) throw new Error("Proposition introuvable.");
   if (p.coproCode) throw new Error(`Cette proposition a déjà donné la copropriété ${p.coproCode}.`);
-  const copros = await listerCoprosOuRefuser();
-  const obstacles = obstaclesElection(p, choix, copros.map((c) => c.code));
+  const obstacles = obstaclesElection(p, choix, await codesDuReferentielOuRefuser());
   if (obstacles.length > 0) throw new Error(`Impossible de créer la copropriété : ${obstacles.join(" ; ")}.`);
 
   const copro = coproDepuisElection(p, choix, INCLUS_OFFRE);
