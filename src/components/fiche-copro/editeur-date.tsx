@@ -316,6 +316,7 @@ export function EditeurDate({
     };
   }, [edition, avecHeure, coproCode, typeApi]);
 
+  const nbCollabExistants = collaborateurs?.length ?? 0;
   useEffect(() => {
     if (!edition || !avecHeure) return;
     let annule = false;
@@ -324,6 +325,14 @@ export function EditeurDate({
         if (annule) return;
         setCollabList(r.collaborateurs);
         setAgenceCopro(r.agenceCopro);
+        // REA-106 : on planifie une NOUVELLE AG (pas de date, ou la precedente est passee)
+        // sans collegue associe -> l'assistante de la copro est pre-cochee, pour que la
+        // reunion arrive dans son agenda. Decochable ; une AG deja planifiee garde ses choix.
+        const nouvelleAg = type === "ag" && (!dateISO || dateISO < new Date().toISOString().slice(0, 10));
+        const assistante = r.assistanteEmail;
+        if (assistante && nouvelleAg && nbCollabExistants === 0) {
+          setCollaborateursVal((v) => (v.includes(assistante) ? v : [...v, assistante]));
+        }
       })
       .catch(() => {
         if (!annule) {
@@ -334,7 +343,7 @@ export function EditeurDate({
     return () => {
       annule = true;
     };
-  }, [edition, avecHeure, coproCode]);
+  }, [edition, avecHeure, coproCode, type, dateISO, nbCollabExistants]);
 
   // Dispo d'un collegue pour le creneau courant (undefined = pas encore de reponse).
   const dispoCollabValeur = (email: string) => dispoCollab[`${email}|${cleAgenda}`];

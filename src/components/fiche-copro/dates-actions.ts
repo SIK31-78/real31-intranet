@@ -11,6 +11,7 @@ import { reporterSupervisionSansDate } from "@/lib/services/supervision-ag/repor
 import { reporterOdjSansDate } from "@/lib/services/odj/saisir-champ-odj";
 import { annoncerDateCsAuxComptables } from "@/lib/services/coproprietes/annoncer-date-cs";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
+import { assistanteDeCopro } from "@/lib/services/coproprietes/assistante-de-copro";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { getGestionnaireRepository, getCoproRepository } from "@/lib/adapters/router";
 import { ressourceParEmail } from "@/lib/domain/salles-reunion";
@@ -402,16 +403,20 @@ export type CollaborateurAssociable = { email: string; nom: string; agencyId?: s
 // la liste fermee) reste inchangee et seule garante de ce qui peut etre invite.
 export async function listerCollaborateursAction(
   coproCode?: string,
-): Promise<{ agenceCopro: string | null; collaborateurs: CollaborateurAssociable[] }> {
+): Promise<{ agenceCopro: string | null; collaborateurs: CollaborateurAssociable[]; assistanteEmail?: string }> {
   const g = await getGestionnaireCourant();
   if (!g) return { agenceCopro: null, collaborateurs: [] };
   // Agence de la copro : lue cote serveur (jamais du client). Sans cloisonnement de scope
   // ici (lecture d'un seul attribut d'affichage) ; le code trim/borne suffit.
   let agenceCopro: string | null = null;
+  // Assistante de la copro (REA-106) : pre-cochee comme invitee quand on planifie une AG,
+  // pour que la reunion arrive dans son agenda. Decochable ; absente si non resolue.
+  let assistanteEmail: string | undefined;
   const parse = coproCode ? zCode.safeParse(coproCode) : null;
   if (parse?.success) {
     const copro = await getCoproRepository().findByCode(parse.data);
     agenceCopro = copro?.agenceId ?? null;
+    if (copro) assistanteEmail = (await assistanteDeCopro(copro))?.email;
   }
   const tous = await getGestionnaireRepository().list();
   const collaborateurs = tous
@@ -421,5 +426,10 @@ export async function listerCollaborateursAction(
       nom: x.nomComplet,
       ...(x.agencyId ? { agencyId: x.agencyId } : {}),
     }));
-  return { agenceCopro, collaborateurs };
+  return {
+    agenceCopro,
+    collaborateurs,
+    // Jamais soi-meme : on ne s'invite pas a sa propre reunion.
+    ...(assistanteEmail && assistanteEmail !== g.email?.toLowerCase() ? { assistanteEmail } : {}),
+  };
 }
