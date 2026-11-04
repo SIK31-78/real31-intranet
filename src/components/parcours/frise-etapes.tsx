@@ -9,7 +9,7 @@ import type { EtapeParcours, StatutEtape } from "@/lib/domain/dashboard";
 
 export function FriseEtapes({ etapes }: { etapes: EtapeParcours[] }) {
   return (
-    <ol className="flex items-center">
+    <ol className="flex items-center max-w-full overflow-x-auto sm:overflow-visible">
       {etapes.map((e, i) => (
         <Fragment key={e.code}>
           <li className="flex items-center gap-2 shrink-0" aria-current={e.statut === "encours" ? "step" : undefined}>

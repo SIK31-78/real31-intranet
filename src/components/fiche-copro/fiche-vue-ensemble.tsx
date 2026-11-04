@@ -171,7 +171,7 @@ function BlocParcours({
       </CardHeader>
       <CardBody className="flex flex-col gap-3">
         <FriseEtapes etapes={cycle.etapes} />
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           {action ? (
             <>
               <p className="text-body text-ink-2">

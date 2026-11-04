@@ -29,7 +29,7 @@ export function ActionCycleFiche({ action, coproCode }: { action: ActionEcran; c
   const circulaire = action.href === `/copropriete/${coproCode}`;
 
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className="inline-flex flex-wrap items-center gap-2">
       {secondaire}
       {circulaire || !action.href ? (
         <Button variant="primary" onClick={() => fixerDates(coproCode)}>
