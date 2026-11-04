@@ -118,6 +118,8 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
     for (const [k, v] of Object.entries({ ...sp, ...maj })) if (v) q.set(k, v);
     return `/propositions?${q.toString()}`;
   };
+  // Tuile deja active : un second clic revient au filtre par defaut (ouvertes).
+  const lienStatut = (s: StatutProposition) => lien({ statut: filtre.statut === s ? undefined : s });
   const lienVue = (v: "liste" | "statut") => lien({ vue: v === "statut" ? "statut" : undefined });
   const filtreActif = Boolean(filtre.texte || filtre.gestionnaire || filtre.agence || filtre.statut !== "ouvertes");
 
@@ -150,9 +152,9 @@ export default async function PropositionsPage({ searchParams }: { searchParams:
         />
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="En cours" valeur={String(compte("en_cours"))} note={filtreActif ? "dans ce filtre" : undefined} />
-          <Stat label="Acceptées par le CS" valeur={String(compte("accepte_cs"))} note="en attente de l'AG" />
-          <Stat label="Reportées" valeur={String(compte("reporte"))} />
+          <Stat label="En cours" valeur={String(compte("en_cours"))} note={filtreActif ? "dans ce filtre" : undefined} href={lienStatut("en_cours")} actif={filtre.statut === "en_cours"} />
+          <Stat label="Acceptées par le CS" valeur={String(compte("accepte_cs"))} note="en attente de l'AG" href={lienStatut("accepte_cs")} actif={filtre.statut === "accepte_cs"} />
+          <Stat label="Reportées" valeur={String(compte("reporte"))} href={lienStatut("reporte")} actif={filtre.statut === "reporte"} />
           <Stat
             label={`Transformation sur ${FENETRE_TRANSFORMATION_ANNEES} ans`}
             valeur={transfo.taux === null ? "—" : `${transfo.taux} %`}
