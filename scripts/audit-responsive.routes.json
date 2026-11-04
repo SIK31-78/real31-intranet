@@ -1,0 +1,31 @@
+{
+  "_aide": "Les routes statiques sont lues dans src/app/**/page.tsx a chaque lancement. Ici : un id d'exemple (reel, lisible par la session utilisee) pour chaque route dynamique ; laisse vide = page ignoree. Pas de secret ici.",
+  "dynamiques": {
+    "/cles/entreprises/[id]": { "id": "" },
+    "/cles/prets/[id]/attestation": { "id": "" },
+    "/cles/trousseaux/[id]": { "id": "" },
+    "/collaborateurs/[id]": { "id": "" },
+    "/compta/[id]": { "id": "" },
+    "/comptabilite/recaps/[id]": { "id": "" },
+    "/contrat/[code]": { "code": "" },
+    "/contrat/[code]/imprimer": { "code": "" },
+    "/copropriete/[code]": { "code": "" },
+    "/dossiers/[id]": { "id": "" },
+    "/fiche/[token]": { "token": "" },
+    "/odj/[id]": { "id": "" },
+    "/odj/[id]/composer": { "id": "" },
+    "/odj/[id]/imprimer": { "id": "" },
+    "/perte-copro/[id]": { "id": "" },
+    "/propositions/[id]": { "id": "" },
+    "/propositions/[id]/election": { "id": "" },
+    "/propositions/[id]/offre": { "id": "" },
+    "/propositions/[id]/offre/imprimer": { "id": "" },
+    "/reprise-copro/dossiers/[id]": { "id": "" },
+    "/sinistre/courriers/[courrierId]": { "courrierId": "" },
+    "/supervision-ag/[id]": { "id": "" }
+  },
+  "exclues": {
+    "/dev-login": "ouvre une session de developpement (effet de bord), hors audit",
+    "/dev/db-health": "outil de diagnostic, pas une page d'usage"
+  }
+}

@@ -120,3 +120,8 @@ docs/**/*.jpg
 
 # Worktrees de chantier créés par Claude (CLAUDE.md, décision du 21/10/2026)
 .claude/worktrees/
+
+# Audit responsive (REA-497) : session Playwright (cookies reels) et sorties de rendu
+audit-responsive-etat*.json
+*storageState*.json
+/audit-responsive-sortie/
