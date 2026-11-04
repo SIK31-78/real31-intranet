@@ -1102,6 +1102,68 @@ export function suggererCoproFormulaire(
   mail: Pick<MailATrier, "deAdresse" | "objet" | "apercu"> & { corps?: string },
   ref: ReferentielTri,
 ): Suggestion {
+  const ordinaire = suggererCoproFormulaireOrdinaire(mail, ref);
+  const texte = mail.corps ?? mail.apercu;
+  const parCode = coproParCodeCrypto(texte, ref, expediteurDuFormulaire(texte));
+  if (!parCode) return ordinaire;
+  // Un identifiant explicite (code dans l'objet, immatriculation) sur une AUTRE copro reste le plus fort.
+  if (ordinaire.identifiant && ordinaire.candidats.length === 1 && ordinaire.candidats[0] !== parCode.copro.reference) return ordinaire;
+  return {
+    nature: "sure",
+    candidats: [parCode.copro.reference],
+    raison: `Code Crypto « ${parCode.code} » du formulaire : ${parCode.copro.reference}.`,
+    identifiant: true,
+  };
+}
+
+// Le code Crypto de la copro dans le corps d'un formulaire de l'extranet (decision Sekou du
+// 04/11/2026, REA-495) : « Expéditeur: NOM Prénom (qualité - CODE[/lot]) », a defaut le champ
+// « Lot: CODE/lot ». La qualite est coproprietaire, proprietaire ou locataire.
+const LIGNE_EXPEDITEUR_CODE = /^[ \t]*Exp\S*[ \t]*:[^\n]*?\(\s*(?:copropri[ée]taire|propri[ée]taire|locataire)\s+-\s+([^)\n]+)\)/im;
+const LIGNE_LOT = /^[ \t]*Lot[ \t]*:[ \t]*([^\n]+)$/im;
+
+/**
+ * Les formes sous lesquelles lire le code du formulaire, de la plus longue a la plus courte :
+ * la chaine entiere (un nom Crypto peut contenir « / » : PARIS52/54, BRUNET6/8), puis sans le
+ * dernier segment « /… » (le lot). Jamais une coupe au premier « / ». Vide si aucun code.
+ */
+export function codesCryptoDuFormulaire(corps: string): string[] {
+  const brut = (LIGNE_EXPEDITEUR_CODE.exec(corps)?.[1] ?? LIGNE_LOT.exec(corps)?.[1] ?? "").replace(/\r/g, "").trim();
+  if (!brut) return [];
+  const segments = brut.split("/");
+  const essais = [brut, segments.slice(0, -1).join("/").trim()].filter(Boolean);
+  return [...new Set(essais)];
+}
+
+/**
+ * La copro que le code du formulaire designe EXACTEMENT (nom Crypto, casse et espaces de bord
+ * ignores, jamais approche : FOCH13 et FOCH1-3 sont deux copros). Une seule copro, active
+ * (une inactive : pas de decision), et que l'adresse e-mail du client ne contredit pas : un
+ * client connu de ce referentiel SEULEMENT sur d'autres copros ne decide rien. Null sinon.
+ */
+export function coproParCodeCrypto(
+  corps: string,
+  ref: ReferentielTri,
+  clientEmail: string | null,
+): { copro: CoproTri; code: string } | null {
+  const cle = (t: string) => t.trim().toUpperCase();
+  for (const code of codesCryptoDuFormulaire(corps)) {
+    const trouvees = ref.copros.filter((c) => c.nom.trim() !== "" && cle(c.nom) === cle(code));
+    if (trouvees.length === 0) continue;
+    const copro = trouvees[0]!;
+    if (trouvees.length > 1 || copro.inactive) return null;
+    const liens = (clientEmail ? ref.expediteurs[clientEmail] ?? [] : []).filter((l) => QUALITES_CLIENT.has(l.qualite));
+    const cleCopro = cleDeReference(copro.reference);
+    if (liens.length > 0 && !liens.some((l) => cleDeReference(l.reference) === cleCopro)) return null;
+    return { copro, code };
+  }
+  return null;
+}
+
+function suggererCoproFormulaireOrdinaire(
+  mail: Pick<MailATrier, "deAdresse" | "objet" | "apercu"> & { corps?: string },
+  ref: ReferentielTri,
+): Suggestion {
   const client = expediteurDuFormulaire(mail.corps ?? mail.apercu);
   const parCorps = suggererCopro(mail, ref);
   if (!client) return parCorps;

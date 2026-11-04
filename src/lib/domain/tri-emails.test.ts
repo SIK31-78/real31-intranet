@@ -12,6 +12,9 @@ import {
   adressesRecommandeAr24,
   suggererCoproAr24,
   suggererCoproFormulaire,
+  codesCryptoDuFormulaire,
+  basculeAutomatique,
+  proposerAutreAgence,
   expediteurDuFormulaire,
   estFormulaireExtranet,
   avecMemeConversation,
@@ -1606,5 +1609,95 @@ describe("adresse sans ville ni code postal : suggestion à confirmer (28/10/202
     expect(trouve("Devis 19 rue Sartine 75008 Paris").candidats).toEqual([]);
     expect(trouve("Devis 19 rue Sartine, Houilles").candidats).toEqual([]);
     expect(trouve("19 rue Sartine ; 8 rue de la Paix 78800 Houilles").candidats).toEqual(["S0301"]);
+  });
+});
+
+describe("formulaires de l'extranet : le code Crypto de la copro (décision du 04/11/2026, REA-495)", () => {
+  const crypto = (reference: string, nom: string, extra: Partial<CoproTri> = {}): CoproTri => ({ ...copro(reference), nom, ...extra });
+  const REF_C: ReferentielTri = {
+    copros: [
+      crypto("S0135", "AIGLE18"),
+      crypto("S0149", "FOCH13"),
+      crypto("S0286", "FOCH1-3"),
+      crypto("S0300", "Staling115"),
+      crypto("S0301", "PARIS52/54"),
+      crypto("S0302", "SARTO34 A"),
+      crypto("S0303", "SARTO34 B"),
+      crypto("S0304", "WAGRAM1"),
+      crypto("S0305", "CAMILLE PE"),
+      crypto("S0306", "ELEGANCE-H"),
+      crypto("S0307", "VIEUX9", { inactive: true }),
+      crypto("S0308", "BRUNET6/8"),
+    ],
+    expediteurs: { "voisin@exemple.fr": [{ reference: "S0149", qualite: "copropriétaire" }] },
+  };
+  const f = (corps: string, email = "client@exemple.fr") => ({
+    deAdresse: "no-reply@crypto-extranet.com",
+    objet: "Autre demande - Badge",
+    apercu: `${corps}\nEmail:\t${email}\nSujet:\tBadge`,
+  });
+  const exp = (code: string, qualite = "coproprietaire") => `Expéditeur:\tDUPONT Jean (${qualite} - ${code})`;
+  const trouve = (corps: string, email?: string) => suggererCoproFormulaire(f(corps, email), REF_C);
+
+  it("extrait le code : chaîne entière, puis sans le lot ; jamais coupée au premier « / »", () => {
+    expect(codesCryptoDuFormulaire(exp("AIGLE18/12"))).toEqual(["AIGLE18/12", "AIGLE18"]);
+    expect(codesCryptoDuFormulaire(exp("PARIS52/54/3"))).toEqual(["PARIS52/54/3", "PARIS52/54"]);
+    expect(codesCryptoDuFormulaire(exp("PARIS52/54"))).toEqual(["PARIS52/54", "PARIS52"]);
+    expect(codesCryptoDuFormulaire(exp("WAGRAM1 /lot", "locataire"))).toEqual(["WAGRAM1 /lot", "WAGRAM1"]);
+    expect(codesCryptoDuFormulaire("Expéditeur:\tX Y (proprietaire - CUNY6-8-10)")).toEqual(["CUNY6-8-10"]);
+    expect(codesCryptoDuFormulaire("Lot:\tAIGLE18/3")).toEqual(["AIGLE18/3", "AIGLE18"]);
+    expect(codesCryptoDuFormulaire("Expéditeur:\tX Y (syndic)\nMessage: rien")).toEqual([]);
+  });
+
+  it("variantes : casse mixte, espaces internes, tirets, noms à « / »", () => {
+    expect(trouve(exp("staling115/4"))).toMatchObject({ candidats: ["S0300"], identifiant: true });
+    expect(trouve(exp("SARTO34 A/2"))).toMatchObject({ candidats: ["S0302"], identifiant: true });
+    expect(trouve(exp("camille pe/1"))).toMatchObject({ candidats: ["S0305"] });
+    expect(trouve(exp("WAGRAM1 /lot"))).toMatchObject({ candidats: ["S0304"] });
+    expect(trouve(exp("ELEGANCE-H"))).toMatchObject({ candidats: ["S0306"] });
+    expect(trouve(exp("PARIS52/54/7"))).toMatchObject({ candidats: ["S0301"] });
+    expect(trouve(exp("BRUNET6/8"))).toMatchObject({ candidats: ["S0308"] });
+    expect(trouve(exp("BRUNET6/8/2"))).toMatchObject({ candidats: ["S0308"] });
+  });
+
+  it("champ Lot à défaut de la ligne Expéditeur", () => {
+    expect(trouve("Expéditeur:\tX Y (coproprietaire)\nLot:\tAIGLE18/5")).toMatchObject({ candidats: ["S0135"], identifiant: true });
+  });
+
+  it("exact seulement : FOCH13 et FOCH1-3 ne se confondent pas", () => {
+    expect(trouve(exp("FOCH13/2"))).toMatchObject({ candidats: ["S0149"] });
+    expect(trouve(exp("FOCH1-3/2"))).toMatchObject({ candidats: ["S0286"] });
+    expect(trouve(exp("FOCH 13")).identifiant).toBeUndefined();
+    expect(trouve(exp("FOCH-13")).identifiant).toBeUndefined();
+  });
+
+  it("code inconnu : la règle ne décide rien", () => {
+    const s = trouve(exp("INCONNU99/1"));
+    expect(s.identifiant).toBeUndefined();
+    expect(s.candidats).toEqual([]);
+  });
+
+  it("copro inactive : pas de décision par cette règle", () => {
+    expect(trouve(exp("VIEUX9/1")).identifiant).toBeUndefined();
+  });
+
+  it("copros jumelles : le code désigne la fiche exacte, même secondaire", () => {
+    expect(trouve(exp("SARTO34 B/1"))).toMatchObject({ candidats: ["S0303"], identifiant: true });
+  });
+
+  it("e-mail contradictoire : un client connu seulement d'autres copros ne décide rien", () => {
+    expect(trouve(exp("AIGLE18/1"), "voisin@exemple.fr").identifiant).toBeUndefined();
+    expect(trouve(exp("FOCH13/1"), "voisin@exemple.fr")).toMatchObject({ candidats: ["S0149"], identifiant: true });
+  });
+
+  it("copro d'une autre agence : bascule automatique par le mécanisme existant", () => {
+    const boite: ReferentielTri = { copros: [crypto("S0001", "LOCAL1")], expediteurs: {} };
+    const autres: ReferentielTri = { copros: [crypto("S0135", "AIGLE18", { agence: "ML" })], expediteurs: {} };
+    const m = { ...f(exp("AIGLE18/12")), corps: f(exp("AIGLE18/12")).apercu };
+    const dansBoite = suggererCoproFormulaire(m, boite);
+    expect(dansBoite.candidats).toEqual([]);
+    const s = proposerAutreAgence(dansBoite, m, autres, (r) => suggererCoproFormulaire(m, r));
+    expect(s.autreAgence).toEqual({ reference: "S0135", agence: "ML", sure: true });
+    expect(basculeAutomatique({ suggestion: s }, { automatique: true, dejaPasse: false })).toEqual({ reference: "S0135", agence: "ML" });
   });
 });
