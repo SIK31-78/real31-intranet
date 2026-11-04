@@ -17,6 +17,7 @@ import { normaliserTexte } from "@/lib/domain/cles/normaliser";
 import { cn } from "@/lib/cn";
 import { creerTrousseauAction, modifierTrousseauAction, televerserPhotoAction } from "@/app/cles/actions";
 import { Camera } from "lucide-react";
+import { NouveauBien } from "./nouveau-bien";
 
 export interface CoproChoix {
   code: string;
@@ -101,7 +102,10 @@ export function FormulaireTrousseau({
   const [tente, setTente] = useState(false);
   const valeurTotale = valeurComposition(composition.map(versElement));
 
-  const biensAgence = useMemo(() => biens.filter((b) => b.agenceCode === (trousseau?.agenceCode ?? agence).toUpperCase()), [biens, trousseau?.agenceCode, agence]);
+  // Les biens crees depuis ce formulaire s'ajoutent a la liste sans recharger la page.
+  const [biensCrees, setBiensCrees] = useState<BienChoix[]>([]);
+  const agenceEffective = (trousseau?.agenceCode ?? agence).toUpperCase();
+  const biensAgence = useMemo(() => [...biens, ...biensCrees.filter((c) => !biens.some((b) => b.id === c.id))].filter((b) => b.agenceCode === agenceEffective), [biens, biensCrees, agenceEffective]);
   const accesRenseigne = (a: AccesSaisi) => Boolean(a.coproCode || a.bienId);
   const pret = numero.trim().length > 0 && acces.some(accesRenseigne) && (Boolean(agence) || Boolean(trousseau));
 
@@ -166,7 +170,7 @@ export function FormulaireTrousseau({
       <fieldset className="flex flex-col gap-2">
         <legend className="text-body font-medium text-ink mb-1">Ce que le trousseau ouvre</legend>
         {acces.map((a, i) => (
-          <LigneAcces key={i} acces={a} copros={copros} biens={biensAgence} erreur={tente && !accesRenseigne(a)} onChange={(n) => setAcces(acces.map((x, j) => (j === i ? n : x)))} onSupprimer={acces.length > 1 ? () => setAcces(acces.filter((_, j) => j !== i)) : undefined} />
+          <LigneAcces key={i} acces={a} copros={copros} biens={biensAgence} agenceCode={agenceEffective} onBienCree={(b) => setBiensCrees((l) => [...l, b])} erreur={tente && !accesRenseigne(a)} onChange={(n) => setAcces(acces.map((x, j) => (j === i ? n : x)))} onSupprimer={acces.length > 1 ? () => setAcces(acces.filter((_, j) => j !== i)) : undefined} />
         ))}
         <div>
           <Button type="button" variant="ghost" size="sm" onClick={() => setAcces([...acces, { coproCode: "", immeuble: "", types: [], libelle: "" }])}>
@@ -236,8 +240,9 @@ export function FormulaireTrousseau({
   );
 }
 
-function LigneAcces({ acces, copros, biens, erreur, onChange, onSupprimer }: { acces: AccesSaisi; copros: CoproChoix[]; biens: BienChoix[]; erreur: boolean; onChange: (a: AccesSaisi) => void; onSupprimer?: () => void }) {
+function LigneAcces({ acces, copros, biens, agenceCode, onBienCree, erreur, onChange, onSupprimer }: { acces: AccesSaisi; copros: CoproChoix[]; biens: BienChoix[]; agenceCode: string; onBienCree: (b: BienChoix) => void; erreur: boolean; onChange: (a: AccesSaisi) => void; onSupprimer?: () => void }) {
   const [texte, setTexte] = useState("");
+  const [nouveau, setNouveau] = useState(false);
   const copro = copros.find((c) => c.code === acces.coproCode);
   // Une seule recherche : les copros puis les biens de l'agence (Asnieres n'a que des biens).
   const resultats = useMemo((): ChoixAcces[] => {
@@ -254,7 +259,9 @@ function LigneAcces({ acces, copros, biens, erreur, onChange, onSupprimer }: { a
     setTexte("");
   };
   const combobox = useCombobox(resultats, choisir, () => setTexte(""));
-  const avecBiens = biens.length > 0;
+  // « Nouveau bien » : possible des qu'on connait l'agence ; le serveur controle le droit.
+  const peutCreerBien = agenceCode.length > 0;
+  const avecBiens = biens.length > 0 || peutCreerBien;
   const toggle = (t: TypeAcces) => onChange({ ...acces, types: acces.types.includes(t) ? acces.types.filter((x) => x !== t) : [...acces.types, t] });
 
   return (
@@ -276,6 +283,13 @@ function LigneAcces({ acces, copros, biens, erreur, onChange, onSupprimer }: { a
           ) : (
             <div className="relative">
               <Input value={texte} onChange={(e) => setTexte(e.target.value)} onKeyDown={combobox.onKeyDown} {...combobox.input} placeholder={avecBiens ? "Code, référence, propriétaire ou adresse…" : "Code, nom ou adresse…"} autoComplete="off" />
+              {peutCreerBien && !nouveau && (
+                <div className="mt-1">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setNouveau(true)}>
+                    <Plus strokeWidth={1.5} /> {texte.trim() ? `Nouveau bien « ${texte.trim()} »` : "Nouveau bien"}
+                  </Button>
+                </div>
+              )}
               {resultats.length > 0 && (
                 <ul {...combobox.liste} className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-lg border border-line bg-surface shadow-2 py-1">
                   {resultats.map((o, i) => (
@@ -297,6 +311,14 @@ function LigneAcces({ acces, copros, biens, erreur, onChange, onSupprimer }: { a
         </Field>
         {onSupprimer && <Button type="button" variant="ghost" size="md" iconOnly aria-label="Retirer cet accès" onClick={onSupprimer}><Trash2 strokeWidth={1.5} /></Button>}
       </div>
+      {nouveau && !acces.bienId && !copro && (
+        <NouveauBien
+          agenceCode={agenceCode}
+          referenceInitiale={texte}
+          onAnnuler={() => setNouveau(false)}
+          onCree={(b) => { onBienCree(b); choisir({ bien: b }); setNouveau(false); }}
+        />
+      )}
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         {TYPES_ACCES.map((t) => <Choix key={t} type="checkbox" checked={acces.types.includes(t)} onChange={() => toggle(t)} label={LIBELLE_TYPE_ACCES[t]} />)}
       </div>
