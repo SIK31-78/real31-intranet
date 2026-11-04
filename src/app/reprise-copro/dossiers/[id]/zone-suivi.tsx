@@ -346,7 +346,7 @@ function LigneEtape({
             <NoteInline valeur={etape.note ?? ""} bloquee={bloquee} disabled={pending} onValider={noter} />
 
             {etape.majLe && (
-              <span className="ml-auto text-meta text-ink-3 whitespace-nowrap">
+              <span className="ml-auto text-meta text-ink-3 sm:whitespace-nowrap">
                 modifié le {formatDateHeure(etape.majLe)}
                 {etape.majPar ? ` par ${etape.majPar}` : ""}
               </span>
