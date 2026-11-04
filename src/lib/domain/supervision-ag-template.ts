@@ -122,3 +122,6 @@ export const ITEM_CONCLUSION = "__conclusion__";
 
 /** Item "CS preparatoire le" : sa date alimente le prochain CS de la copro (calendrier). */
 export const ITEM_CS_PREPA = "avcs.cs-prepa-date";
+
+/** Item "Date de convocation" : une date renseignee coche le jalon CONVOC (AG "Convoquee"). */
+export const ITEM_CONVOC_DATE = "conv.date";

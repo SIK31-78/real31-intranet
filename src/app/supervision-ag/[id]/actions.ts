@@ -12,7 +12,8 @@ import { conclureAg } from "@/lib/services/supervision-ag/conclure-ag";
 import { coproAppartient } from "@/lib/services/coproprietes/copro-appartient";
 import { definirDateEvenement } from "@/lib/services/coproprietes/definir-date-evenement";
 import { getGestionnaireCourant } from "@/lib/auth/session";
-import { ITEM_CS_PREPA } from "@/lib/domain/supervision-ag-template";
+import { ITEM_CS_PREPA, ITEM_CONVOC_DATE } from "@/lib/domain/supervision-ag-template";
+import { marquerJalon } from "@/lib/services/jalons/marquer-jalon";
 
 // Validation des entrees (zod) : ces Server Actions sont des endpoints POST publics.
 const zAgId = z.string().trim().min(1).max(120); // "CODE__YYYY-MM-DD" (ou id simple en mock)
@@ -67,6 +68,18 @@ export async function commenterItemAction(
     await definirDateEvenement(code, "cs", "prochaine", commentaire || null, g.id);
     revalidatePath(`/copropriete/${code}`);
     revalidatePath("/calendrier");
+  }
+  // "Date de convocation" renseignee = convocation faite : on coche le jalon CONVOC pour que
+  // l'AG passe "Convoquee" (l'etat se lit sur ce jalon, cf. etatCycleAg). Effacer la date
+  // ne decoche rien : le jalon peut aussi avoir ete confirme depuis l'accueil.
+  if (itemId === ITEM_CONVOC_DATE && /^\d{4}-\d{2}-\d{2}$/.test(commentaire)) {
+    const code = codeDe(agId);
+    const agDate = dateDe(agId);
+    if (agDate) {
+      await marquerJalon({ coproCode: code, agDate, type: "CONVOC", statut: "accompli", par: g.initiales }, g.id);
+      revalidatePath(`/copropriete/${code}`);
+      revalidatePath("/accueil");
+    }
   }
   revalidatePath(`/supervision-ag/${agId}`);
 }
