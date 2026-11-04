@@ -245,8 +245,8 @@ export function HistoriqueFacturations({
           <ul className="divide-y divide-line">
             {affichees.map((f) => (
               <li key={f.id} className="px-4 py-2.5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:justify-between sm:gap-3">
+                  <div className="min-w-0 w-full sm:w-auto">
                     <p className="truncate text-body text-ink">
                       <span className="font-medium">{f.coproCode}</span>
                       <span className="text-ink-3"> · </span>
@@ -263,7 +263,7 @@ export function HistoriqueFacturations({
                         : ""}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
+                  <div className="flex flex-wrap shrink-0 items-center gap-x-3 gap-y-1.5">
                     <span className="text-body font-medium text-ink">{euros(f.montantHt)} HT</span>
                     <Statut statut={f.statut} />
                     {f.statut === "erreur" && (
