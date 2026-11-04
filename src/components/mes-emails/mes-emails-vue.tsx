@@ -1419,7 +1419,9 @@ export function MesEmailsVue({
         </aside>
 
         {/* Volet droit : recommandation + detail */}
-        <section ref={lecteurRef} className="flex-1 min-w-0 scroll-mt-16">
+        {/* w-full : sous 1024 px (colonne, items-start) la section prenait la largeur de son
+            contenu, et la carte en @container (taille non déduite du contenu) tombait à 0 px. */}
+        <section ref={lecteurRef} className="w-full lg:w-auto flex-1 min-w-0 scroll-mt-16">
           {selection && horsDistribution(selection) ? (
             <Callout ton="info" className="mb-3">
               Ouvert depuis « Échanges » : ce mail n&apos;est pas distribué à votre binôme. Vous pouvez le lire, y répondre ou le
