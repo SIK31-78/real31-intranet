@@ -20,9 +20,14 @@
 //   mono     font-mono                        -> code copro seulement (info)
 //   ink-3    text-ink-3                       -> tertiaire seulement (info)
 //   carte    rounded-md border border-line bg-surface -> Card / Rows / Table (rayon 12 + relief)
+//   cont     @container sous un parent flex-col items-start, sans largeur (info, REA-497)
+//   table    <table brut sans overflow-x-auto en amont (info, REA-497)
+//   larg     w-[NNNpx] / min-w-[NNNpx] >= 400 sans prefixe responsive (info, REA-497)
+//   (cont/table/larg : lib/audit-ui-fragile.mjs, heuristique sur un seul fichier, jamais bloquant)
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+import { analyserFragile } from "./lib/audit-ui-fragile.mjs";
 
 const RACINE = process.cwd();
 const SRC = join(RACINE, "src");
@@ -32,6 +37,9 @@ const SRC = join(RACINE, "src");
 const MIGRES = ["src"];
 
 const BLOQUANTS = ["px", "tw", "ink-4", "vert", "hex", "ombre", "carte"];
+
+// Regles calculees par analyse de balises (pas par ligne) : toujours INFO.
+const FRAGILES = ["cont", "table", "larg"];
 
 const REGLES = {
   px: /\btext-\[\d+(?:\.\d+)?px\]/g,
@@ -111,7 +119,7 @@ for (const chemin of fichiers(SRC)) {
   if (filtre && !r.startsWith(filtre.replace(/\\/g, "/").replace(/\/$/, ""))) continue;
   const texte = readFileSync(chemin, "utf8");
   const g = groupe(r);
-  const compteurs = parGroupe.get(g) ?? Object.fromEntries(Object.keys(REGLES).map((k) => [k, 0]));
+  const compteurs = parGroupe.get(g) ?? Object.fromEntries([...Object.keys(REGLES), ...FRAGILES].map((k) => [k, 0]));
   const lignes = texte.split("\n");
   for (const [regle, re] of Object.entries(REGLES)) {
     if (exempt(regle, r)) continue;
@@ -122,10 +130,16 @@ for (const chemin of fichiers(SRC)) {
       if (avecLignes) details.push(`${r}:${i + 1}  [${regle}]  ${l.trim().slice(0, 110)}`);
     });
   }
+  if (/\.tsx$/.test(r)) {
+    for (const t of analyserFragile(texte)) {
+      compteurs[t.regle]++;
+      if (avecLignes) details.push(`${r}:${t.ligne}  [${t.regle}]  ${lignes[t.ligne - 1].trim().slice(0, 110)}`);
+    }
+  }
   parGroupe.set(g, compteurs);
 }
 
-const cles = Object.keys(REGLES);
+const cles = [...Object.keys(REGLES), ...FRAGILES];
 const largeur = Math.max(...[...parGroupe.keys()].map((g) => g.length), 8);
 const entete = ["dossier".padEnd(largeur), ...cles.map((k) => k.padStart(6))].join("  ");
 console.log(entete);
