@@ -28,9 +28,11 @@ import {
   ExternalLink,
   FolderPlus,
   StickyNote,
+  Printer,
   Undo2,
 } from "lucide-react";
 import { ChoixDossierOutlook } from "./choix-dossier";
+import { imprimerMail } from "./imprimer-mail";
 import type {
   ContexteCopro,
   Correspondant,
@@ -2544,6 +2546,17 @@ function AnalysePane({
           <h2 className="flex-1 text-title font-semibold text-ink leading-snug">{m.objet}</h2>
           {mentionAttente ? <Badge ton="warn">{mentionAttente}</Badge> : null}
           {statut !== "nouveau" ? <StatutBadge statut={statut} /> : null}
+          {/* Version propre du mail (en-tête, texte, pièces jointes), sans la barre d'actions. */}
+          <Button
+            size="sm"
+            variant="ghost"
+            iconOnly
+            onClick={() => imprimerMail(m, piecesJointes)}
+            aria-label="Imprimer"
+            title="Imprimer ce mail"
+          >
+            <Printer strokeWidth={1.5} />
+          </Button>
         </div>
         <EnTeteMail m={m} />
         {choixDossier ? <div className="mt-2 flex flex-wrap items-center gap-1 @min-[760px]:hidden">{choixDossier}</div> : null}
