@@ -14,6 +14,8 @@ import { jourParis } from "@/lib/services/date-du-jour";
 import { acteurCles } from "@/lib/auth/acteur-cles";
 import { annulerReservation, corrigerPret, CHAMPS_CORRIGEABLES, enregistrerRetour, marquer, prolonger, reserver, sortir } from "@/lib/services/cles/comptoir";
 import { bloquerEntreprise, creerEntreprise, creerTrousseau, modifierEntreprise, modifierTrousseau, TAILLE_MAX_PHOTO, televerserPhoto } from "@/lib/services/cles/referentiel";
+import { creerBien } from "@/lib/services/cles/biens";
+import type { BienChoixService } from "@/lib/services/cles/copros-choix";
 import { indexRecherche, listerEntreprises } from "@/lib/services/cles/lecture";
 import type { EntreeIndex } from "@/lib/domain/cles/recherche";
 
@@ -169,6 +171,40 @@ function versInput(d: z.output<typeof zTrousseau>) {
       ordre: i,
     })),
   };
+}
+
+// Un bien hors syndic cree depuis le formulaire de trousseau (REA-53). Agence, auteur et droit
+// viennent du serveur ; la verification metier (reference, proprietaire) vit dans le domaine.
+const zNouveauBien = z.object({
+  agenceCode: z.string().trim().toUpperCase().max(4).optional(),
+  activite: z.string().trim().max(20),
+  reference: z.string().trim().max(80),
+  type: z.string().trim().max(20),
+  adresse: z
+    .object({
+      numeroVoie: z.string().trim().max(20).optional(),
+      typeVoie: z.string().trim().max(40).optional(),
+      nomVoie: z.string().trim().max(120).optional(),
+      complement: z.string().trim().max(120).optional(),
+      codePostal: z.string().trim().max(10).optional(),
+      ville: z.string().trim().max(80).optional(),
+    })
+    .optional(),
+  proprietaire: z.object({
+    nom: z.string().trim().max(120),
+    prenom: z.string().trim().max(120).optional(),
+    telephone: z.string().trim().max(40).optional(),
+    email: z.string().trim().max(160).optional(),
+  }),
+  note: z.string().trim().max(1000).optional(),
+});
+
+export async function creerBienAction(input: unknown): Promise<Res<BienChoixService>> {
+  return actionGestionnaire(zNouveauBien, input, "cles-bien", async (d, g) => {
+    const bien = await creerBien(d, await acteurCles(g));
+    revalidatePath("/cles/trousseaux/nouveau");
+    return bien;
+  });
 }
 
 export async function creerTrousseauAction(input: unknown): Promise<Res<{ trousseauId: string }>> {

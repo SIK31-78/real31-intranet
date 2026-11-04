@@ -1,7 +1,7 @@
 // Adapter Supabase des biens hors syndic (table intranet_bien, ADR-049). Service role, RLS
 // sans policy : le cloisonnement (agence x activite) est applique par les services.
 
-import type { ActiviteBien, BienHorsSyndic, ProprietaireBien, SourceBien, TypeBien } from "@/lib/domain/bien";
+import { messageReferenceBienExiste, type ActiviteBien, type BienHorsSyndic, type NouveauBien, type ProprietaireBien, type SourceBien, type TypeBien } from "@/lib/domain/bien";
 import type { BienRepository } from "@/lib/ports/bien-repository";
 import { createSupabasePublicClient } from "./public-client";
 
@@ -73,6 +73,41 @@ export class SupabaseBienRepository implements BienRepository {
       return [];
     }
     return ((data ?? []) as BienRow[]).map(bienVersDomaine);
+  }
+
+  async creer(agenceCode: string, bien: NouveauBien, creePar: string): Promise<BienHorsSyndic> {
+    const sb = createSupabasePublicClient();
+    const agence = agenceCode.toUpperCase();
+    const a = bien.adresse;
+    const { data, error } = await sb
+      .from(T_BIEN)
+      .insert({
+        agence_code: agence,
+        activite: bien.activite,
+        reference: bien.reference,
+        type: bien.type,
+        libelle: "",
+        numero_voie: a.numeroVoie ?? null,
+        type_voie: a.typeVoie ?? null,
+        nom_voie: a.nomVoie ?? null,
+        complement: a.complement ?? null,
+        code_postal: a.codePostal ?? null,
+        ville: a.ville ?? null,
+        proprietaire_nom: bien.proprietaire.nom,
+        proprietaire: bien.proprietaire,
+        note: bien.note ?? null,
+        actif: true,
+        source: "intranet",
+        cree_par: creePar,
+      })
+      .select(COLS_BIEN)
+      .single();
+    if (error) {
+      // 23505 = index unique (agence_code, reference) : message metier, pas l'erreur brute.
+      if (error.code === "23505" || /duplicate|unique/i.test(error.message)) throw new Error(messageReferenceBienExiste(bien.reference, agence));
+      throw new Error(`Bien ${bien.reference} : ${error.message}`);
+    }
+    return bienVersDomaine(data as BienRow);
   }
 
   async get(id: string): Promise<BienHorsSyndic | null> {

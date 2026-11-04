@@ -3,7 +3,7 @@
 
 import { cache } from "react";
 import { getBienRepository, getCoproRepository } from "@/lib/adapters/router";
-import { adresseEnLigne } from "@/lib/domain/bien";
+import { adresseEnLigne, type BienHorsSyndic } from "@/lib/domain/bien";
 
 export interface CoproChoixService {
   code: string;
@@ -30,6 +30,17 @@ export interface BienChoixService {
   adresse: string;
 }
 
+export function versBienChoix(b: BienHorsSyndic): BienChoixService {
+  return {
+    id: b.id,
+    agenceCode: b.agenceCode.toUpperCase(),
+    activite: b.activite,
+    reference: b.reference,
+    nom: [b.proprietaire?.prenom, b.proprietaire?.nom].filter(Boolean).join(" ") || b.libelle,
+    adresse: adresseEnLigne(b.adresse),
+  };
+}
+
 /** Les biens actifs des agences donnees, tries par reference. */
 export async function biensPourCles(agences: readonly string[]): Promise<BienChoixService[]> {
   if (agences.length === 0) return [];
@@ -37,13 +48,6 @@ export async function biensPourCles(agences: readonly string[]): Promise<BienCho
   const voulues = new Set(agences.map((a) => a.toUpperCase()));
   return biens
     .filter((b) => b.actif && voulues.has(b.agenceCode.toUpperCase()))
-    .map((b) => ({
-      id: b.id,
-      agenceCode: b.agenceCode.toUpperCase(),
-      activite: b.activite,
-      reference: b.reference,
-      nom: [b.proprietaire?.prenom, b.proprietaire?.nom].filter(Boolean).join(" ") || b.libelle,
-      adresse: adresseEnLigne(b.adresse),
-    }))
+    .map(versBienChoix)
     .sort((a, b) => a.reference.localeCompare(b.reference, "fr", { numeric: true }));
 }
