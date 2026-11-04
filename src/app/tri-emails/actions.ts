@@ -12,11 +12,13 @@ import { z } from "zod";
 import { actionGestionnaire, Refus } from "@/lib/actions/garde";
 import type { Res } from "@/lib/actions/resultat";
 import { droitsTri, estSuperAdmin } from "@/lib/auth/roles";
+import { incarnationEnCours } from "@/lib/auth/session";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { BOITE_ECHANTILLON, type BoiteTriConfig } from "@/lib/domain/mail-gate";
 import { boiteTriAccessible } from "@/lib/services/tri-emails/acces";
 import { annulerRangement, depsParDefaut, preciserCopro, rangerMail, supprimerMail } from "@/lib/services/tri-emails/ranger";
 import { oublierCompteur } from "@/lib/services/tri-emails/compteur";
+import { ajouterNoteMail } from "@/lib/services/mes-emails/boite-equipe";
 import { affecterCopro, ajouterAssistant, definirPrincipal, retirerAssistant } from "@/lib/services/tri-emails/binomes";
 import { listerPiecesJointesTri } from "@/lib/services/tri-emails/pieces-jointes";
 import { coproDepuisPiecesJointes, type CoproDepuisPj } from "@/lib/services/tri-emails/copro-pieces-jointes";
@@ -51,6 +53,8 @@ const zRanger = z.object({
     z.object({ type: z.literal("divers") }),
   ]),
   suggestion: z.object({ nature: zNature, candidats: z.array(z.string().max(10)).max(20) }).nullable(),
+  // Note interne ecrite au tri (ADR-053) : jointe au mail une fois range, relue dans E-mails.
+  note: z.string().max(10_000).optional(),
 });
 
 /** La config de la boite demandee, si la personne a le droit de la trier ; sinon refus. */
@@ -70,12 +74,26 @@ function gardeBinomes(email: string | null | undefined) {
 // d'autres pages lisent les binomes).
 export async function rangerMailAction(
   input: unknown,
-): Promise<Res<{ journalId: string; dossierNom: string; simulation: boolean; etiquetteNonPosee: boolean }>> {
-  return actionGestionnaire(zRanger, input, "tri-emails-ranger", async ({ boite, ...d }, g) => {
+): Promise<
+  Res<{ journalId: string; dossierNom: string; simulation: boolean; etiquetteNonPosee: boolean; noteErreur?: string }>
+> {
+  return actionGestionnaire(zRanger, input, "tri-emails-ranger", async ({ boite, note, ...d }, g) => {
     const config = await gardeTri(g, boite);
+    const texteNote = note?.trim() ?? "";
+    // Refus AVANT de ranger : une note en incarnation porterait le nom de la personne incarnee.
+    if (texteNote && (await incarnationEnCours())) {
+      throw new Refus("Les notes internes ne s'écrivent pas en incarnation : range sans note.");
+    }
     const r = await rangerMail(d, g.email ?? g.id, depsParDefaut(config));
     oublierCompteur(config.boite);
-    return r;
+    if (!texteNote) return r;
+    // Le mail est range : une note qui echoue ne doit pas faire croire le contraire.
+    try {
+      await ajouterNoteMail(g, config.boite, d.internetMessageId, texteNote);
+      return r;
+    } catch (e) {
+      return { ...r, noteErreur: e instanceof Error ? e.message : "La note n'a pas pu être enregistrée." };
+    }
   });
 }
 

@@ -44,6 +44,7 @@ import { estBascule } from "@/lib/domain/bascule-boites";
 import { Badge, type BadgeTon } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Textarea } from "@/components/ui/field";
 import { SegmentedControl } from "@/components/ui/segmented";
 import { VisionneusePj, type ApercuPj } from "@/components/mes-emails/visionneuse-pj";
 import { HistoriqueMailTri } from "@/components/tri-emails/historique-mail-tri";
@@ -148,9 +149,10 @@ export function TriEmailsVue({
     };
   }, [router]);
 
-  function ranger(mail: MailDeLaFile, cible: CibleTri) {
+  function ranger(mail: MailDeLaFile, cible: CibleTri, note?: string) {
     demarrer(async () => {
       const r = await rangerMailAction({
+        ...(note?.trim() ? { note } : {}),
         boite: file.boite,
         messageId: mail.id,
         internetMessageId: mail.internetMessageId,
@@ -167,6 +169,7 @@ export function TriEmailsVue({
       setMasques((m) => new Set(m).add(mail.id));
       if (r.donnees) setDernier({ ...r.donnees, objet: mail.objet, mailId: mail.id });
       if (r.donnees?.etiquetteNonPosee) toast.warn("Mail rangé, mais l'étiquette n'a pas pu être posée : ajoute-la dans Outlook.");
+      if (r.donnees?.noteErreur) toast.warn(`Mail rangé, mais la note n'a pas été enregistrée : ${r.donnees.noteErreur} Ajoute-la depuis E-mails.`);
       router.refresh();
     });
   }
@@ -315,7 +318,7 @@ function FileVue({
   dossiers: DossierChoisissable[];
   mails: MailDeLaFile[];
   enCours: boolean;
-  ranger: (mail: MailDeLaFile, cible: CibleTri) => void;
+  ranger: (mail: MailDeLaFile, cible: CibleTri, note?: string) => void;
   supprimer: (mail: MailDeLaFile) => void;
   bascules: DestinationBascule[];
   basculer: (mail: MailDeLaFile, cible: string) => void;
@@ -324,6 +327,8 @@ function FileVue({
   const [filtre, setFiltre] = useState("");
   // Choix de copro par mail (id -> reference), le temps de l'affichage.
   const [choix, setChoix] = useState<Record<string, string>>({});
+  // Note interne en cours de saisie par mail (id -> texte), jointe au rangement.
+  const [notes, setNotes] = useState<Record<string, string>>({});
 
   const parRef = useMemo(() => new Map(copros.map((c) => [c.reference, c])), [copros]);
 
@@ -420,7 +425,9 @@ function FileVue({
           choisie={choix[courant.id] ?? (courant.suggestion.candidats.length === 1 ? courant.suggestion.candidats[0]! : null)}
           choisir={(ref) => setChoix((c) => ({ ...c, [courant.id]: ref }))}
           enCours={enCours}
-          ranger={(cible) => ranger(courant, cible)}
+          note={notes[courant.id] ?? ""}
+          changerNote={(t) => setNotes((n) => ({ ...n, [courant.id]: t }))}
+          ranger={(cible) => ranger(courant, cible, notes[courant.id])}
           supprimer={() => supprimer(courant)}
           bascules={bascules}
           basculer={(cible) => basculer(courant, cible)}
@@ -440,6 +447,8 @@ function DetailMail({
   choisie,
   choisir,
   enCours,
+  note,
+  changerNote,
   ranger,
   supprimer,
   bascules,
@@ -452,6 +461,8 @@ function DetailMail({
   choisie: string | null;
   choisir: (ref: string) => void;
   enCours: boolean;
+  note: string;
+  changerNote: (texte: string) => void;
   ranger: (cible: CibleTri) => void;
   supprimer: () => void;
   bascules: DestinationBascule[];
@@ -582,6 +593,24 @@ function DetailMail({
           </Button>
         </div>
       )}
+
+      <section className="rounded-xl border border-line bg-surface p-4 sm:p-5 flex flex-col gap-2">
+        <label htmlFor="note-tri" className="text-meta uppercase tracking-wider text-ink-3 font-medium">
+          Note pour l&apos;équipe <span className="normal-case tracking-normal">(facultative)</span>
+        </label>
+        <Textarea
+          id="note-tri"
+          value={note}
+          onChange={(e) => changerNote(e.target.value)}
+          rows={2}
+          maxLength={2000}
+          placeholder="Ex. : le client rappelle demain, attendre le devis…"
+          disabled={enCours}
+        />
+        <p className="text-meta text-ink-3">
+          Enregistrée au rangement, visible par le binôme sur ce mail dans E-mails. Jamais envoyée, jamais dans Outlook.
+        </p>
+      </section>
 
       <section className="rounded-xl border border-line bg-surface p-4 sm:p-5 flex flex-col gap-3">
         <h3 className="text-meta uppercase tracking-wider text-ink-3 font-medium">Rattacher à une copropriété</h3>
