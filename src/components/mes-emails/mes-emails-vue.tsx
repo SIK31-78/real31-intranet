@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { amenerLecteurAEcran } from "./defilement-lecteur";
 import {
   Mail,
   Search,
@@ -270,6 +271,7 @@ export function MesEmailsVue({
     [data.mails, data.boites, boiteActive],
   );
   const mailsTries = useMemo(() => trierMails(mailsBoite), [mailsBoite]);
+  const lecteurRef = useRef<HTMLElement>(null);
   const [selId, setSelId] = useState<string>(epingle?.id ?? mailsTries[0]?.id ?? "");
   // `m.lu` = lu dans Outlook OU dans l'intranet (REA-422), relu à chaque actualisation ; `lus` =
   // ouverts ici pendant cette session.
@@ -941,6 +943,8 @@ export function MesEmailsVue({
     setOuverts(new Set());
     setMsgBrouillon(null);
     setAjoutNote(false);
+    // Téléphone : le lecteur est sous la liste, on l'amène à l'écran (sinon le clic semble sans effet).
+    if (ouverture === "clic") amenerLecteurAEcran(lecteurRef.current);
   }
   const add = (set: Set<string>, id: string) => new Set(set).add(id);
   const del = (set: Set<string>, id: string) => {
@@ -1415,7 +1419,7 @@ export function MesEmailsVue({
         </aside>
 
         {/* Volet droit : recommandation + detail */}
-        <section className="flex-1 min-w-0">
+        <section ref={lecteurRef} className="flex-1 min-w-0 scroll-mt-16">
           {selection && horsDistribution(selection) ? (
             <Callout ton="info" className="mb-3">
               Ouvert depuis « Échanges » : ce mail n&apos;est pas distribué à votre binôme. Vous pouvez le lire, y répondre ou le
