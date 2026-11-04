@@ -1,7 +1,8 @@
 "use client";
 
 // Formulaires de facturation des honoraires syndic : un onglet par type de
-// prestation (les 5 ecrans PowerApps d'origine, regroupes ici en un seul écran).
+// prestation (les 5 ecrans PowerApps d'origine, regroupes ici en un seul écran), plus
+// un sixième pour les autres prestations du contrat (REA-498).
 // Le montant n'est JAMAIS saisi : il est recalculé côté serveur depuis le barème.
 
 import { useEffect, useState, useTransition } from "react";
@@ -24,8 +25,10 @@ import {
   creerFactureTravauxAction,
 } from "@/app/facturation/actions";
 import { Button } from "@/components/ui/button";
+import { Aide } from "@/components/ui/aide";
+import { FormulairePrestationContrat } from "./formulaire-prestation-contrat";
 
-type Onglet = "depassement_cs" | "suivi_travaux" | "suivi_sinistre" | "pre_etat_date" | "etat_date";
+type Onglet = "depassement_cs" | "suivi_travaux" | "suivi_sinistre" | "pre_etat_date" | "etat_date" | "autres";
 
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: "depassement_cs", libelle: "Dépassement CS" },
@@ -33,6 +36,7 @@ const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: "suivi_sinistre", libelle: "Suivi de sinistre" },
   { cle: "pre_etat_date", libelle: "Pré-état daté" },
   { cle: "etat_date", libelle: "État daté" },
+  { cle: "autres", libelle: "Autres prestations" },
 ];
 
 const DILIGENCES: { cle: keyof Diligences; libelle: string }[] = [
@@ -59,6 +63,7 @@ export function FormulaireFacturation({
   coproFixe,
   creneauCsSuggere,
   depassementCsSeul = false,
+  autresPrestations = false,
   onSucces,
 }: {
   copros: { code: string; nom: string }[];
@@ -71,6 +76,8 @@ export function FormulaireFacturation({
   creneauCsSuggere?: { jour: string; debut: string; fin?: string };
   /** Si vrai, seul le flux "Dépassement CS" est présenté (barre d'onglets masquée). */
   depassementCsSeul?: boolean;
+  /** Si vrai, un sixième onglet porte les autres prestations du contrat (page Facturation). */
+  autresPrestations?: boolean;
   /** Appele apres une facturation reussie (ferme la modale quand le form est monte dedans). */
   onSucces?: () => void;
 }) {
@@ -284,7 +291,7 @@ export function FormulaireFacturation({
       {!depassementCsSeul && (
         <div className="px-4 pt-4">
           <div className="flex flex-wrap gap-1 border-b border-line">
-            {ONGLETS.map((o) => (
+            {ONGLETS.filter((o) => o.cle !== "autres" || autresPrestations).map((o) => (
               <button
                 key={o.cle}
                 type="button"
@@ -450,16 +457,32 @@ export function FormulaireFacturation({
           </div>
         )}
 
-        <div>
-          <Button
-            onClick={soumettre}
-            disabled={pending}
-            variant="primary" size="lg"
-          >
-            {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" strokeWidth={1.5} />}
-            Calculer et vérifier
-          </Button>
-        </div>
+        {onglet === "autres" ? (
+          <>
+            <p className="text-body text-ink-2">
+              AG supplémentaire, publication EDD, emprunt, mise en demeure, hypothèque, opposition, temps passé…
+            </p>
+            <Aide titre="Comment c'est facturé">
+              Chaque prestation se compte comme le contrat l&apos;écrit : un montant fixe, un tarif par lot principal
+              (pré-rempli depuis la fiche), par copropriétaire, ou un taux horaire à la demi-heure avec majoration
+              d&apos;urgence de 40 %. Ce que le contrat impute au seul copropriétaire concerné est facturé au syndicat
+              avec son nom sur la ligne : c&apos;est lui qui refacture. Le tarif est celui figé au contrat, sinon celui
+              du barème de l&apos;année du contrat.
+            </Aide>
+            <FormulairePrestationContrat copros={copros} pennylaneMode={pennylaneMode} coproImposee={coproCode} />
+          </>
+        ) : (
+          <div>
+            <Button
+              onClick={soumettre}
+              disabled={pending}
+              variant="primary" size="lg"
+            >
+              {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" strokeWidth={1.5} />}
+              Calculer et vérifier
+            </Button>
+          </div>
+        )}
       </div>
 
       {apercu && (

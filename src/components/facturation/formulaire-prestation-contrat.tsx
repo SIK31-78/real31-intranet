@@ -2,7 +2,8 @@
 
 // Les 16 autres prestations du contrat, en UN formulaire (Sekou, 15/09/2026 : « visible
 // dans facturation mais pas noyé, bien rangé, ce n'est pas des facturations qu'on fait
-// tous les jours »). Replié sous les cinq onglets du quotidien ; la prestation choisie
+// tous les jours »). D'abord replié sous les cinq onglets du quotidien, il en est devenu le
+// sixième le 04/11/2026 (REA-498) : deux gestionnaires ne voyaient pas le pli. La prestation choisie
 // dicte ce qu'on saisit : rien (fixe), des lots (pré-remplis depuis la fiche), des
 // copropriétaires, ou des heures avec l'urgence.
 
@@ -35,14 +36,19 @@ import { lireMontant } from "@/lib/domain/lire-montant";
 export function FormulairePrestationContrat({
   copros,
   pennylaneMode,
+  coproImposee,
 }: {
   copros: { code: string; nom: string }[];
   pennylaneMode: ModeEmissionFacture;
+  /** Monté dans l'onglet « Autres prestations » : la copropriété vient du champ commun aux
+   *  onglets, et le formulaire se rend sans carte propre (il est déjà dans celle des onglets). */
+  coproImposee?: string;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, demarrer] = useTransition();
-  const [coproCode, setCoproCode] = useState("");
+  const [coproChoisie, setCoproChoisie] = useState("");
+  const coproCode = coproImposee ?? coproChoisie;
   const [code, setCode] = useState("");
   const [quantite, setQuantite] = useState("");
   const [urgence, setUrgence] = useState(false);
@@ -55,6 +61,13 @@ export function FormulairePrestationContrat({
   // Montant TTC : pre-rempli au calcul du bareme, MODIFIABLE (une AGE se negocie, comme
   // l'etat date). Tant qu'on n'y touche pas, il suit le calcul.
   const [montantSaisi, setMontantSaisi] = useState<string | null>(null);
+  // Une autre copro (y compris choisie depuis le champ commun des onglets) : le montant
+  // négocié pour la précédente ne la suit pas.
+  const [coproVue, setCoproVue] = useState(coproCode);
+  if (coproVue !== coproCode) {
+    setCoproVue(coproCode);
+    setMontantSaisi(null);
+  }
 
   const prestation = code ? prestationContrat(code) : undefined;
 
@@ -136,18 +149,19 @@ export function FormulairePrestationContrat({
 
   const unite = prestation?.mode === "par_lot" ? "Lots principaux" : prestation?.mode === "par_coproprietaire" ? "Copropriétaires concernés" : prestation?.mode === "horaire" ? "Heures (à la demi-heure)" : null;
 
-  return (
-    <Card>
-      <CardBody className="flex flex-col gap-4">
+  const corps = (
+      <div className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Copropriété" htmlFor="pc-copro">
-            <Select id="pc-copro" value={coproCode} onChange={(e) => { setCoproCode(e.target.value); setMontantSaisi(null); }}>
-              <option value="">Choisir…</option>
-              {copros.map((c) => (
-                <option key={c.code} value={c.code}>{c.code} · {c.nom}</option>
-              ))}
-            </Select>
-          </Field>
+          {coproImposee === undefined && (
+            <Field label="Copropriété" htmlFor="pc-copro">
+              <Select id="pc-copro" value={coproCode} onChange={(e) => setCoproChoisie(e.target.value)}>
+                <option value="">Choisir…</option>
+                {copros.map((c) => (
+                  <option key={c.code} value={c.code}>{c.code} · {c.nom}</option>
+                ))}
+              </Select>
+            </Field>
+          )}
           <Field label="Prestation" htmlFor="pc-prestation">
             <Select id="pc-prestation" value={code} onChange={(e) => { setCode(e.target.value); setQuantite(""); setUrgence(false); setMontantSaisi(null); }}>
               <option value="">Choisir…</option>
@@ -221,24 +235,40 @@ export function FormulairePrestationContrat({
             ) : erreurTarif ? (
               <span className="text-err-700">{erreurTarif}</span>
             ) : (
-              "Choisir la copropriété et la prestation : le tarif vient du contrat."
+              coproImposee === undefined
+                ? "Choisir la copropriété et la prestation : le tarif vient du contrat."
+                : "Choisir la prestation : le tarif vient du contrat."
             )}
           </p>
           <Button type="button" variant="primary" disabled={!pret || pending} onClick={verifier}>
             <Search strokeWidth={1.5} /> Vérifier
           </Button>
         </div>
-      </CardBody>
+      </div>
+  );
 
-      {apercu && (
-        <ConfirmationFacturation
-          apercu={apercu}
-          pennylaneMode={pennylaneMode}
-          pending={pending}
-          onConfirmer={confirmer}
-          onAnnuler={() => setApercu(null)}
-        />
-      )}
+  const confirmation = apercu && (
+    <ConfirmationFacturation
+      apercu={apercu}
+      pennylaneMode={pennylaneMode}
+      pending={pending}
+      onConfirmer={confirmer}
+      onAnnuler={() => setApercu(null)}
+    />
+  );
+
+  if (coproImposee !== undefined) {
+    return (
+      <>
+        {corps}
+        {confirmation}
+      </>
+    );
+  }
+  return (
+    <Card>
+      <CardBody>{corps}</CardBody>
+      {confirmation}
     </Card>
   );
 }
