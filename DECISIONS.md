@@ -2251,7 +2251,8 @@ Deux contraintes ont orienté le choix :
 ### Conséquences
 - Nadine, Xavier et Laurence MASSONI opèrent sur les trousseaux de leur métier dans les quatre agences, sans habilitation de plus. Chrystelle passe par une délégation d'agence datée vers ASN, à créer.
 - La source d'un bien est l'intranet par défaut ; si Asnières a un logiciel de gestion locative, `source` / `source_ref` permettent d'en devenir le miroir sans migration.
-- Ce qui reste : le formulaire « copro ou bien », les boutons des listes du comptoir (encore décidés sur l'agence de session), un libellé de prêt juste pour les particuliers en locatif (aujourd'hui « Copropriétaire ou conseil syndical »), les photos (728 Mo à redimensionner), l'import réel puis la résiliation.
+- **Création d'un bien à l'écran (REA-53, 04/11/2026)** : dans le champ « Copropriété ou bien » du trousseau, « Nouveau bien » ouvre un formulaire en ligne (activité, référence, type, adresse, propriétaire, note). Validation pure dans `domain/bien.ts` (`validerNouveauBien`, référence en majuscules), `BienRepository.creer`, service `services/cles/biens.ts`, action `creerBienAction`. Droit = celui de la création d'un trousseau (`peutOperer(acteur, agence, activité du bien)`) ; référence unique par agence, bien inactif compris.
+- Ce qui reste : les boutons des listes du comptoir (encore décidés sur l'agence de session), un libellé de prêt juste pour les particuliers en locatif (aujourd'hui « Copropriétaire ou conseil syndical »), les photos (728 Mo à redimensionner), l'import réel puis la résiliation.
 
 ### Liens
 ADR-040 (gestion des clés, journal immuable), ADR-041 (délégations), ADR-022 (positionnement vis-à-vis d'ESTALE : ESTALE ne connaît pas ces biens, l'intranet les tient). Tickets REA-53 (reprise Keyko), REA-90 (périmètre), REA-91 (résiliation), REA-20 (trousseaux locatifs et transaction). Audit `docs/audit-gestion-des-cles-2026-09-18.md` (§2 et §16, démo Keyko).
