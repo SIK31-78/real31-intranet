@@ -38,7 +38,7 @@ import type { CoproDestination, TrouveeParEmail } from "@/lib/domain/recherche-c
 import { mettreALaCorbeille, type ResultatCorbeille } from "@/lib/services/mes-emails/corbeille";
 import { envoyeVisible, lireEnvoye, listerEnvoyes } from "@/lib/services/mes-emails/envoyes";
 import { transfererMail } from "@/lib/services/mes-emails/transferer";
-import type { EchangeTrouve, ReponseEnvoyee } from "@/lib/domain/echanges";
+import { refEchange, type EchangeTrouve, type ReponseEnvoyee } from "@/lib/domain/echanges";
 import { corpsMisEnForme } from "@/lib/services/mes-emails/corps-mis-en-forme";
 import { transmettreFacture } from "@/lib/services/mes-emails/transmettre-facture";
 import { preparerReponseMail } from "@/lib/services/mes-emails/envoyer-reponse";
@@ -213,21 +213,33 @@ export async function chargerDossiersCoproAction(
   return dossiers.map((d) => ({ id: d.id, titre: d.titre, type: d.type }));
 }
 
+/**
+ * La référence du mail dans le journal du dossier : `echange:boite|id`, comme les rattachements
+ * faits depuis Échanges, pour que « Ouvrir le mail » retrouve la boîte. La boîte est relue ici
+ * (lisible par le gestionnaire), jamais crue sur parole ; si elle ne l'est pas, l'identifiant
+ * brut est gardé (le lien s'ouvre alors sans boîte).
+ */
+async function refDuMail(g: Gestionnaire, boite: string | undefined, emailId: string): Promise<string> {
+  const lisible = await boiteDuMailLisible(g, boite, emailId);
+  return lisible ? refEchange(lisible.boite, emailId) : emailId;
+}
+
 export async function rattacherADossierAction(
   emailId: string,
   coproCode: string,
   dossierId: string,
   dossierTitre: string,
   resume: string,
+  boite?: string,
 ): Promise<{ ok: boolean; message?: string }> {
   const v = z
-    .object({ emailId: zId, coproCode: zCopro, dossierId: zId, dossierTitre: zCourt, resume: zCourt })
-    .safeParse({ emailId, coproCode, dossierId, dossierTitre, resume });
+    .object({ emailId: zId, coproCode: zCopro, dossierId: zId, dossierTitre: zCourt, resume: zCourt, boite: zBoite })
+    .safeParse({ emailId, coproCode, dossierId, dossierTitre, resume, boite });
   if (!v.success) return { ok: false, message: "Données invalides." };
   const auth = await withGestionnaire(coproCode, dossierIntranetCloisonne());
   if (!auth.ok) return auth;
   const g = auth.g;
-  const ok = await rattacherEmailAuDossier(dossierId, g.id, g.initiales, resume, emailId);
+  const ok = await rattacherEmailAuDossier(dossierId, g.id, g.initiales, resume, await refDuMail(g, boite, emailId));
   if (!ok) return { ok: false, message: "Dossier introuvable ou hors périmètre." };
   await enregistrerRattachement(cibleDe(g, emailId, coproCode), {
     statut: "existant",
@@ -245,6 +257,7 @@ export async function creerDossierDepuisMailAction(
   type: TypeDossier,
   titre: string,
   resume: string,
+  boite?: string,
 ): Promise<{ ok: boolean; dossierId?: string; message?: string }> {
   const v = z
     .object({
@@ -253,14 +266,15 @@ export async function creerDossierDepuisMailAction(
       type: z.enum(TYPE_DOSSIER_ORDRE as [TypeDossier, ...TypeDossier[]]),
       titre: zCourt,
       resume: zCourt,
+      boite: zBoite,
     })
-    .safeParse({ emailId, coproCode, type, titre, resume });
+    .safeParse({ emailId, coproCode, type, titre, resume, boite });
   if (!v.success) return { ok: false, message: "Données invalides." };
   if (!titre.trim()) return { ok: false, message: "Donne un titre au dossier." };
   const auth = await withGestionnaire(coproCode, dossierIntranetCloisonne());
   if (!auth.ok) return auth;
   const g = auth.g;
-  const id = await creerDossierDepuisMail(coproCode, g.id, g.initiales, type, titre.trim(), resume, emailId);
+  const id = await creerDossierDepuisMail(coproCode, g.id, g.initiales, type, titre.trim(), resume, await refDuMail(g, boite, emailId));
   if (!id) return { ok: false, message: "Création impossible (hors périmètre)." };
   await enregistrerRattachement(cibleDe(g, emailId, coproCode), {
     statut: "existant",

@@ -1550,6 +1550,7 @@ export function MesEmailsVue({
                   dossierId,
                   titre,
                   resumeMail(selection),
+                  boiteDuMail(selection),
                 );
               }}
               onCreerDossier={(type, titre) => {
@@ -1559,6 +1560,7 @@ export function MesEmailsVue({
                   type,
                   titre,
                   resumeMail(selection),
+                  boiteDuMail(selection),
                 ).then((res) => {
                   if (res.ok && res.dossierId) {
                     const id = res.dossierId;
