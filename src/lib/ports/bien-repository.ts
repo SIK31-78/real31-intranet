@@ -12,5 +12,10 @@ export interface BienRepository {
    * un bien inactif, leve une Error au message lisible (messageReferenceBienExiste).
    */
   creer(agenceCode: string, bien: NouveauBien, creePar: string): Promise<BienHorsSyndic>;
+  /**
+   * Remet un bien inactif en service SANS toucher a ses autres champs (proprietaire, adresse,
+   * note restent ceux de l'ancien mandat). Leve une Error si le bien n'existe pas.
+   */
+  reactiver(id: string): Promise<BienHorsSyndic>;
   get(id: string): Promise<BienHorsSyndic | null>;
 }

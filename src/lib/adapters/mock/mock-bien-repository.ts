@@ -38,6 +38,14 @@ export class MockBienRepository implements BienRepository {
     return cree;
   }
 
+  async reactiver(id: string): Promise<BienHorsSyndic> {
+    const i = this.biens.findIndex((b) => b.id === id);
+    if (i < 0) throw new Error("Bien introuvable.");
+    const remis = { ...this.biens[i]!, actif: true };
+    this.biens[i] = remis;
+    return remis;
+  }
+
   async get(id: string): Promise<BienHorsSyndic | null> {
     return this.biens.find((b) => b.id === id) ?? null;
   }

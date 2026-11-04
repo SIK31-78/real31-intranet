@@ -14,7 +14,7 @@ import { jourParis } from "@/lib/services/date-du-jour";
 import { acteurCles } from "@/lib/auth/acteur-cles";
 import { annulerReservation, corrigerPret, CHAMPS_CORRIGEABLES, enregistrerRetour, marquer, prolonger, reserver, sortir } from "@/lib/services/cles/comptoir";
 import { bloquerEntreprise, creerEntreprise, creerTrousseau, modifierEntreprise, modifierTrousseau, TAILLE_MAX_PHOTO, televerserPhoto } from "@/lib/services/cles/referentiel";
-import { creerBien } from "@/lib/services/cles/biens";
+import { BienDesactiveError, creerBien, reactiverBien } from "@/lib/services/cles/biens";
 import type { BienChoixService } from "@/lib/services/cles/copros-choix";
 import { indexRecherche, listerEntreprises } from "@/lib/services/cles/lecture";
 import type { EntreeIndex } from "@/lib/domain/cles/recherche";
@@ -199,9 +199,26 @@ const zNouveauBien = z.object({
   note: z.string().trim().max(1000).optional(),
 });
 
-export async function creerBienAction(input: unknown): Promise<Res<BienChoixService>> {
-  return actionGestionnaire(zNouveauBien, input, "cles-bien", async (d, g) => {
-    const bien = await creerBien(d, await acteurCles(g));
+/** Resultat de creerBienAction : le bien cree, ou le bien DESACTIVE qui porte deja cette reference. */
+export type ResultatCreerBien = BienChoixService | { desactive: BienChoixService };
+
+export async function creerBienAction(input: unknown): Promise<Res<ResultatCreerBien>> {
+  return actionGestionnaire(zNouveauBien, input, "cles-bien", async (d, g): Promise<ResultatCreerBien> => {
+    try {
+      const bien = await creerBien(d, await acteurCles(g));
+      revalidatePath("/cles/trousseaux/nouveau");
+      return bien;
+    } catch (e) {
+      if (e instanceof BienDesactiveError) return { desactive: e.bien };
+      throw e;
+    }
+  });
+}
+
+/** « Réactiver ce bien » : remet en service le bien désactivé trouvé par creerBienAction. */
+export async function reactiverBienAction(input: unknown): Promise<Res<BienChoixService>> {
+  return actionGestionnaire(z.object({ bienId: z.string().trim().min(1).max(80) }), input, "cles-bien", async (d, g) => {
+    const bien = await reactiverBien(d.bienId, await acteurCles(g));
     revalidatePath("/cles/trousseaux/nouveau");
     return bien;
   });

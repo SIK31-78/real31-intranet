@@ -110,6 +110,15 @@ export class SupabaseBienRepository implements BienRepository {
     return bienVersDomaine(data as BienRow);
   }
 
+  async reactiver(id: string): Promise<BienHorsSyndic> {
+    const sb = createSupabasePublicClient();
+    // Seul `actif` change : l'ancien proprietaire et l'adresse ne sont jamais ecrases.
+    const { data, error } = await sb.from(T_BIEN).update({ actif: true }).eq("id", id).select(COLS_BIEN).maybeSingle();
+    if (error) throw new Error(`Bien ${id} : ${error.message}`);
+    if (!data) throw new Error("Bien introuvable.");
+    return bienVersDomaine(data as BienRow);
+  }
+
   async get(id: string): Promise<BienHorsSyndic | null> {
     const sb = createSupabasePublicClient();
     const { data, error } = await sb.from(T_BIEN).select(COLS_BIEN).eq("id", id).maybeSingle();

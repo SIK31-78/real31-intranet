@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { ACTIVITES_BIEN, LIBELLE_ACTIVITE_BIEN, LIBELLE_TYPE_BIEN, TYPES_BIEN, referenceBienCanonique, type ActiviteBien, type TypeBien } from "@/lib/domain/bien";
-import { creerBienAction } from "@/app/cles/actions";
+import { creerBienAction, reactiverBienAction } from "@/app/cles/actions";
+import type { BienChoixService } from "@/lib/services/cles/copros-choix";
 import type { BienChoix } from "./formulaire-trousseau";
 
 export function NouveauBien({ agenceCode, referenceInitiale, onCree, onAnnuler }: { agenceCode: string; referenceInitiale: string; onCree: (b: BienChoix) => void; onAnnuler: () => void }) {
@@ -23,6 +24,8 @@ export function NouveauBien({ agenceCode, referenceInitiale, onCree, onAnnuler }
   const [note, setNote] = useState("");
   const [tente, setTente] = useState(false);
   const [erreur, setErreur] = useState<string | undefined>();
+  // Reference deja prise par un bien DESACTIVE : on propose de le reactiver, tel quel.
+  const [desactive, setDesactive] = useState<BienChoixService | null>(null);
 
   const pret = reference.trim().length > 0 && proprietaire.nom.trim().length > 0;
   const champAdresse = (k: keyof typeof adresse) => ({ value: adresse[k], onChange: (e: { target: { value: string } }) => setAdresse({ ...adresse, [k]: e.target.value }) });
@@ -31,12 +34,25 @@ export function NouveauBien({ agenceCode, referenceInitiale, onCree, onAnnuler }
   function enregistrer() {
     setTente(true);
     setErreur(undefined);
+    setDesactive(null);
     if (!pret) return;
     demarrer(async () => {
       const res = await creerBienAction({ agenceCode, activite, reference, type, adresse, proprietaire, note: note || undefined });
       if (!res.ok) return setErreur(res.erreur);
+      if (res.donnees && "desactive" in res.donnees) return setDesactive(res.donnees.desactive);
       const bien = res.donnees as BienChoix;
       toast.ok(`Bien ${bien.reference} créé.`);
+      onCree(bien);
+    });
+  }
+
+  function reactiver(bienId: string) {
+    setErreur(undefined);
+    demarrer(async () => {
+      const res = await reactiverBienAction({ bienId });
+      if (!res.ok) return setErreur(res.erreur);
+      const bien = res.donnees as BienChoix;
+      toast.ok(`Bien ${bien.reference} réactivé.`);
       onCree(bien);
     });
   }
@@ -96,6 +112,21 @@ export function NouveauBien({ agenceCode, referenceInitiale, onCree, onAnnuler }
         <Textarea id="nb-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
       </Field>
 
+      {desactive && (
+        <div className="flex flex-col gap-2 rounded-lg border border-warn-500/40 bg-warn-50 p-3" role="alert">
+          <p className="text-body text-ink">
+            <strong className="font-medium">{desactive.reference}</strong> existe déjà à l&apos;agence {desactive.agenceCode}, sur un bien <strong className="font-medium">désactivé</strong>
+            {desactive.nom || desactive.adresse ? <> : {[desactive.nom, desactive.adresse].filter(Boolean).join(" · ")}</> : null}.
+          </p>
+          <p className="text-meta text-ink-2">
+            Le réactiver le remet dans la liste avec ses informations actuelles (propriétaire, adresse) ; ce que tu as saisi ici n&apos;est pas repris. Sinon, change la référence.
+          </p>
+          <div className="flex gap-2">
+            <Button type="button" variant="primary" size="sm" loading={pending} onClick={() => reactiver(desactive.id)}>Réactiver ce bien</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setDesactive(null)}>Changer la référence</Button>
+          </div>
+        </div>
+      )}
       {erreur && <p className="text-meta text-err-700" role="alert">{erreur}</p>}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onAnnuler}>Annuler</Button>
