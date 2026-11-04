@@ -42,14 +42,13 @@ import {
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Input, Select, Textarea } from "@/components/ui/field";
-import { lienEchange, lireRefEchange } from "@/lib/domain/echanges";
+import { lienDeRefEchange } from "@/lib/domain/echanges";
 
 const PORTEE_ORDRE: PorteeDossier[] = ["copropriete", "coproprietaire", "lot"];
 
-/** Lien vers l'écran « Échanges » pour un mail rattaché depuis cet écran ; null pour les autres. */
+/** Lien vers l'écran « Échanges » pour un mail rattaché (référence avec ou sans boîte) ; null pour les autres. */
 function lienDe(ev: EvenementDossier): string | null {
-  const r = lireRefEchange(ev.ref);
-  return r ? lienEchange(r.boite, r.internetMessageId) : null;
+  return lienDeRefEchange(ev.ref);
 }
 
 const KIND_ICON: Record<KindEvenement, typeof Flag> = {

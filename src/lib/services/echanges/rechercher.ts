@@ -178,6 +178,19 @@ export async function trouverEchange(u: Utilisateur, boite: string, internetMess
   return getRechercheMail().trouver({ boite: garder(u, boite), internetMessageId });
 }
 
+/**
+ * Un mail connu par son seul internetMessageId (référence de dossier sans boîte) : cherché dans
+ * chacune des boîtes données, toutes lisibles par u (garder l'impose). Lecture seule ; une boîte
+ * qui répond en erreur est ignorée tant qu'une autre trouve le mail.
+ */
+export async function trouverDansBoites(u: Utilisateur, boites: string[], internetMessageId: string): Promise<EchangeTrouve | null> {
+  const r = await Promise.allSettled(boites.map((b) => trouverEchange(u, b, internetMessageId)));
+  for (const x of r) if (x.status === "fulfilled" && x.value) return x.value;
+  const refus = r.find((x) => x.status === "rejected");
+  if (refus && refus.status === "rejected" && r.every((x) => x.status === "rejected")) throw refus.reason;
+  return null;
+}
+
 /** Dossiers ouverts de la copro, auxquels rattacher un mail (cloisonnement du module Dossiers). */
 export async function dossiersPourRattacher(managerId: string, coproRef: string): Promise<Pick<Dossier, "id" | "titre" | "type" | "statut" | "coproCode">[]> {
   // Les dossiers portent le code Crypto (S300) ou ESTALE (S0300) : on cherche les deux.

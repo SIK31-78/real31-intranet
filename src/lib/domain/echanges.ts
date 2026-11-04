@@ -270,6 +270,19 @@ export function lienEchange(boite: string, internetMessageId: string): string {
   return `/echanges?boite=${encodeURIComponent(boite)}&mid=${encodeURIComponent(internetMessageId)}`;
 }
 
+/**
+ * Le lien « Ouvrir le mail » d'une référence de journal. Format `echange:boite|id` : le mail
+ * précis. Référence brute (un internetMessageId `<…>`, enregistrée par E-mails avant le
+ * 04/11/2026, sans boîte) : lien sans boîte, Échanges cherche dans les boîtes lisibles.
+ * null pour tout le reste (ancien id Graph, qui ne survit pas à un déplacement).
+ */
+export function lienDeRefEchange(ref: string | undefined): string | null {
+  const r = lireRefEchange(ref);
+  if (r) return lienEchange(r.boite, r.internetMessageId);
+  const brut = (ref ?? "").trim();
+  return /^<[^<>\s]+>$/.test(brut) ? `/echanges?mid=${encodeURIComponent(brut)}` : null;
+}
+
 /** La ligne du journal du dossier : qui, quand, quoi. */
 export function resumeEchange(e: Pick<EchangeTrouve, "boite" | "deAdresse" | "deNom" | "a" | "objet" | "brouillon">): string {
   const s = sensDe(e);

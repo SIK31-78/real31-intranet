@@ -6,6 +6,7 @@ import {
   coprosEchanges,
   rechercherEchanges,
   trouverEchange,
+  trouverDansBoites,
   utilisateurEchanges,
   type ResultatRecherche,
 } from "@/lib/services/echanges/rechercher";
@@ -46,6 +47,8 @@ export default async function EchangesPage({ searchParams }: { searchParams: Pro
   // Lien depuis un dossier : un mail précis, par son internetMessageId.
   const mid = un(p.mid);
   const boiteDuLien = cochees[0];
+  // Lien d'une ancienne référence (sans boîte) : le mail est cherché dans chaque boîte lisible.
+  const cherche = mid && !boiteDuLien ? trouverDansBoites(u, boites.map((b) => b.adresse), mid) : null;
 
   const echec = (e: unknown): ResultatRecherche => ({
     echanges: [],
@@ -55,8 +58,8 @@ export default async function EchangesPage({ searchParams }: { searchParams: Pro
   });
   const [copros, resultat] = await Promise.all([
     coprosEchanges(u).catch(() => []),
-    mid && boiteDuLien
-      ? trouverEchange(u, boiteDuLien, mid).then(
+    mid && (boiteDuLien || cherche)
+      ? (cherche ?? trouverEchange(u, boiteDuLien!, mid)).then(
           (e): ResultatRecherche => ({
             echanges: e ? [e] : [],
             erreurs: e ? [] : ["Ce mail n'est plus dans la boîte (supprimé ou archivé ailleurs)."],
