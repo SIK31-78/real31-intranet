@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { droitsTri } from "@/lib/auth/roles";
@@ -14,6 +15,8 @@ import { Page, PageHeader } from "@/components/ui/page";
 import { Badge } from "@/components/ui/badge";
 import { Callout } from "@/components/ui/callout";
 import { TriEmailsVue } from "@/components/tri-emails/tri-emails-vue";
+import { COOKIE_DERNIERE_BOITE_TRI } from "@/components/tri-emails/derniere-boite";
+import { MemoriserBoite } from "@/components/tri-emails/memoriser-boite";
 
 export const metadata: Metadata = { title: "Tri des e-mails - REAL31 Intranet" };
 
@@ -78,7 +81,14 @@ export default async function TriEmailsPage({ searchParams }: { searchParams: Pr
   // premiere). Une boite demandee qui n'est pas la sienne : retour a l'accueil.
   const droits = droitsTri(g);
   const demandee = (await searchParams).boite;
-  const config = await boiteTriAccessible(g, droits, typeof demandee === "string" ? demandee : null);
+  const explicite = typeof demandee === "string" ? demandee : null;
+  let config = await boiteTriAccessible(g, droits, explicite);
+  // Sans ?boite= : la derniere boite utilisee (cookie), si elle est encore autorisee ;
+  // sinon la boite par defaut (cookie perime, config changee).
+  if (!explicite) {
+    const derniere = (await cookies()).get(COOKIE_DERNIERE_BOITE_TRI)?.value;
+    if (derniere) config = (await boiteTriAccessible(g, droits, derniere)) ?? config;
+  }
   if (!config) redirect("/accueil");
   const [file, annuaire] = await Promise.all([lireFileATrier(config), diagnosticAnnuaire()]);
   const autresBoites = droits.superAdmin ? boitesTri().map((b) => b.boite) : [];
@@ -102,6 +112,7 @@ export default async function TriEmailsPage({ searchParams }: { searchParams: Pr
             </p>
           }
         />
+        {autresBoites.length > 1 && <MemoriserBoite boite={file.boite} />}
         {file.simulation && (
           <Callout ton="info" titre="Mode simulation.">
             {" "}Les rangements sont notés au journal, mais aucun mail ne bouge dans la boîte.
