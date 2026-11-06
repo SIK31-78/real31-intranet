@@ -16,15 +16,15 @@ const etat = vi.hoisted(() => ({
 }));
 
 const services = vi.hoisted(() => ({
-  transfererMail: vi.fn(async (_p: Record<string, unknown>) => {
+  transfererMail: vi.fn(async () => {
     etat.ordre.push("transfert");
     return {};
   }),
-  rangerMail: vi.fn(async (_d: Record<string, unknown>, _par: string, _deps: unknown) => {
+  rangerMail: vi.fn(async () => {
     etat.ordre.push("rangement");
     return { journalId: "j-1", dossierNom: "Transférés", simulation: false, etiquetteNonPosee: false };
   }),
-  ajouterNoteMail: vi.fn(async (..._args: unknown[]) => {
+  ajouterNoteMail: vi.fn(async () => {
     etat.ordre.push("note");
     return {};
   }),

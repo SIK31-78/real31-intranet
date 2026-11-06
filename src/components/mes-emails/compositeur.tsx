@@ -57,7 +57,7 @@ import {
   type RaccourciCopro,
   type VariablesModele,
 } from "@/lib/domain/mes-emails-composition";
-import { alertesAdressePersonnelle, type Collegue } from "@/lib/domain/destinataires-collegues";
+import { alertesAdressePersonnelle, estAdresseReal31, type Collegue } from "@/lib/domain/destinataires-collegues";
 import {
   abandonnerCompositionAction,
   finaliserCompositionAction,
@@ -997,7 +997,9 @@ export type RaccourciChamp = { cle: string; libelle: string; detail?: string; ic
 
 /** Un champ À ou Cc : on tape un nom, l'annuaire propose les personnes ; une adresse tapée passe aussi.
  *  Partagé avec le transfert d'un mail (REA-350) : même annuaire, même saisie. Les collègues
- *  arrivent en tête (badge « Collègue »), une fiche cliente à leur nom est marquée « Client ». */
+ *  arrivent en tête (badge « Collègue »), une fiche cliente à leur nom est marquée « Client ».
+ *  `seulementReal31` (transfert depuis le tri, REA-500) : l'annuaire ne propose que des adresses
+ *  @real31.fr, et une adresse tapée hors REAL31 reste en rouge (le serveur la refuse aussi). */
 export function ChampPersonnes({
   champ,
   label,
@@ -1009,7 +1011,10 @@ export function ChampPersonnes({
   placeholder,
   suffixe,
   autoFocus = false,
+  seulementReal31 = false,
 }: {
+  /** Collègues REAL31 seulement (transfert depuis le tri, REA-500). */
+  seulementReal31?: boolean;
   champ: string;
   label: string;
   personnes: Personne[];
@@ -1032,7 +1037,8 @@ export function ChampPersonnes({
   // Une saisie avec un @ est une ou des adresses tapées (ou rouvertes) : pas de recherche.
   const chercher = q.length >= 3 && !q.includes("@");
   const [refusee, setRefusee] = useState("");
-  const resultats = chercher && trouves?.q === q ? trouves.liste : null;
+  const brut = chercher && trouves?.q === q ? trouves.liste : null;
+  const resultats = brut && seulementReal31 ? brut.filter((d) => d.emails.length > 0 && d.emails.every(estAdresseReal31)) : brut;
   // Échap ferme aussi les raccourcis, pour CETTE saisie.
   const [masque, setMasque] = useState<string | null>(null);
   const propositions = q && masque !== q ? (raccourcis?.(q) ?? []) : [];
@@ -1078,7 +1084,7 @@ export function ChampPersonnes({
     champSaisie.current?.focus();
   }
   // Une adresse de l'annuaire peut aussi être fausse : elle est montrée en rouge.
-  const invalide = (p: Personne) => p.emails.some((e) => !adresseMailValide(e));
+  const invalide = (p: Personne) => p.emails.some((e) => !adresseMailValide(e) || (seulementReal31 && !estAdresseReal31(e)));
 
   return (
     <div className="relative flex items-start gap-2">
@@ -1091,7 +1097,13 @@ export function ChampPersonnes({
           <span
             key={p.cle}
             {...pastilleGlissable(champ, p.cle)}
-            title={invalide(p) ? "Adresse invalide : cliquer pour la corriger" : "Cliquer pour modifier, glisser vers un autre champ"}
+            title={
+              invalide(p)
+                ? seulementReal31 && p.emails.every(adresseMailValide)
+                  ? "Adresse hors REAL31 : depuis le tri, on ne transfère qu'aux collègues"
+                  : "Adresse invalide : cliquer pour la corriger"
+                : "Cliquer pour modifier, glisser vers un autre champ"
+            }
             className={
               "inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full text-meta max-w-full cursor-grab active:cursor-grabbing " +
               (invalide(p) ? "bg-err-50 text-err-700 ring-1 ring-err-700" : "bg-surface-3 text-ink-2")
@@ -1171,7 +1183,11 @@ export function ChampPersonnes({
               </button>
             </li>
           ))}
-          {resultats?.length === 0 && !propositions.length && <li className="px-3 py-2 text-meta text-ink-3">Personne de ce nom dans l&apos;annuaire Crypto.</li>}
+          {resultats?.length === 0 && !propositions.length && (
+            <li className="px-3 py-2 text-meta text-ink-3">
+              {seulementReal31 ? "Aucun collègue REAL31 de ce nom." : "Personne de ce nom dans l'annuaire Crypto."}
+            </li>
+          )}
           {(resultats ?? []).map((d) => (
             <li key={d.cle}>
               <button

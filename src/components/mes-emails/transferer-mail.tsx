@@ -10,6 +10,11 @@
 // « + Conseil syndical » (02/11/2026, Océane) : les membres du CS de la copro du mail en « À »,
 // l'autre membre du binôme en Cc (ADR-052), même source et mêmes règles que le compositeur ;
 // la copie du binôme s'en va d'elle-même quand plus aucun membre du CS n'est en « À ».
+// Variante du tri (`tri`, REA-500, 06/11/2026) : même fenêtre depuis la file de /tri-emails,
+// pour un mail destiné à un collègue vente ou location. L'action serveur est injectée par
+// l'écran du tri (qui range ensuite le mail), les destinataires sont limités aux collègues
+// REAL31 (refusDestinatairesTri, contrôlé aussi côté serveur), ni « Conseil syndical » ni
+// « Reformuler ». Sans `tri`, rien ne change pour l'écran E-mails.
 
 import { useEffect, useRef, useState } from "react";
 import { Forward, Paperclip, Users } from "lucide-react";
@@ -24,6 +29,7 @@ import { transfererEnvoyeAction, transfererMailAction } from "@/app/mes-emails/a
 import { listerContactsCompositionAction } from "@/app/mes-emails/composer/actions";
 import { ajoutConseilEtBinome, conseilEncoreDestinataire, phraseCopieBinome } from "@/lib/domain/copie-binome";
 import { alertesAdressePersonnelle } from "@/lib/domain/destinataires-collegues";
+import { adressesHorsReal31, refusDestinatairesTri } from "@/lib/domain/transfert-tri";
 import { ChampPersonnes, LigneExpediteur, adresses, useCollegues, type Personne } from "./compositeur";
 import { useAlerteSortie } from "./alerte-sortie";
 import { BoutonReformuler } from "./bouton-reformuler";
@@ -33,6 +39,21 @@ import { LiensCopie, useLignesCopie } from "./lignes-copie";
 /** Clé des personnes mises en Cc d'office avec le conseil syndical (binôme de la copro). */
 const CLE_COPIE_BINOME = "binome:";
 const estCopieBinome = (p: Personne) => p.cle.startsWith(CLE_COPIE_BINOME);
+
+/** Variante du tri (REA-500) : ce que l'écran du tri donne à la fenêtre. */
+export interface TransfertDepuisTri {
+  /**
+   * Le transfert, côté serveur (action du tri) : rend le message d'erreur à afficher (la
+   * fenêtre reste ouverte, saisie gardée) ou null (c'est fait : l'écran du tri dit la suite).
+   */
+  transferer: (p: { a: string[]; cc: string[]; corps: string }) => Promise<string | null>;
+  /** Le mail a des pièces jointes (elles partent d'office avec le transfert). */
+  aPiecesJointes: boolean;
+  /** Le transfert part tout de suite (MAIL_TRI_TRANSFERT, ou envoi ouvert) ; sinon brouillon Outlook. */
+  direct: boolean;
+  /** Bouton grisé (une action du tri est en cours). */
+  desactive?: boolean;
+}
 
 export function TransfererMail({
   emailId,
@@ -45,7 +66,10 @@ export function TransfererMail({
   compact = false,
   envoye,
   coproCode,
+  tri,
 }: {
+  /** Depuis la file du tri (REA-500) : action injectée, collègues REAL31 seulement. */
+  tri?: TransfertDepuisTri;
   /** Copro du mail : « + Conseil syndical » proposé (vide ou absent : pas de bouton). */
   coproCode?: string;
   /**
@@ -70,7 +94,13 @@ export function TransfererMail({
   const [ouvert, setOuvert] = useState(false);
   return (
     <>
-      <Button variant="doux" size={compact ? "sm" : "md"} onClick={() => setOuvert(true)}>
+      <Button
+        variant="doux"
+        size={compact ? "sm" : "md"}
+        onClick={() => setOuvert(true)}
+        disabled={tri?.desactive ?? false}
+        {...(tri ? { title: "Transférer ce mail à un collègue REAL31 (vente, location…) ; une fois parti, il est rangé dans « Transférés »." } : {})}
+      >
         {compact ? null : <Forward strokeWidth={1.75} />}
         Transférer
       </Button>
@@ -82,9 +112,10 @@ export function TransfererMail({
           objet={objet}
           piecesJointes={piecesJointes}
           {...(envoye ? { envoye } : {})}
-          {...(coproCode ? { coproCode } : {})}
+          {...(coproCode && !tri ? { coproCode } : {})}
           {...(onTransfere ? { onTransfere } : {})}
-          reformulation={reformulation}
+          {...(tri ? { tri } : {})}
+          reformulation={reformulation && !tri}
           onFermer={() => setOuvert(false)}
         />
       ) : null}
@@ -103,9 +134,11 @@ function FenetreTransfert({
   onFermer,
   envoye,
   coproCode,
+  tri,
 }: {
   envoye?: { id: string; aPiecesJointes: boolean };
   coproCode?: string;
+  tri?: TransfertDepuisTri;
   reformulation: boolean;
   emailId: string;
   boite: string;
@@ -202,6 +235,8 @@ function FenetreTransfert({
   const phraseBinome = phraseCopieBinome(cc.filter(estCopieBinome).map((p) => p.nom));
 
   const invalides = [...adresses(a), ...adresses(cc)].filter((e) => !adresseMailValide(e));
+  // Depuis le tri : les adresses hors REAL31 se voient avant le clic (pastilles en rouge, phrase).
+  const horsReal31 = tri ? adressesHorsReal31(adresses(a), adresses(cc)) : [];
 
   async function transferer() {
     if (enCours) return;
@@ -211,6 +246,27 @@ function FenetreTransfert({
     }
     if (adresses(a).length === 0) {
       toast.err("Ajoute au moins un destinataire en « À ».");
+      return;
+    }
+    // Depuis le tri : collègues REAL31 seulement, la même règle que le serveur. Le reste
+    // (avertissement Elsa, action d'E-mails, messages de retour) ne concerne pas le tri.
+    if (tri) {
+      const refus = refusDestinatairesTri(adresses(a), adresses(cc));
+      if (refus) {
+        toast.err(refus);
+        return;
+      }
+      setEnCours(true);
+      try {
+        const erreur = await tri.transferer({ a: adresses(a), cc: adresses(cc), corps });
+        if (erreur) {
+          toast.err(erreur);
+          return;
+        }
+        onFermer();
+      } finally {
+        setEnCours(false);
+      }
       return;
     }
     // Elsa transférée à sa fiche de copropriétaire au lieu de sa fiche salariée : on le dit.
@@ -247,11 +303,18 @@ function FenetreTransfert({
   }
 
   return (
-    <Modal titre="Transférer le mail" size="lg" onFermer={() => void fermerSiConfirme()} saisieEnCours={saisieEnCours}>
+    <Modal titre={tri ? "Transférer à un collègue" : "Transférer le mail"} size="lg" onFermer={() => void fermerSiConfirme()} saisieEnCours={saisieEnCours}>
       <ModalBody>
         <div className="flex flex-col gap-3">
           <LigneExpediteur boite={boite} />
-          {!boitePerso ? (
+          {tri ? (
+            <p className="text-meta text-ink-3">
+              Collègues REAL31 seulement (adresses @real31.fr).{" "}
+              {tri.direct
+                ? "Le transfert part tout de suite, puis le mail est rangé dans « Transférés »."
+                : "Le transfert sera créé en brouillon dans Outlook, à relire puis envoyer : le mail reste dans la file."}
+            </p>
+          ) : !boitePerso ? (
             <p className="text-meta text-ink-3">
               Boîte partagée : tant que l&apos;envoi n&apos;y est pas ouvert, le transfert reste en brouillon dans Outlook, à relire puis envoyer.
             </p>
@@ -263,7 +326,8 @@ function FenetreTransfert({
               personnes={a}
               onChange={majA}
               onDeplacer={deplacer}
-              placeholder="Nom du collègue ou de la personne (ou une adresse)…"
+              placeholder={tri ? "Nom du collègue (ou son adresse @real31.fr)…" : "Nom du collègue ou de la personne (ou une adresse)…"}
+              {...(tri ? { seulementReal31: true } : {})}
               suffixe={lignesCopie.visible("cc") ? null : <LiensCopie lignes={["cc"]} onOuvrir={lignesCopie.ouvrir} />}
             />
           </div>
@@ -274,11 +338,17 @@ function FenetreTransfert({
               personnes={cc}
               onChange={setCc}
               onDeplacer={deplacer}
-              placeholder="Nom ou adresse…"
+              placeholder={tri ? "Nom du collègue…" : "Nom ou adresse…"}
+              {...(tri ? { seulementReal31: true } : {})}
               autoFocus={lignesCopie.focus === "cc"}
             />
           ) : null}
           {phraseBinome ? <p className="-mt-2 text-meta text-ink-3">{phraseBinome}</p> : null}
+          {horsReal31.length ? (
+            <p role="alert" className="-mt-1 text-meta text-err-700">
+              Hors REAL31, à retirer : {horsReal31.join(", ")}. Depuis le tri, on ne transfère qu&apos;aux collègues.
+            </p>
+          ) : null}
           {coproCode ? (
             <div>
               <Button size="sm" onClick={() => void ajouterConseil()} loading={csEnCours} disabled={enCours} title={`Ajoute en « À » les membres du conseil syndical de ${coproCode}, le binôme en copie`}>
@@ -311,8 +381,8 @@ function FenetreTransfert({
           </div>
           <div className="flex flex-wrap items-center gap-1.5 text-meta text-ink-3">
             <Paperclip strokeWidth={1.5} className="w-3.5 h-3.5" />
-            {envoye
-              ? envoye.aPiecesJointes
+            {envoye || tri
+              ? (envoye ?? tri)?.aPiecesJointes
                 ? "Pièces jointes d'origine jointes d'office."
                 : "Aucune pièce jointe."
               : piecesJointes === null
@@ -327,7 +397,7 @@ function FenetreTransfert({
         <Button variant="ghost" onClick={() => void fermerSiConfirme()} disabled={enCours}>
           Annuler
         </Button>
-        <Button variant="primary" onClick={() => void transferer()} loading={enCours} disabled={adresses(a).length === 0}>
+        <Button variant="primary" onClick={() => void transferer()} loading={enCours} disabled={adresses(a).length === 0 || horsReal31.length > 0}>
           <Forward strokeWidth={1.75} />
           {enCours ? "Transfert…" : "Transférer"}
         </Button>

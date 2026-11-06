@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getGestionnaireCourant } from "@/lib/auth/session";
 import { droitsTri } from "@/lib/auth/roles";
-import { boitesTri } from "@/lib/domain/mail-gate";
+import { boitesTri, ecritureTriPour, transfertTriPart } from "@/lib/domain/mail-gate";
 import { boiteTriAccessible } from "@/lib/services/tri-emails/acces";
 import { lireFileATrier, type FileATrier } from "@/lib/services/tri-emails/lire-file";
 import { MAX_REPLI } from "@/lib/services/tri-emails/synchroniser-reception";
@@ -94,6 +94,9 @@ export default async function TriEmailsPage({ searchParams }: { searchParams: Pr
   const autresBoites = droits.superAdmin ? boitesTri().map((b) => b.boite) : [];
   // Boîtes vers lesquelles un mail peut basculer (ADR-050) : vide tant que l'écriture est coupée.
   const bascules = destinationsDeBascule(file.boite);
+  // « Transférer » à un collègue (REA-500) : seulement quand le tri écrit vraiment dans la boîte
+  // (pas de transfert simulé) ; `direct` dit d'avance s'il partira ou restera en brouillon.
+  const transfert = { possible: ecritureTriPour(config) && !file.simulation, direct: transfertTriPart(file.boite) };
 
   return (
     <AppShell user={g} active="tri-emails" breadcrumb="Tri des e-mails">
@@ -107,7 +110,8 @@ export default async function TriEmailsPage({ searchParams }: { searchParams: Pr
             <p className="max-w-[65ch] text-ink-2">
               La file, c&apos;est la boîte de réception de la boîte partagée de l&apos;agence. Pour chaque mail, l&apos;intranet propose
               une copropriété, ESTALE ou Crypto ; en le rangeant, le mail part dans le dossier du binôme (ou dans
-              Comptabilité / Divers), où l&apos;équipe le traite et y répond depuis Outlook. L&apos;onglet « Rangés
+              Comptabilité / Divers), où l&apos;équipe le traite et y répond depuis Outlook. Un mail pour un collègue
+              vente ou location se transfère d&apos;un clic, puis part dans « Transférés ». L&apos;onglet « Rangés
               sur 7 jours » sert à la revue du vendredi : chaque rangement y montre le signal qui l&apos;a proposé.
             </p>
           }
@@ -125,7 +129,7 @@ export default async function TriEmailsPage({ searchParams }: { searchParams: Pr
             <code>scripts\sync-annuaire-crypto.cmd</code>, sur le PC qui synchronise l&apos;export Crypto.
           </Callout>
         )}
-        <TriEmailsVue file={file} binomesModifiables={droits.superAdmin} bascules={bascules} />
+        <TriEmailsVue file={file} binomesModifiables={droits.superAdmin} bascules={bascules} transfert={transfert} />
       </Page>
     </AppShell>
   );

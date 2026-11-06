@@ -4,6 +4,9 @@
 // a droite ; un onglet journal pour la revue de fin de semaine. Increment 2 : on range
 // d'un clic (dossier du binome, Comptabilité, Divers) et on peut annuler. Sans
 // MAIL_TRI_ECRITURE=on, tout rangement est simule (le mail ne bouge pas).
+// « Transférer » (REA-500, 06/11/2026) : un mail pour un collègue vente ou location lui est
+// transféré (fenêtre d'E-mails, variante du tri), puis rangé dans « Transférés ». « Annuler »
+// ne défait que le rangement : le transfert, lui, est parti.
 
 import { avecTrouveesParEmail, chercherCopros } from "@/lib/domain/recherche-copro-tolerante";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -38,7 +41,10 @@ import {
   retirerAssistantAction,
   supprimerMailAction,
   basculerMailAction,
+  transfererMailTriAction,
 } from "@/app/tri-emails/actions";
+import { TransfererMail } from "@/components/mes-emails/transferer-mail";
+import { resumeDestinataires } from "@/lib/domain/mes-emails-composition";
 import type { DestinationBascule } from "@/lib/services/tri-emails/basculer";
 import { estBascule } from "@/lib/domain/bascule-boites";
 import { Badge, type BadgeTon } from "@/components/ui/badge";
@@ -105,19 +111,41 @@ const heure = (iso: string) =>
 
 const normaliser = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-type Dernier = { journalId: string; dossierNom: string; objet: string; mailId: string; simulation: boolean };
+type Dernier = {
+  journalId: string;
+  dossierNom: string;
+  objet: string;
+  mailId: string;
+  simulation: boolean;
+  /** Rangé après un transfert (REA-500) : à qui il est parti. */
+  transfereA?: string;
+};
+
+/** Le transfert depuis le tri (REA-500), tel que la page le calcule côté serveur. */
+export interface TransfertTri {
+  /** L'écriture du tri est ouverte sur la boîte (pas de transfert simulé). */
+  possible: boolean;
+  /** Il part tout de suite (MAIL_TRI_TRANSFERT=on, ou envoi ouvert) ; sinon brouillon Outlook. */
+  direct: boolean;
+}
+
+/** Le dossier du journal où un transfert range le mail (DOSSIERS_HORS_BINOME). */
+const CLE_TRANSFERES = "transferes";
 
 // binomesModifiables : l'onglet Binômes (qui reçoit quoi) reste au super-admin, l'agence trie.
 // bascules : les autres boîtes triées où envoyer un mail qui n'est pas pour cette agence
 // (ADR-050) ; vide tant que l'écriture n'est pas ouverte des deux côtés.
+// transfert : « Transférer » à un collègue (REA-500), absent tant que l'écriture est coupée.
 export function TriEmailsVue({
   file,
   binomesModifiables,
   bascules = [],
+  transfert = { possible: false, direct: false },
 }: {
   file: FileATrier;
   binomesModifiables: boolean;
   bascules?: DestinationBascule[];
+  transfert?: TransfertTri;
 }) {
   const [onglet, setOnglet] = useState<"file" | "journal" | "binomes">("file");
   // Mails ranges depuis l'affichage : masques tout de suite, sans attendre le rechargement.
@@ -134,12 +162,14 @@ export function TriEmailsVue({
   // Arrivee automatique des nouveaux mails (demande du 08/10) : on relit la file toutes
   // les 60 s quand l'onglet est visible, et des qu'on y revient. Jamais pendant une action.
   const occupe = useRef(false);
+  // Un transfert en cours (fenêtre ouverte, hors transition) : pas de relecture non plus.
+  const transfertEnCours = useRef(false);
   useEffect(() => {
     occupe.current = enCours;
   }, [enCours]);
   useEffect(() => {
     const rafraichir = () => {
-      if (document.visibilityState === "visible" && !occupe.current) router.refresh();
+      if (document.visibilityState === "visible" && !occupe.current && !transfertEnCours.current) router.refresh();
     };
     const minuterie = setInterval(rafraichir, 60_000);
     document.addEventListener("visibilitychange", rafraichir);
@@ -217,7 +247,44 @@ export function TriEmailsVue({
     });
   }
 
-  function annuler(journalId: string, mailId?: string) {
+  // Transfert à un collègue (REA-500) : appelé par la fenêtre, qui reste ouverte sur une erreur
+  // (rendue ici) et se ferme sinon. Parti et rangé : le mail sort de la file, le bandeau permet
+  // d'annuler le RANGEMENT seulement. Resté en brouillon : le mail reste dans la file.
+  async function transferer(mail: MailDeLaFile, p: { a: string[]; cc: string[]; corps: string }): Promise<string | null> {
+    transfertEnCours.current = true;
+    try {
+      const r = await transfererMailTriAction({
+        boite: file.boite,
+        messageId: mail.id,
+        internetMessageId: mail.internetMessageId,
+        expediteur: mail.deAdresse,
+        objet: mail.objet,
+        suggestion: signalDuRangement(mail.suggestion, ANALYSE_PJ.get(mail.internetMessageId) ?? null),
+        ...p,
+      });
+      if (!r.ok) return r.erreur;
+      const d = r.donnees;
+      const pour = resumeDestinataires(p.a);
+      if (!d?.envoye) {
+        toast.ok(`Transfert pour ${pour} créé en brouillon dans Outlook (${file.boite}) : à relire puis envoyer. Le mail reste dans la file.`);
+        return null;
+      }
+      if (d.journalId) {
+        setMasques((m) => new Set(m).add(mail.id));
+        setDernier({ journalId: d.journalId, dossierNom: d.dossierNom ?? "Transférés", objet: mail.objet, mailId: mail.id, simulation: false, transfereA: pour });
+      } else {
+        setDernier(null);
+      }
+      if (d.avertissement) toast.warn(d.avertissement);
+      router.refresh();
+      return null;
+    } finally {
+      transfertEnCours.current = false;
+    }
+  }
+
+  // `transfert` : la ligne annulée rangeait un mail transféré, déjà parti (REA-500).
+  function annuler(journalId: string, mailId?: string, transfert = false) {
     demarrer(async () => {
       const r = await annulerRangementAction({ boite: file.boite, journalId });
       if (!r.ok) {
@@ -232,7 +299,7 @@ export function TriEmailsVue({
         });
       }
       setDernier(null);
-      toast.ok("Remis dans la boîte de réception.");
+      toast.ok(transfert ? "Remis dans la boîte de réception. Le transfert, lui, est déjà parti : il n'est pas rappelé." : "Remis dans la boîte de réception.");
       router.refresh();
     });
   }
@@ -242,10 +309,23 @@ export function TriEmailsVue({
       <div className="flex flex-col gap-4">
         {dernier && (
           <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-3.5 py-2 text-body">
-            <span className="min-w-0 flex-1">
-              {dernier.simulation ? "Simulé : " : ""}« {dernier.objet} » rangé dans <span className="font-mono">{dernier.dossierNom}</span>.
-            </span>
-            <Button size="sm" variant="ghost" disabled={enCours} onClick={() => annuler(dernier.journalId, dernier.mailId)}>
+            {dernier.transfereA ? (
+              <span className="min-w-0 flex-1">
+                « {dernier.objet} » transféré à {dernier.transfereA} et rangé dans <span className="font-mono">{dernier.dossierNom}</span>.
+                « Annuler » le remet dans la file, mais le transfert est déjà parti.
+              </span>
+            ) : (
+              <span className="min-w-0 flex-1">
+                {dernier.simulation ? "Simulé : " : ""}« {dernier.objet} » rangé dans <span className="font-mono">{dernier.dossierNom}</span>.
+              </span>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={enCours}
+              onClick={() => annuler(dernier.journalId, dernier.mailId, Boolean(dernier.transfereA))}
+              {...(dernier.transfereA ? { title: "Remet le mail dans la boîte de réception ; le transfert parti n'est pas rappelé." } : {})}
+            >
               Annuler
             </Button>
           </div>
@@ -286,12 +366,14 @@ export function TriEmailsVue({
               supprimer={supprimer}
               bascules={bascules}
               basculer={basculer}
+              transfert={transfert}
+              transferer={transferer}
             />
           </TabPanel>
         )}
         {onglet === "journal" && (
           <TabPanel id="tri-p-journal" tabId="tri-t-journal">
-            <JournalVue journal={file.journal} copros={file.copros} enCours={enCours} annuler={(id) => annuler(id)} />
+            <JournalVue journal={file.journal} copros={file.copros} enCours={enCours} annuler={(id, transfert) => annuler(id, undefined, transfert)} />
           </TabPanel>
         )}
         {onglet === "binomes" && binomesModifiables && (
@@ -313,6 +395,8 @@ function FileVue({
   supprimer,
   bascules,
   basculer,
+  transfert,
+  transferer,
 }: {
   copros: CoproDeLaFile[];
   dossiers: DossierChoisissable[];
@@ -322,6 +406,8 @@ function FileVue({
   supprimer: (mail: MailDeLaFile) => void;
   bascules: DestinationBascule[];
   basculer: (mail: MailDeLaFile, cible: string) => void;
+  transfert: TransfertTri;
+  transferer: (mail: MailDeLaFile, p: { a: string[]; cc: string[]; corps: string }) => Promise<string | null>;
 }) {
   const [courantId, setCourantId] = useState<string | null>(mails[0]?.id ?? null);
   const [filtre, setFiltre] = useState("");
@@ -431,6 +517,8 @@ function FileVue({
           supprimer={() => supprimer(courant)}
           bascules={bascules}
           basculer={(cible) => basculer(courant, cible)}
+          transfert={transfert}
+          transferer={(p) => transferer(courant, p)}
         />
       ) : (
         <EmptyState>Sélectionnez un mail dans la file.</EmptyState>
@@ -453,6 +541,8 @@ function DetailMail({
   supprimer,
   bascules,
   basculer,
+  transfert,
+  transferer,
 }: {
   mail: MailDeLaFile;
   copros: CoproDeLaFile[];
@@ -467,6 +557,8 @@ function DetailMail({
   supprimer: () => void;
   bascules: DestinationBascule[];
   basculer: (cible: string) => void;
+  transfert: TransfertTri;
+  transferer: (p: { a: string[]; cc: string[]; corps: string }) => Promise<string | null>;
 }) {
   const boite = useBoiteTri();
   const [recherche, setRecherche] = useState("");
@@ -767,6 +859,17 @@ function DetailMail({
           <Button variant="ghost" disabled={enCours} onClick={() => ranger({ type: "divers" })}>
             Divers
           </Button>
+          {/* Pour un collègue vente ou location (REA-500) : absent tant que l'écriture est coupée. */}
+          {transfert.possible && (
+            <TransfererMail
+              emailId={mail.internetMessageId}
+              boite={boite}
+              boitePerso={false}
+              objet={mail.objet}
+              piecesJointes={null}
+              tri={{ transferer, aPiecesJointes: mail.aPiecesJointes, direct: transfert.direct, desactive: enCours }}
+            />
+          )}
           <Button variant="destructive" disabled={enCours} onClick={supprimer} className="ml-auto">
             Supprimer
           </Button>
@@ -1079,7 +1182,8 @@ function JournalVue({
   journal: EntreeJournalTri[];
   copros: CoproDeLaFile[];
   enCours: boolean;
-  annuler: (journalId: string) => void;
+  /** `transfert` : la ligne range un mail transféré (le toast le rappelle, REA-500). */
+  annuler: (journalId: string, transfert: boolean) => void;
 }) {
   // Filtre par origine (27/10/2026) : remplace les bandeaux « N rangés automatiquement » et
   // « N déplacés dans Outlook », qui ne comptaient que ce que ce rendu-la avait vu.
@@ -1159,7 +1263,7 @@ function JournalVue({
                     <td className="px-3 py-2 text-right">
                       {/* Une bascule (ADR-050) ne s'annule pas d'ici : la copie est dans l'autre boîte. */}
                       {!estBascule(e) && (
-                        <Button size="sm" variant="ghost" disabled={enCours} onClick={() => annuler(e.id)}>
+                        <Button size="sm" variant="ghost" disabled={enCours} onClick={() => annuler(e.id, e.dossierCle === CLE_TRANSFERES)}>
                           Annuler
                         </Button>
                       )}
