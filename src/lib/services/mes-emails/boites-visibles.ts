@@ -92,7 +92,7 @@ interface MailDistribue {
 /**
  * Les mails que le tri a distribues a mes binomes dans cette boite : internetMessageId ->
  * reference de la copro choisie au tri (null = rangé sans copro). Le plus recent rangement
- * l'emporte. Corbeille, Comptabilite, Divers et dossiers des autres binomes sont exclus.
+ * l'emporte. Corbeille, Comptabilite, Divers, Transférés et dossiers des autres binomes sont exclus.
  * Les binomes des titulaires qui m'ont confie leur portefeuille comptent comme les miens.
  */
 export async function distributionDe(g: Personne, boite: string): Promise<Map<string, string | null>> {

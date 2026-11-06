@@ -1582,10 +1582,17 @@ export interface Destination {
   dossier: string | null;
 }
 
-/** Les deux dossiers hors binome (arbitrage du 30/09/2026). */
+/**
+ * Les dossiers hors binome : Comptabilité et Divers (arbitrage du 30/09/2026), et « Transférés »
+ * (REA-500, 06/11/2026) : un mail transféré depuis le tri a un collègue vente ou location (qui
+ * n'a pas acces a la boite syndic) y est range une fois le transfert parti. On ne le range
+ * jamais a la main (rangerMailAction ne l'accepte pas) : seul transfererMailTriAction y mene.
+ * Comme Divers, il n'est distribue a personne dans « E-mails » (ni binome, ni comptables).
+ */
 export const DOSSIERS_HORS_BINOME = {
   comptabilite: "Comptabilité",
   divers: "Divers",
+  transferes: "Transférés",
 } as const;
 export type DossierHorsBinome = keyof typeof DOSSIERS_HORS_BINOME;
 
@@ -1594,7 +1601,7 @@ export type DossierHorsBinome = keyof typeof DOSSIERS_HORS_BINOME;
  * - une copro : le dossier de son binome, etiquete a son code ;
  * - un dossier de binome choisi librement, avec zero, une ou plusieurs etiquettes (une
  *   invitation d'un prestataire, des factures pour plusieurs copros : demande du 08/10) ;
- * - Comptabilité ou Divers.
+ * - Comptabilité ou Divers ; « Transférés » apres un transfert depuis le tri (REA-500).
  */
 export type CibleTri =
   | { type: "copro"; reference: string }

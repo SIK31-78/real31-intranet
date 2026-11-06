@@ -79,7 +79,7 @@ export function estDossierComptabilite(dossierCle: string | null | undefined): b
  * Les adresses du binôme qui tient ce dossier du tri : gestionnaire et assistant(e). La clé
  * `binome:<email>` est celle du binôme principal du gestionnaire (ou du gestionnaire seul) ;
  * `binome:<id>` celle d'un binôme secondaire (cf. cleDossierDe). Vide pour un dossier hors
- * binôme (Comptabilité, Divers, bascule) ou inconnu.
+ * binôme (Comptabilité, Divers, Transférés, bascule) ou inconnu.
  */
 export function membresDuDossier(dossierCle: string | null | undefined, b: BinomesTri): string[] {
   if (!dossierCle?.startsWith("binome:")) return [];
