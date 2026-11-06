@@ -11,6 +11,8 @@ import {
   envoiMailPour,
   lireBoitesTri,
   recuDepuisDebutTri,
+  transfertTriActif,
+  transfertTriPart,
   triAutomatiquePour,
 } from "./mail-gate";
 
@@ -241,5 +243,24 @@ describe("capacités : interrupteur global ET boîte", () => {
     expect(envoiMailPour("inconnue@real31.fr")).toBe(false);
     vi.stubEnv("MAIL_ENVOI", "");
     expect(envoiMailPour("syndic2@real31.fr")).toBe(false);
+  });
+  it("transfert depuis le tri (REA-500) : MAIL_TRI_TRANSFERT=on le fait partir, sinon la règle de l'envoi", () => {
+    vi.stubEnv("MAIL_TRI_BOITES", DEUX_BOITES);
+    vi.stubEnv("MAIL_ENVOI", "");
+    vi.stubEnv("MAIL_TRI_TRANSFERT", "");
+    expect(transfertTriActif()).toBe(false);
+    expect(transfertTriPart("syndic4@real31.fr")).toBe(false);
+    // Coupé par défaut : seul « on » l'ouvre, casse et espaces ignorés.
+    vi.stubEnv("MAIL_TRI_TRANSFERT", "oui");
+    expect(transfertTriActif()).toBe(false);
+    vi.stubEnv("MAIL_TRI_TRANSFERT", " ON ");
+    expect(transfertTriActif()).toBe(true);
+    // Ouvert : il part même d'une boîte où l'envoi est fermé (syndic4, envoi:false).
+    expect(transfertTriPart("syndic4@real31.fr")).toBe(true);
+    // Fermé : la règle des boîtes partagées (MAIL_ENVOI=on ET envoi de la boîte).
+    vi.stubEnv("MAIL_TRI_TRANSFERT", "");
+    vi.stubEnv("MAIL_ENVOI", "on");
+    expect(transfertTriPart("syndic2@real31.fr")).toBe(true);
+    expect(transfertTriPart("syndic4@real31.fr")).toBe(false);
   });
 });

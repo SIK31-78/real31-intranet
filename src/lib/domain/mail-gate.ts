@@ -16,6 +16,8 @@
 //   - boitesDestinationBascule() : ou un mail peut basculer (ADR-050) = les boites triees
 //                                + les boites « destination seulement » ("tri":false,
 //                                syndic1 pour ML le 28/10/2026, encore relevee par Crypto).
+//   - transfertTriPart(boite)  : le transfert d'un mail du tri a un collegue part-il
+//                                (MAIL_TRI_TRANSFERT=on, REA-500) ou reste-t-il en brouillon ?
 
 export function mailModuleActif(): boolean {
   return process.env.MAIL_SOURCE === "graph";
@@ -336,6 +338,25 @@ export function envoiMailActif(): boolean {
  */
 export function envoiMailPour(boite: string | null | undefined): boolean {
   return envoiMailActif() && Boolean(boiteTri(boite)?.envoi);
+}
+
+/**
+ * Interrupteur GLOBAL du transfert direct depuis le tri (MAIL_TRI_TRANSFERT=on, REA-500, décision
+ * Sekou du 06/11/2026). Un mail de la file destiné à un collègue vente ou location (qui n'a pas
+ * accès à la boîte syndic) lui est transféré d'un clic. Coupé par défaut, comme envoiMailActif() :
+ * retirer la variable revient à la règle des boîtes partagées (envoiMailPour, sinon brouillon).
+ */
+export function transfertTriActif(): boolean {
+  return (process.env.MAIL_TRI_TRANSFERT ?? "").trim().toLowerCase() === "on";
+}
+
+/**
+ * Le transfert depuis le tri PART-il de cette boîte (sinon : brouillon dans Outlook) ? Oui avec
+ * MAIL_TRI_TRANSFERT=on, même si l'envoi n'est pas ouvert sur la boîte ; sinon la règle de
+ * l'envoi depuis une boîte partagée (envoiMailPour).
+ */
+export function transfertTriPart(boite: string | null | undefined): boolean {
+  return transfertTriActif() || envoiMailPour(boite);
 }
 
 /**
