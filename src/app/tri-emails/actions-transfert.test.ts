@@ -118,7 +118,10 @@ describe("transfererMailTriAction", () => {
       internetMessageId: "<mail-1@exemple.fr>",
       a: ["vente@real31.fr"],
       cc: ["location@real31.fr"],
-      corps: "Pour toi.",
+      // La mention en tête, puis le mot de la fenêtre (06/11/2026).
+      corps: `Mail transféré depuis la boîte ${BOITE} par Camille TEST.
+
+Pour toi.`,
       signatureHtml: "<p>Signature</p>",
       envoyer: true,
     });

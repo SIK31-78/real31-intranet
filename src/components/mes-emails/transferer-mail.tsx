@@ -309,7 +309,7 @@ function FenetreTransfert({
           <LigneExpediteur boite={boite} />
           {tri ? (
             <p className="text-meta text-ink-3">
-              Collègues REAL31 seulement (adresses @real31.fr).{" "}
+              Collègues REAL31 seulement (adresses @real31.fr). En tête du mail, une mention dit qu&apos;il vient de {boite} et qui le transfère.{" "}
               {tri.direct
                 ? "Le transfert part tout de suite, puis le mail est rangé dans « Transférés »."
                 : "Le transfert sera créé en brouillon dans Outlook, à relire puis envoyer : le mail reste dans la file."}

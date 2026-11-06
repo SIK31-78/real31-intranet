@@ -45,6 +45,19 @@ const DEBUT_NOTE = "Transféré à ";
  * (Cc : c@real31.fr) par Prénom NOM. » Tenu dans la longueur d'une note (50 adresses longues
  * la dépasseraient) : la fin de la liste des adresses cède la place à « … », l'auteur reste.
  */
+/**
+ * La mention en tête du mail transféré depuis le tri (point du 06/11/2026 avec Emmanuel) : le
+ * collègue doit voir d'où vient le mail, la signature seule (celle de la personne qui transfère)
+ * ne le dit pas. « Mail transféré depuis la boîte syndic2@real31.fr par Prénom NOM. », puis le
+ * mot facultatif de la fenêtre, séparé d'une ligne vide. La signature reste ajoutée après.
+ */
+export function corpsDuTransfertTri(boite: string, par: string, corps: string): string {
+  const qui = par.trim();
+  const mention = `Mail transféré depuis la boîte ${boite.trim().toLowerCase()}${qui ? ` par ${qui}` : ""}.`;
+  const mot = corps.trim();
+  return mot ? `${mention}\n\n${mot}` : mention;
+}
+
 export function noteDeTransfert(a: readonly string[], cc: readonly string[], par: string): string {
   const copie = normaliser(cc);
   const qui = par.trim();

@@ -1,7 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { NOTE_LONGUEUR_MAX } from "./boite-equipe";
 import { cheminDossierHorsBinome, DOSSIERS_HORS_BINOME } from "./tri-emails";
-import { adressesHorsReal31, destinatairesDeNote, destinatairesDuTransfert, noteDeTransfert, refusDestinatairesTri } from "./transfert-tri";
+import {
+  adressesHorsReal31,
+  corpsDuTransfertTri,
+  destinatairesDeNote,
+  destinatairesDuTransfert,
+  noteDeTransfert,
+  refusDestinatairesTri,
+} from "./transfert-tri";
+
+describe("corpsDuTransfertTri", () => {
+  it("met la mention en tête, puis le mot, séparé d'une ligne vide", () => {
+    expect(corpsDuTransfertTri("Syndic2@real31.fr", "Camille TEST", "  Pour toi, vente.  ")).toBe(
+      "Mail transféré depuis la boîte syndic2@real31.fr par Camille TEST.\n\nPour toi, vente.",
+    );
+  });
+  it("sans mot : la mention seule ; sans nom : sans « par »", () => {
+    expect(corpsDuTransfertTri("syndic2@real31.fr", "Camille TEST", "   ")).toBe("Mail transféré depuis la boîte syndic2@real31.fr par Camille TEST.");
+    expect(corpsDuTransfertTri("syndic2@real31.fr", " ", "")).toBe("Mail transféré depuis la boîte syndic2@real31.fr.");
+  });
+});
 
 // Transfert d'un mail du tri à un collègue (REA-500, 06/11/2026) : collègues REAL31 seulement,
 // 50 destinataires au plus, et la note « transféré à … par … » laissée sur le mail.

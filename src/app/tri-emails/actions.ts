@@ -17,7 +17,7 @@ import { droitsTri, estSuperAdmin } from "@/lib/auth/roles";
 import { incarnationEnCours } from "@/lib/auth/session";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
 import { BOITE_ECHANTILLON, ecritureTriPour, transfertTriPart, type BoiteTriConfig } from "@/lib/domain/mail-gate";
-import { noteDeTransfert, refusDestinatairesTri } from "@/lib/domain/transfert-tri";
+import { corpsDuTransfertTri, noteDeTransfert, refusDestinatairesTri } from "@/lib/domain/transfert-tri";
 import { boiteTriAccessible } from "@/lib/services/tri-emails/acces";
 import {
   annulerRangement,
@@ -281,7 +281,8 @@ export async function transfererMailTriAction(input: unknown): Promise<Res<Resul
       internetMessageId,
       a: d.a,
       cc: d.cc,
-      corps: d.corps,
+      // La mention « Mail transféré depuis la boîte … par … » en tête (06/11/2026).
+      corps: corpsDuTransfertTri(config.boite, g.nomComplet || g.email || "", d.corps),
       ...(signatureHtml ? { signatureHtml } : {}),
       envoyer,
     });
