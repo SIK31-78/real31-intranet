@@ -230,6 +230,11 @@ export class SupabaseBoiteEquipeRepository implements BoiteEquipeRepository {
     return lireParIds<RowNote, NoteInterne>(NOTE, "*", [internetMessageId], versNote);
   }
 
+  async notesDe(ids: string[]): Promise<NoteInterne[] | null> {
+    if (!ids.length) return [];
+    return lireParIds<RowNote, NoteInterne>(NOTE, "*", [...new Set(ids)], versNote);
+  }
+
   async compterNotes(ids: string[]): Promise<Map<string, number> | null> {
     // Seulement l'identifiant du mail : le texte des notes ne quitte pas la base pour un compte.
     const lignes = await lireParIds<{ internet_message_id: string }, string>(NOTE, "internet_message_id", ids, (r) => r.internet_message_id);

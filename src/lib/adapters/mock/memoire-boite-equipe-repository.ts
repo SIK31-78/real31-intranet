@@ -45,6 +45,11 @@ export class MemoireBoiteEquipeRepository implements BoiteEquipeRepository {
     return [...this.notesParId.values()].filter((n) => n.internetMessageId === internetMessageId);
   }
 
+  async notesDe(ids: string[]): Promise<NoteInterne[]> {
+    const voulus = new Set(ids);
+    return [...this.notesParId.values()].filter((n) => voulus.has(n.internetMessageId));
+  }
+
   async compterNotes(ids: string[]): Promise<Map<string, number>> {
     const voulus = new Set(ids);
     const out = new Map<string, number>();

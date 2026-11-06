@@ -43,6 +43,11 @@ export interface BoiteEquipeRepository {
   // --- Notes internes : suivent le mail partout (clé = internetMessageId seul).
   /** Les notes d'un mail. null = table absente. */
   notes(internetMessageId: string): Promise<NoteInterne[] | null>;
+  /**
+   * Les notes de plusieurs mails, en une lecture groupée (le journal du tri relit les traces
+   * « Transféré à … » de sa colonne « Transférés », REA-500). null = table absente.
+   */
+  notesDe(internetMessageIds: string[]): Promise<NoteInterne[] | null>;
   /** Le nombre de notes de chacun de ces mails (absent = 0). null = table absente. */
   compterNotes(internetMessageIds: string[]): Promise<Map<string, number> | null>;
   note(id: string): Promise<NoteInterne | null>;

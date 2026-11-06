@@ -373,7 +373,14 @@ export function TriEmailsVue({
         )}
         {onglet === "journal" && (
           <TabPanel id="tri-p-journal" tabId="tri-t-journal">
-            <JournalVue journal={file.journal} copros={file.copros} enCours={enCours} annuler={(id, transfert) => annuler(id, undefined, transfert)} />
+            <JournalVue
+              journal={file.journal}
+              transferts={file.transferts}
+              collaborateurs={file.collaborateurs}
+              copros={file.copros}
+              enCours={enCours}
+              annuler={(id, transfert) => annuler(id, undefined, transfert)}
+            />
           </TabPanel>
         )}
         {onglet === "binomes" && binomesModifiables && (
@@ -1175,11 +1182,17 @@ function parDe(e: EntreeJournalTri): Exclude<FiltreJournal, "tous"> {
 /** Revue de fin de semaine : chaque rangement, le signal qui l'avait propose, suivi ou non. */
 function JournalVue({
   journal,
+  transferts,
+  collaborateurs,
   copros,
   enCours,
   annuler,
 }: {
   journal: EntreeJournalTri[];
+  /** Lignes « Transférés » : id de ligne -> adresses du transfert (REA-500). */
+  transferts: Record<string, string[]>;
+  /** Pour montrer le nom du collègue plutôt que son adresse (déjà chargés pour l'écran). */
+  collaborateurs: Collaborateur[];
   copros: CoproDeLaFile[];
   enCours: boolean;
   /** `transfert` : la ligne range un mail transféré (le toast le rappelle, REA-500). */
@@ -1188,6 +1201,8 @@ function JournalVue({
   // Filtre par origine (27/10/2026) : remplace les bandeaux « N rangés automatiquement » et
   // « N déplacés dans Outlook », qui ne comptaient que ce que ce rendu-la avait vu.
   const [filtre, setFiltre] = useState<FiltreJournal>("tous");
+  // Adresse -> nom du collègue, pour la colonne « Transférés » (une adresse inconnue reste telle quelle).
+  const nomDe = useMemo(() => new Map(collaborateurs.map((c) => [c.email, c.nomComplet])), [collaborateurs]);
   const comptes = useMemo(() => {
     const c = { tous: journal.length, automatique: 0, main: 0, outlook: 0 };
     for (const e of journal) c[parDe(e)]++;
@@ -1239,6 +1254,11 @@ function JournalVue({
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <span className="font-mono">{e.dossierNom}</span>
+                      {transferts[e.id] && (
+                        <span className="block max-w-[260px] whitespace-normal text-meta text-ink-2" title={transferts[e.id]!.join(", ")}>
+                          → {transferts[e.id]!.map((a) => nomDe.get(a) ?? a).join(", ")}
+                        </span>
+                      )}
                       {e.coproReference && <span className="block text-meta text-ink-3 font-mono">{e.coproReference}</span>}
                       {!e.coproReference && e.dossierCle?.startsWith("binome:") && (
                         <PreciserCopro entree={e} candidates={copros.filter((c) => c.destination?.cle === e.dossierCle)} />

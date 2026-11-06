@@ -51,6 +51,7 @@ import { compterMailsATrier } from "./compteur";
 import { MAX_REPLI, lireReception, type LectureReception } from "./synchroniser-reception";
 import { rangementSimule } from "./ranger";
 import { listerCollaborateurs, listerGestionnairesCabinet, type Collaborateur } from "./binomes";
+import { destinatairesDesTransferts } from "./transferts-journal";
 
 /** Longueur du texte affiche ; la suggestion lit un peu plus loin. */
 const APERCU = 1500;
@@ -83,6 +84,11 @@ export interface FileATrier {
   copros: CoproDeLaFile[];
   /** Rangements des 7 derniers jours (revue de fin de semaine), les plus recents d'abord. */
   journal: EntreeJournalTri[];
+  /**
+   * Lignes « Transférés » du journal (REA-500) : id de ligne -> adresses du transfert, relues
+   * dans la note « Transféré à … » du mail. Une ligne sans trace lisible n'y est pas.
+   */
+  transferts: Record<string, string[]>;
   /** Un binome par gestionnaire de copros ESTALE (onglet « Binômes »). */
   binomes: LigneBinome[];
   /** Dossiers de binome qu'on peut viser a la main (« Ranger ailleurs »). */
@@ -264,6 +270,8 @@ export async function lireFileATrier(config: BoiteTriConfig): Promise<FileATrier
   const gestionnaires = gestRes.status === "fulfilled" ? gestRes.value : [];
   const journal = journalRes.status === "fulfilled" ? journalRes.value : [];
   if (journalRes.status === "rejected") erreurs.push("Le journal du tri est indisponible.");
+  // Une lecture groupée des notes, seulement s'il y a des lignes « Transférés » (best-effort).
+  const transferts = await destinatairesDesTransferts(journal);
   const lecture = mailsRes.status === "fulfilled" ? mailsRes.value : null;
   if (lecture?.avertissement) erreurs.push(lecture.avertissement);
   // Du plus ancien au plus recent : on traite la file dans l'ordre d'arrivee (decision Sekou
@@ -310,6 +318,7 @@ export async function lireFileATrier(config: BoiteTriConfig): Promise<FileATrier
     totalReception,
     copros,
     journal,
+    transferts,
     binomes: lignes,
     dossiers: dossiersChoisissables(lignes),
     collaborateurs,
