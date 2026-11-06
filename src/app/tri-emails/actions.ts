@@ -6,19 +6,31 @@
 // c'est un super-admin, contre la config MAIL_TRI_BOITES. Les binomes, super-admins
 // seulement. L'ecriture reelle dans la boite depend de MAIL_TRI_ECRITURE et de `ecriture`
 // dans sa config (routeur) ; sans elles, le rangement est simule et journalise comme tel.
+// « Transférer » (REA-500, 06/11/2026) : un mail pour un collègue vente ou location lui est
+// transféré depuis la boîte triée (collègues REAL31 seulement), puis rangé dans « Transférés ».
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionGestionnaire, Refus } from "@/lib/actions/garde";
-import type { Res } from "@/lib/actions/resultat";
+import { messageUtilisateur, type Res } from "@/lib/actions/resultat";
 import { droitsTri, estSuperAdmin } from "@/lib/auth/roles";
 import { incarnationEnCours } from "@/lib/auth/session";
 import type { Gestionnaire } from "@/lib/domain/gestionnaire";
-import { BOITE_ECHANTILLON, type BoiteTriConfig } from "@/lib/domain/mail-gate";
+import { BOITE_ECHANTILLON, ecritureTriPour, transfertTriPart, type BoiteTriConfig } from "@/lib/domain/mail-gate";
+import { noteDeTransfert, refusDestinatairesTri } from "@/lib/domain/transfert-tri";
 import { boiteTriAccessible } from "@/lib/services/tri-emails/acces";
-import { annulerRangement, depsParDefaut, preciserCopro, rangerMail, supprimerMail } from "@/lib/services/tri-emails/ranger";
+import {
+  annulerRangement,
+  depsParDefaut,
+  preciserCopro,
+  rangerMail,
+  supprimerMail,
+  type ResultatRangement,
+} from "@/lib/services/tri-emails/ranger";
 import { oublierCompteur } from "@/lib/services/tri-emails/compteur";
 import { ajouterNoteMail } from "@/lib/services/mes-emails/boite-equipe";
+import { transfererMail } from "@/lib/services/mes-emails/transferer";
+import { getSignatureGestionnaire } from "@/lib/services/mes-emails/get-signature";
 import { affecterCopro, ajouterAssistant, definirPrincipal, retirerAssistant } from "@/lib/services/tri-emails/binomes";
 import { listerPiecesJointesTri } from "@/lib/services/tri-emails/pieces-jointes";
 import { coproDepuisPiecesJointes, type CoproDepuisPj } from "@/lib/services/tri-emails/copro-pieces-jointes";
@@ -190,6 +202,129 @@ export async function basculerMailAction(input: unknown): Promise<Res<ResultatBa
       return r;
     },
   );
+}
+
+// --- Transférer à un collègue REAL31 (REA-500, 06/11/2026) -------------------------------
+
+const RE_ADRESSE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Bornes larges : le plafond de 50 destinataires est redit en clair par refusDestinatairesTri.
+const zAdresses = z.array(z.string().trim().max(320).regex(RE_ADRESSE)).max(200);
+
+const zTransfertTri = z.object({
+  boite: zBoite,
+  messageId: z.string().min(1).max(400),
+  internetMessageId: zTexte(400),
+  expediteur: zTexte(320),
+  objet: zTexte(500),
+  suggestion: z.object({ nature: zNature, candidats: z.array(z.string().max(10)).max(20) }).nullable(),
+  a: zAdresses,
+  cc: zAdresses,
+  corps: z.string().max(100_000),
+});
+
+export interface ResultatTransfertTri {
+  /** Le transfert est parti. false : brouillon dans Outlook, le mail reste dans la file. */
+  envoye: boolean;
+  /** Rangé dans « Transférés » : la ligne du journal (« Annuler » ne défait que le rangement). */
+  journalId?: string;
+  dossierNom?: string;
+  /** Parti, mais la suite a manqué (rangement, trace) : à dire tel quel. */
+  avertissement?: string;
+}
+
+const CTX_TRANSFERT = "tri-emails-transferer";
+
+/**
+ * Transfère un mail de la file à un ou des collègues REAL31 (vente, location : ils n'ont pas
+ * accès à la boîte syndic), depuis la boîte triée, pièces jointes d'origine comprises
+ * (createForward), puis le range dans « Transférés ».
+ *
+ * Gardes : droit de trier la boîte (gardeTri) ; pas en incarnation (la trace porterait le nom
+ * de la personne incarnée) ; écriture du tri ouverte sur la boîte, pas de transfert simulé
+ * (comme la bascule) ; destinataires @real31.fr seulement, 50 au plus ; le mail doit être en
+ * réception AVANT de partir (on ne transfère pas un mail qu'un collègue vient de ranger).
+ *
+ * Ordre, pour ne jamais perdre le mail : (1) transfert ; en panne, rien n'est rangé. Resté en
+ * brouillon (MAIL_TRI_TRANSFERT coupé et envoi fermé sur la boîte) : rien n'est rangé, le mail
+ * reste dans la file. (2) Parti : rangement dans « Transférés » par rangerMail (journal
+ * transactionnel) ; en panne, l'action réussit quand même, avec un avertissement. (3) La trace
+ * « Transféré à … par … » en note interne (ADR-053) : le journal du tri n'a pas de champ libre,
+ * la note suit le mail par son internetMessageId, garde l'auteur et la date, et reste même si
+ * le rangement est annulé ou a échoué.
+ */
+export async function transfererMailTriAction(input: unknown): Promise<Res<ResultatTransfertTri>> {
+  return actionGestionnaire(zTransfertTri, input, CTX_TRANSFERT, async (d, g) => {
+    const config = await gardeTri(g, d.boite);
+    if (await incarnationEnCours()) {
+      throw new Refus("Le transfert depuis le tri ne se fait pas en incarnation : reviens sur ton compte.");
+    }
+    const deps = depsParDefaut(config);
+    if (!ecritureTriPour(config) || deps.simulation) {
+      throw new Refus(`L'écriture du tri est coupée sur ${config.boite} : pas de transfert depuis le tri (rien n'a été fait).`);
+    }
+    const refus = refusDestinatairesTri(d.a, d.cc);
+    if (refus) throw new Refus(refus);
+
+    const lu = await deps.rangement.lireEnReception(config.boite, d.messageId);
+    if (!lu) throw new Refus("Ce mail n'est plus dans la boîte de réception : quelqu'un l'a sans doute déjà rangé. Rien n'a été transféré.");
+    // La boîte fait foi pour l'identifiant du mail transféré.
+    const internetMessageId = lu.internetMessageId || d.internetMessageId;
+    if ((await deps.repo.dejaRanges(config.boite, [internetMessageId], { reellesSeulement: true })).size > 0) {
+      throw new Refus("Ce mail a déjà été rangé : rien n'a été transféré.");
+    }
+
+    // (1) Le transfert. Une panne remonte telle quelle : rien n'est rangé.
+    const envoyer = transfertTriPart(config.boite);
+    const signatureHtml = (await getSignatureGestionnaire(g)) ?? undefined;
+    await transfererMail({
+      boite: config.boite,
+      internetMessageId,
+      a: d.a,
+      cc: d.cc,
+      corps: d.corps,
+      ...(signatureHtml ? { signatureHtml } : {}),
+      envoyer,
+    });
+    if (!envoyer) return { envoye: false };
+
+    // (2) Parti : le mail sort de la file.
+    const avertissements: string[] = [];
+    let range: ResultatRangement | null = null;
+    try {
+      range = await rangerMail(
+        {
+          messageId: d.messageId,
+          internetMessageId,
+          expediteur: d.expediteur,
+          objet: d.objet,
+          cible: { type: "transferes" },
+          suggestion: d.suggestion,
+        },
+        g.email ?? g.id,
+        deps,
+      );
+    } catch (e) {
+      const raison = messageUtilisateur(e, CTX_TRANSFERT);
+      // Déplacé mais journal non confirmé (« Le mail est rangé, mais… ») : la reprise s'en charge.
+      avertissements.push(
+        raison.startsWith("Le mail est rangé") ? `Mail transféré. ${raison}` : `Mail transféré, mais pas rangé : range-le à la main. (${raison})`,
+      );
+    }
+    oublierCompteur(config.boite);
+
+    // (3) La trace. Une note qui échoue ne doit pas faire croire que le transfert a échoué.
+    try {
+      await ajouterNoteMail(g, config.boite, internetMessageId, noteDeTransfert(d.a, d.cc, g.nomComplet || g.email || ""));
+    } catch (e) {
+      avertissements.push(`La trace « transféré à » n'a pas été notée sur le mail : ${messageUtilisateur(e, CTX_TRANSFERT)}`);
+    }
+
+    return {
+      envoye: true,
+      ...(range ? { journalId: range.journalId, dossierNom: range.dossierNom } : {}),
+      ...(avertissements.length ? { avertissement: avertissements.join(" ") } : {}),
+    };
+  });
 }
 
 // --- Pieces jointes : la liste (le contenu passe en flux par /tri-emails/pj, REA-421) ----
